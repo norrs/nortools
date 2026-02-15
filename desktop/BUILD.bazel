@@ -1,0 +1,451 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary", "kt_jvm_library")
+
+# Desktop library (Kotlin sources compiled to a JAR)
+kt_jvm_library(
+    name = "desktop_lib",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    resources = glob(["src/main/resources/**"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//web:web_lib",
+        "@maven//:build_krema_krema_core",
+    ],
+)
+
+# Desktop app — run via: bazelisk run //desktop:desktop
+kt_jvm_binary(
+    name = "desktop",
+    data = ["//frontend:build"],
+    jvm_flags = [
+        "--enable-native-access=ALL-UNNAMED",
+    ],
+    main_class = "no.norrs.nortools.desktop.KremaAppKt",
+    runtime_deps = [":desktop_lib"],
+)
+
+# Fat JAR (deploy jar) — all classes merged into a single JAR for native-image.
+# java_binary produces an implicit _deploy.jar output.
+# Build via: bazelisk build //desktop:desktop_jar_deploy.jar
+java_binary(
+    name = "desktop_jar",
+    main_class = "no.norrs.nortools.desktop.KremaAppKt",
+    runtime_deps = [
+        ":desktop_lib",
+        ":frontend_resources",
+    ],
+)
+
+# Package the built frontend into a resources JAR under web/ so it is merged into the deploy JAR
+genrule(
+    name = "frontend_resources_jar",
+    srcs = ["//frontend:build"],
+    outs = ["frontend-resources.jar"],
+    cmd = """
+        set -e
+        OUT=$$(realpath $(OUTS))
+        TMP=$$(mktemp -d)
+        mkdir -p "$$TMP/web"
+        SRC=$$(realpath $(location //frontend:build))
+        cp -R "$$SRC"/. "$$TMP/web/" || true
+        (cd "$$TMP" && jar cf "$$OUT" web)
+        rm -rf "$$TMP"
+    """,
+    message = "Packaging frontend build into a web/ resources JAR",
+    tags = [
+        "no-cache",
+        "no-remote",
+    ],
+)
+
+# Expose the resources JAR on the Java classpath so singlejar merges it into the deploy JAR
+java_import(
+    name = "frontend_resources",
+    jars = [":frontend-resources.jar"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "graal_configs",
+    srcs = [
+        "graal/resource-config.json",
+        "graal/reflect-config.json",
+        "graal/reachability-metadata.json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# =============================================================================
+# Native binary packaging targets
+# =============================================================================
+# These targets produce native executables using GraalVM native-image.
+# GraalVM native-image CANNOT cross-compile — each target must be built on
+# the corresponding platform (e.g. in a CI matrix build).
+#
+# Prerequisites:
+#   - GraalVM JDK 25 with native-image installed via mise:
+#       mise install java oracle-graalvm-25.0.1
+#   - Alternatively: set GRAALVM_HOME or have native-image on PATH
+#   - Linux: gcc, zlib-dev
+#   - macOS: Xcode command line tools
+#   - Windows: Visual Studio Build Tools
+#
+# native-image lookup order:
+#   1. $GRAALVM_HOME/bin/native-image
+#   2. native-image on PATH
+#   3. mise install path: ~/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image
+#
+# Usage:
+#   bazelisk build //desktop:native-linux-x64      # on Linux x86_64
+#   bazelisk build //desktop:native-macos-x64      # on macOS x86_64
+#   bazelisk build //desktop:native-macos-arm64    # on macOS ARM64
+#   bazelisk build //desktop:native-windows-x64    # on Windows x86_64
+#   bazelisk run   //desktop:run-native-linux-x64  # build and run Linux native binary
+# =============================================================================
+
+genrule(
+    name = "native-linux-x64",
+    srcs = [
+        ":desktop_jar_deploy.jar",
+        "//frontend:build",
+        ":graal_configs",
+    ],
+    outs = ["nortools-linux-x64.tar.gz"],
+    cmd = """
+        set -e
+        HOME=$${HOME:-$$(eval echo ~)}
+        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
+        OUTPUT=$$(realpath $(OUTS))
+
+        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
+            NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
+        elif command -v native-image >/dev/null 2>&1; then
+            NATIVE_IMAGE=$$(command -v native-image)
+        else
+            # Search mise install paths for GraalVM
+            NATIVE_IMAGE=""
+            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+                if [ -x "$$candidate" ]; then
+                    NATIVE_IMAGE="$$candidate"
+                fi
+            done
+            if [ -z "$$NATIVE_IMAGE" ]; then
+                echo "ERROR: native-image not found." >&2
+                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
+                exit 1
+            fi
+        fi
+
+        # Create GraalVM native-image configuration from checked-in files
+        WORKDIR=$$(mktemp -d)
+        mkdir -p "$$WORKDIR/config"
+        for f in $(locations :graal_configs); do
+            cp "$$f" "$$WORKDIR/config/"
+        done
+
+        # Run native-image using the deploy JAR, which already contains web/ resources
+        "$$NATIVE_IMAGE" \
+            -jar "$$DEPLOY_JAR" \
+            -o "$$WORKDIR/nortools" \
+            --enable-url-protocols=https \
+            --enable-native-access=ALL-UNNAMED \
+            -H:+UnlockExperimentalVMOptions \
+            -H:-CheckToolchain \
+            -Djava.awt.headless=true \
+            -H:ConfigurationFileDirectories="$$WORKDIR/config" \
+            --initialize-at-build-time=org.slf4j \
+            --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
+            -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
+            --no-fallback
+
+        # Extract native webview library from the deploy JAR
+        cd "$$WORKDIR"
+        jar xf "$$DEPLOY_JAR" native/linux/x86_64/libwebview.so 2>/dev/null || true
+        if [ -f native/linux/x86_64/libwebview.so ]; then
+            cp native/linux/x86_64/libwebview.so ./
+        fi
+        rm -rf native config
+
+        # Package into tar.gz
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.so 2>/dev/null || \
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        rm -rf "$$WORKDIR"
+    """,
+    message = "Building native Linux x86_64 binary with GraalVM native-image",
+    tags = [
+        "no-cache",
+        "no-remote",
+        "requires-native-image",
+    ],
+)
+
+genrule(
+    name = "native-macos-x64",
+    srcs = [
+        ":desktop_jar_deploy.jar",
+        "//frontend:build",
+        ":graal_configs",
+    ],
+    outs = ["nortools-macos-x64.tar.gz"],
+    cmd = """
+        set -e
+        HOME=$${HOME:-$$(eval echo ~)}
+        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
+        OUTPUT=$$(realpath $(OUTS))
+
+        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
+            NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
+        elif command -v native-image >/dev/null 2>&1; then
+            NATIVE_IMAGE=$$(command -v native-image)
+        else
+            # Search mise install paths for GraalVM
+            NATIVE_IMAGE=""
+            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+                if [ -x "$$candidate" ]; then
+                    NATIVE_IMAGE="$$candidate"
+                fi
+            done
+            if [ -z "$$NATIVE_IMAGE" ]; then
+                echo "ERROR: native-image not found." >&2
+                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
+                exit 1
+            fi
+        fi
+
+        # Create GraalVM native-image configuration from checked-in files
+        WORKDIR=$$(mktemp -d)
+        mkdir -p "$$WORKDIR/config"
+        for f in $(locations :graal_configs); do
+            cp "$$f" "$$WORKDIR/config/"
+        done
+
+        # Run native-image using the deploy JAR, which already contains web/ resources
+        "$$NATIVE_IMAGE" \
+            -jar "$$DEPLOY_JAR" \
+            -o "$$WORKDIR/nortools" \
+            --enable-url-protocols=https \
+            --enable-native-access=ALL-UNNAMED \
+            -H:+UnlockExperimentalVMOptions \
+            -H:-CheckToolchain \
+            -Djava.awt.headless=true \
+            -H:ConfigurationFileDirectories="$$WORKDIR/config" \
+            --initialize-at-build-time=org.slf4j \
+            --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
+            -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
+            --no-fallback
+
+        # Extract native webview library from the deploy JAR
+        cd "$$WORKDIR"
+        jar xf "$$DEPLOY_JAR" native/macos/x86_64/libwebview.dylib 2>/dev/null || true
+        if [ -f native/macos/x86_64/libwebview.dylib ]; then
+            cp native/macos/x86_64/libwebview.dylib ./
+        fi
+        rm -rf native config
+
+        # Package into tar.gz
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        rm -rf "$$WORKDIR"
+    """,
+    message = "Building native macOS x86_64 binary with GraalVM native-image",
+    tags = [
+        "manual",
+        "no-cache",
+        "no-remote",
+        "requires-native-image",
+    ],
+)
+
+genrule(
+    name = "native-macos-arm64",
+    srcs = [
+        ":desktop_jar_deploy.jar",
+        "//frontend:build",
+        ":graal_configs",
+    ],
+    outs = ["nortools-macos-arm64.tar.gz"],
+    cmd = """
+        set -e
+        HOME=$${HOME:-$$(eval echo ~)}
+        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
+        OUTPUT=$$(realpath $(OUTS))
+
+        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
+            NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
+        elif command -v native-image >/dev/null 2>&1; then
+            NATIVE_IMAGE=$$(command -v native-image)
+        else
+            # Search mise install paths for GraalVM
+            NATIVE_IMAGE=""
+            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+                if [ -x "$$candidate" ]; then
+                    NATIVE_IMAGE="$$candidate"
+                fi
+            done
+            if [ -z "$$NATIVE_IMAGE" ]; then
+                echo "ERROR: native-image not found." >&2
+                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
+                exit 1
+            fi
+        fi
+
+        # Create GraalVM native-image configuration from checked-in files
+        WORKDIR=$$(mktemp -d)
+        mkdir -p "$$WORKDIR/config"
+        for f in $(locations :graal_configs); do
+            cp "$$f" "$$WORKDIR/config/"
+        done
+
+        # Run native-image using the deploy JAR (with ARM64 cross-compile flags)
+        "$$NATIVE_IMAGE" \
+            -jar "$$DEPLOY_JAR" \
+            -o "$$WORKDIR/nortools" \
+            --enable-url-protocols=https \
+            --enable-native-access=ALL-UNNAMED \
+            -H:+UnlockExperimentalVMOptions \
+            -H:-CheckToolchain \
+            -Djava.awt.headless=true \
+            -H:CCompilerOption=-arch \
+            -H:CCompilerOption=arm64 \
+            -H:ConfigurationFileDirectories="$$WORKDIR/config" \
+            --initialize-at-build-time=org.slf4j \
+            --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
+            -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
+            --no-fallback
+
+        # Extract native webview library from the deploy JAR
+        cd "$$WORKDIR"
+        jar xf "$$DEPLOY_JAR" native/macos/aarch64/libwebview.dylib 2>/dev/null || true
+        if [ -f native/macos/aarch64/libwebview.dylib ]; then
+            cp native/macos/aarch64/libwebview.dylib ./
+        fi
+        rm -rf native config
+
+        # Package into tar.gz
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
+        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        rm -rf "$$WORKDIR"
+    """,
+    message = "Building native macOS ARM64 binary with GraalVM native-image",
+    tags = [
+        "manual",
+        "no-cache",
+        "no-remote",
+        "requires-native-image",
+    ],
+)
+
+genrule(
+    name = "native-windows-x64",
+    srcs = [
+        ":desktop_jar_deploy.jar",
+        "//frontend:build",
+        ":graal_configs",
+    ],
+    outs = ["nortools-windows-x64.zip"],
+    cmd = """
+        set -e
+        HOME=$${HOME:-$$(eval echo ~)}
+        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
+        OUTPUT=$$(realpath $(OUTS))
+
+        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
+            NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
+        elif command -v native-image >/dev/null 2>&1; then
+            NATIVE_IMAGE=$$(command -v native-image)
+        else
+            # Search mise install paths for GraalVM
+            NATIVE_IMAGE=""
+            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+                if [ -x "$$candidate" ]; then
+                    NATIVE_IMAGE="$$candidate"
+                fi
+            done
+            if [ -z "$$NATIVE_IMAGE" ]; then
+                echo "ERROR: native-image not found." >&2
+                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
+                exit 1
+            fi
+        fi
+
+        # Create GraalVM native-image configuration from checked-in files
+        WORKDIR=$$(mktemp -d)
+        mkdir -p "$$WORKDIR/config"
+        for f in $(locations :graal_configs); do
+            cp "$$f" "$$WORKDIR/config/"
+        done
+
+        # Run native-image using the deploy JAR, which already contains web/ resources
+        "$$NATIVE_IMAGE" \
+            -jar "$$DEPLOY_JAR" \
+            -o "$$WORKDIR/nortools" \
+            --enable-url-protocols=https \
+            --enable-native-access=ALL-UNNAMED \
+            -H:+UnlockExperimentalVMOptions \
+            -H:-CheckToolchain \
+            -Djava.awt.headless=true \
+            -H:ConfigurationFileDirectories="$$WORKDIR/config" \
+            --initialize-at-build-time=org.slf4j \
+            --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
+            -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
+            --no-fallback
+
+        # Extract native webview libraries from the deploy JAR
+        cd "$$WORKDIR"
+        jar xf "$$DEPLOY_JAR" native/windows/x86_64/webview.dll native/windows/x86_64/libwinpthread-1.dll 2>/dev/null || true
+        if [ -f native/windows/x86_64/webview.dll ]; then
+            cp native/windows/x86_64/webview.dll ./
+        fi
+        if [ -f native/windows/x86_64/libwinpthread-1.dll ]; then
+            cp native/windows/x86_64/libwinpthread-1.dll ./
+        fi
+        rm -rf native config
+
+        # Package into zip (Windows convention)
+        cd "$$WORKDIR"
+        zip -j "$$OUTPUT" nortools.exe webview.dll libwinpthread-1.dll 2>/dev/null || \
+        zip -j "$$OUTPUT" nortools.exe
+        rm -rf "$$WORKDIR"
+    """,
+    message = "Building native Windows x86_64 binary with GraalVM native-image",
+    tags = [
+        "manual",
+        "no-cache",
+        "no-remote",
+        "requires-native-image",
+    ],
+)
+
+# Convenience runner: builds //desktop:native-linux-x64, extracts, and runs it
+sh_binary(
+   name = "run-native-linux-x64",
+       srcs = ["run_native_linux_x64.sh"],
+       data = [":native-linux-x64"],
+       args = ["$(location :native-linux-x64)"],
+)
+
+# Manual smoke test: builds the native linux tarball, runs the binary, and asserts /api/dns/A/nrk.no responds.
+# Run it locally on Linux with:
+#   bazelisk test //desktop:native-linux-api-smoke --test_arg="$(bazelisk cquery --output=files //desktop:native-linux-x64)"
+# Or simply:
+#   bazelisk test //desktop:native-linux-api-smoke
+sh_test(
+    name = "native-linux-api-smoke",
+    srcs = ["test_native_linux_smoke.sh"],
+    data = [":native-linux-x64"],
+    args = ["$(location :native-linux-x64)"],
+    timeout = "moderate",
+    tags = [
+        "manual",            # do not run in CI by default
+        "local",             # prefer local execution
+        "no-remote",         # do not attempt remote execution
+        "requires-native-image",  # environment must have GraalVM native-image to build the tarball
+    ],
+)

@@ -1,0 +1,13 @@
+{
+    "private": true,
+    "pnpm": {
+        "packageExtensions": {
+            "@vitejs/plugin-vue": {
+                "peerDependencies": {
+                    "vue": "*"
+                }
+            }
+        }
+    }
+}
+

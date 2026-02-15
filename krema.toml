@@ -1,0 +1,27 @@
+[package]
+name = "nortools"
+version = "0.1.0"
+identifier = "no.norrs.nortools"
+description = "Network and DNS tools desktop application"
+
+[window]
+title = "NorTools"
+width = 1200
+height = 800
+min_width = 900
+min_height = 600
+resizable = true
+fullscreen = false
+decorations = true
+
+[build]
+frontend_command = "bazelisk build //frontend:build"
+frontend_dev_command = "cd frontend && npx vite dev"
+frontend_dev_url = "http://localhost:5173"
+out_dir = "frontend/dist"
+main_class = "no.norrs.nortools.desktop.KremaAppKt"
+assets_path = "web"
+
+[permissions]
+allow = []
+

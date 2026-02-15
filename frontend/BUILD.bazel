@@ -1,0 +1,35 @@
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//frontend:vite/package_json.bzl", vite_bin = "bin")
+
+# Link all npm packages for this workspace package
+npm_link_all_packages(name = "node_modules")
+
+SRCS = [
+    "env.d.ts",
+    "index.html",
+    "package.json",
+    "vite.config.ts",
+    "tsconfig.json",
+    "tsconfig.config.json",
+    "//frontend/src",
+]
+
+BUILD_DEPS = [":node_modules/" + d for d in [
+    "@types/leaflet",
+    "@vitejs/plugin-vue",
+    "@vue/tsconfig",
+    "leaflet",
+    "typescript",
+    "vite",
+    "vue",
+    "vue-router",
+]]
+
+vite_bin.vite(
+    name = "build",
+    srcs = SRCS + BUILD_DEPS,
+    args = ["build"],
+    chdir = package_name(),
+    out_dirs = ["dist"],
+    visibility = ["//visibility:public"],
+)

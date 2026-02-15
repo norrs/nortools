@@ -1,0 +1,31 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary", "kt_jvm_test")
+
+kt_jvm_binary(
+    name = "email-extract",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    main_class = "no.norrs.nortools.tools.util.emailextract.EmailExtractKt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cli",
+        "//lib/output",
+        "@maven//:com_github_ajalt_clikt_clikt_jvm",
+    ],
+)
+
+kt_jvm_test(
+    name = "email-extract_test",
+    srcs = glob(["src/test/kotlin/**/*.kt"]),
+    args = [
+        "--select-class=no.norrs.nortools.tools.util.emailextract.EmailExtractTest",
+        "--disable-banner",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "no.norrs.nortools.tools.util.emailextract.EmailExtractTest",
+    deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+)

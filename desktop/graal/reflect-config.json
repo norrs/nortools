@@ -1,0 +1,26 @@
+[
+  {"name": "java.lang.Byte",    "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Short",   "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Integer", "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Long",    "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Float",   "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Double",  "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Boolean", "methods": [{"name": "valueOf", "parameterTypes": ["java.lang.String"]}]},
+  {"name": "java.lang.Character", "methods": [{"name": "valueOf", "parameterTypes": ["char"]}]},
+  {"name": "org.eclipse.jetty.server.HttpConnectionFactory", "methods": [{"name": "<init>", "parameterTypes": []}]},
+  {"name": "[Lorg.eclipse.jetty.servlet.ServletMapping;", "allPublicMethods": true, "allPublicConstructors": true},
+  {"name": "[Lorg.eclipse.jetty.servlet.FilterMapping;", "allPublicMethods": true, "allPublicConstructors": true},
+  {"name": "org.slf4j.simple.SimpleServiceProvider", "methods": [{"name": "<init>", "parameterTypes": []}]},
+
+  {"name": "org.xbill.DNS.DNSKEYRecord",      "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+  {"name": "org.xbill.DNS.RRSIGRecord",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+  {"name": "org.xbill.DNS.DSRecord",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+  {"name": "org.xbill.DNS.NSRecord",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+  {"name": "org.xbill.DNS.SOARecord",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+  {"name": "org.xbill.DNS.NSEC3PARAMRecord",  "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true},
+
+  {"name": "no.norrs.nortools.lib.dns.DnsLookupResult",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.lib.dns.DnsRecord",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.lib.network.TcpResult",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.lib.network.HttpResult",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true}
+]

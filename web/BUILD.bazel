@@ -1,0 +1,24 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "web_lib",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/dns",
+        "//lib/network",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven//:com_fasterxml_jackson_module_jackson_module_kotlin",
+        "@maven//:com_google_code_gson_gson",  # kept temporarily to avoid breaking other files that still reference Gson
+        "@maven//:dnsjava_dnsjava",
+        "@maven//:io_javalin_javalin",
+        "@maven//:org_slf4j_slf4j_simple",
+    ],
+)
+
+kt_jvm_binary(
+    name = "web",
+    data = ["//frontend:build"],
+    main_class = "no.norrs.nortools.web.WebPortalKt",
+    runtime_deps = [":web_lib"],
+)

@@ -1,0 +1,12 @@
+# Java toolchain settings
+build --java_language_version=25
+build --java_runtime_version=remotejdk_25
+build --tool_java_language_version=25
+build --tool_java_runtime_version=remotejdk_25
+
+# Better error output
+build --verbose_failures
+test --test_output=errors
+
+# Stamp builds with workspace status
+build --workspace_status_command="echo STABLE_GIT_COMMIT $(git rev-parse HEAD 2>/dev/null || echo unknown)"

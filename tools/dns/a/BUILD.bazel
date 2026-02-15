@@ -1,0 +1,14 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+
+kt_jvm_binary(
+    name = "a",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    main_class = "no.norrs.nortools.tools.dns.a.ALookupKt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cli",
+        "//lib/dns",
+        "//lib/output",
+        "@maven//:com_github_ajalt_clikt_clikt_jvm",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "cli",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/dns",
+        "//lib/output",
+        "@maven//:com_github_ajalt_clikt_clikt_jvm",
+    ],
+)

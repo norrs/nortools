@@ -1,0 +1,13 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+
+kt_jvm_binary(
+    name = "ping",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    main_class = "no.norrs.nortools.tools.network.ping.PingToolKt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cli",
+        "//lib/output",
+        "@maven//:com_github_ajalt_clikt_clikt_jvm",
+    ],
+)

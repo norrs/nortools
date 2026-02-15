@@ -1,0 +1,29 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
+
+kt_jvm_library(
+    name = "output",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven//:com_google_code_gson_gson",
+    ],
+)
+
+kt_jvm_test(
+    name = "output_test",
+    srcs = glob(["src/test/kotlin/**/*.kt"]),
+    args = [
+        "--select-class=no.norrs.nortools.lib.output.OutputFormatterTest",
+        "--disable-banner",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "no.norrs.nortools.lib.output.OutputFormatterTest",
+    deps = [
+        ":output",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+)

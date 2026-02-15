@@ -1,0 +1,10 @@
+{
+  "resources": {
+    "includes": [
+      {"pattern": "web/.*"},
+      {"pattern": "native/.*"},
+      {"pattern": "META-INF/services/.*"},
+      {"pattern": "krema-errors.js"}
+    ]
+  }
+}
