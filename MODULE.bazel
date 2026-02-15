@@ -40,6 +40,8 @@ maven.install(
         "org.junit.jupiter:junit-jupiter-params:5.11.4",
         "org.junit.platform:junit-platform-console-standalone:1.11.4",
     ],
+    # Avoid pulling Android rules on Windows; no AAR deps are used here.
+    aar_import_bzl_label = "@@//:aar_import_stub.bzl",
     # Suppress warning about rules_kotlin contributing to this maven repo
     known_contributing_modules = ["bazel_worker_java"],
     repositories = [

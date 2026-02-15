@@ -10,3 +10,14 @@ test --test_output=errors
 
 # Stamp builds with workspace status
 build --workspace_status_command="echo STABLE_GIT_COMMIT $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
+# Windows needs a populated runfiles tree for Kotlin workers.
+build --enable_runfiles
+# Keep legacy external runfiles layout for rules_kotlin runfiles resolution on Windows.
+build --legacy_external_runfiles
+
+# Ensure Bazel C++ toolchain detection can find VS Build Tools on Windows.
+build --repo_env=BAZEL_VS=C:/PROGRA~2/MICROS~3/2022/BUILDT~1
+build --repo_env=BAZEL_VC=C:/PROGRA~2/MICROS~3/2022/BUILDT~1/VC
+build --repo_env=BAZEL_WINSDK=C:/PROGRA~2/WI3CF2~1/10
+build --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.26100.0

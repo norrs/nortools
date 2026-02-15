@@ -1,5 +1,16 @@
 load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary", "kt_jvm_library")
 
+cc_binary(
+    name = "windows_gui_launcher",
+    srcs = ["windows_gui_launcher.cc"],
+    linkopts = [
+        "/SUBSYSTEM:WINDOWS",
+        "user32.lib",
+        "shell32.lib",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 # Desktop library (Kotlin sources compiled to a JAR)
 kt_jvm_library(
     name = "desktop_lib",
@@ -98,6 +109,9 @@ genrule(
         cp -R "$$SRC"/. "$$TMP/web/" || true
         (cd "$$TMP" && jar cf "$$OUT" web)
         rm -rf "$$TMP"
+    """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference='Stop'; $$out='$(OUTS)'; $$src=(Resolve-Path '$(location //frontend:build)').Path; $$tmp=Join-Path $$env:TEMP ('nortools-front-' + [guid]::NewGuid().ToString()); New-Item -ItemType Directory -Path (Join-Path $$tmp 'web') -Force | Out-Null; Copy-Item -Path (Join-Path $$src '*') -Destination (Join-Path $$tmp 'web') -Recurse -Force; if (Test-Path $$out) { Remove-Item $$out -Force }; & jar cf $$out -C $$tmp web; if ($$LASTEXITCODE -ne 0) { throw ('jar failed with exit code ' + $$LASTEXITCODE) }; Remove-Item $$tmp -Recurse -Force"
     """,
     message = "Packaging frontend build into a web/ resources JAR",
     tags = [
@@ -396,6 +410,8 @@ genrule(
         ":desktop_jar_deploy.jar",
         "//frontend:build",
         ":graal_configs",
+        "build_native_windows.ps1",
+        ":windows_gui_launcher",
     ],
     outs = ["nortools-windows-x64.zip"],
     cmd = """
@@ -464,6 +480,9 @@ genrule(
         zip -j "$$OUTPUT" nortools.exe
         rm -rf "$$WORKDIR"
     """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)"
+    """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [
         "manual",
@@ -476,9 +495,23 @@ genrule(
 # Convenience runner: builds //desktop:native-linux-x64, extracts, and runs it
 sh_binary(
    name = "run-native-linux-x64",
-       srcs = ["run_native_linux_x64.sh"],
-       data = [":native-linux-x64"],
-       args = ["$(location :native-linux-x64)"],
+        srcs = ["run_native_linux_x64.sh"],
+        data = [":native-linux-x64"],
+        args = ["$(location :native-linux-x64)"],
+)
+
+# Convenience runner: builds //desktop:native-windows-x64, extracts, and runs it
+sh_binary(
+   name = "run-native-windows-x64",
+        srcs = ["run_native_windows_x64.sh"],
+        data = [
+            ":native-windows-x64",
+            "run_native_windows_x64.ps1",
+        ],
+        args = [
+            "$(location :native-windows-x64)",
+            "$(location run_native_windows_x64.ps1)",
+        ],
 )
 
 # Manual smoke test: builds the native linux tarball, runs the binary, and asserts /api/dns/A/nrk.no responds.

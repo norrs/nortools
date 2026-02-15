@@ -1,8 +1,10 @@
+# Linux-only shell wrappers; no Windows equivalents yet.
 package(default_visibility = ["//visibility:public"])
 
 sh_binary(
     name = "native_cli_a",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "a", "--json", "example.com"],
 )
@@ -10,6 +12,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_aaaa",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "aaaa", "--json", "example.com"],
 )
@@ -17,6 +20,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_arin",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "arin", "--json", "8.8.8.8"],
 )
@@ -24,6 +28,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_asn",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "asn", "--json", "AS13335"],
 )
@@ -31,6 +36,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_bimi",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "bimi", "--json", "google.com"],
 )
@@ -38,6 +44,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_blacklist",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "blacklist", "--json", "8.8.8.8"],
 )
@@ -45,6 +52,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_blocklist",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "blocklist", "--json", "example.com"],
 )
@@ -52,6 +60,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_bulk",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64", "samples/domains.txt"],
     args = ["$(location //desktop:native-linux-x64)", "bulk", "--json", "$(rootpath samples/domains.txt)", "--type", "A"],
 )
@@ -59,6 +68,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_cert",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "cert", "--json", "example.com"],
 )
@@ -66,6 +76,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_cname",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "cname", "--json", "www.google.com"],
 )
@@ -73,6 +84,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_compliance",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "compliance", "--json", "example.com"],
 )
@@ -80,6 +92,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dkim_discover",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dkim", "--json", "--discover", "nrk.no"],
 )
@@ -87,6 +100,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dkim_selector",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dkim", "--json", "20230601", "google.com"],
 )
@@ -94,6 +108,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dmarc",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dmarc", "--json", "google.com"],
 )
@@ -101,6 +116,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dmarc_generator",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dmarc-generator", "--json", "example.com", "--policy", "none"],
 )
@@ -108,6 +124,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dmarc_report",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64", "samples/dmarc_report.xml"],
     args = ["$(location //desktop:native-linux-x64)", "dmarc-report", "--json", "$(rootpath samples/dmarc_report.xml)"],
 )
@@ -115,6 +132,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dns_health",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dns-health", "--json", "example.com"],
 )
@@ -122,6 +140,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dns_propagation",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dns-propagation", "--json", "example.com"],
 )
@@ -129,6 +148,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_dnskey",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "dnskey", "--json", "cloudflare.com"],
 )
@@ -136,6 +156,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_domain_health",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "domain-health", "--json", "example.com"],
 )
@@ -143,6 +164,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_ds",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "ds", "--json", "cloudflare.com"],
 )
@@ -150,6 +172,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_email_extract",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64", "samples/emails.txt"],
     args = ["$(location //desktop:native-linux-x64)", "email-extract", "--json", "$(rootpath samples/emails.txt)"],
 )
@@ -157,6 +180,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_deliverability",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "deliverability", "--json", "example.com"],
 )
@@ -164,6 +188,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_header_analyzer",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64", "samples/headers.txt"],
     args = ["$(location //desktop:native-linux-x64)", "header-analyzer", "--json", "$(rootpath samples/headers.txt)"],
 )
@@ -171,6 +196,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_http",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "http", "--json", "http://example.com"],
 )
@@ -178,6 +204,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_https",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "https", "--json", "example.com"],
 )
@@ -185,6 +212,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_ipseckey",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "ipseckey", "--json", "example.com"],
 )
@@ -192,6 +220,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_loc",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "loc", "--json", "example.com"],
 )
@@ -199,6 +228,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_mailflow",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "mailflow", "--json", "example.com"],
 )
@@ -206,6 +236,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_mta_sts",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "mta-sts", "--json", "google.com"],
 )
@@ -213,6 +244,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_mx",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "mx", "--json", "gmail.com"],
 )
@@ -220,6 +252,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_nsec",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "nsec", "--json", "cloudflare.com"],
 )
@@ -227,6 +260,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_nsec3param",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "nsec3param", "--json", "cloudflare.com"],
 )
@@ -234,6 +268,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_ns",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "ns", "--json", "example.com"],
 )
@@ -241,6 +276,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_password_gen",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "password-gen", "--json", "--length", "12", "--count", "2"],
 )
@@ -248,6 +284,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_ping",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "ping", "--json", "--count", "2", "example.com"],
 )
@@ -255,6 +292,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_ptr",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "ptr", "--json", "8.8.8.8"],
 )
@@ -262,6 +300,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_rrsig",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "rrsig", "--json", "cloudflare.com"],
 )
@@ -269,6 +308,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_smtp",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "smtp", "--json", "gmail.com"],
 )
@@ -276,6 +316,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_soa",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "soa", "--json", "example.com"],
 )
@@ -283,6 +324,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_spf",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "spf", "--json", "google.com"],
 )
@@ -290,6 +332,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_spf_generator",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = [
         "$(location //desktop:native-linux-x64)",
@@ -304,6 +347,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_srv",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "srv", "--json", "_sip._tcp.google.com"],
 )
@@ -311,6 +355,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_subnet_calc",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "subnet-calc", "--json", "192.168.1.0/24"],
 )
@@ -318,6 +363,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_tcp",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "tcp", "--json", "example.com", "443"],
 )
@@ -325,6 +371,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_tlsrpt",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "tlsrpt", "--json", "google.com"],
 )
@@ -332,6 +379,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_trace",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "trace", "--json", "example.com"],
 )
@@ -339,6 +387,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_txt",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "txt", "--json", "google.com"],
 )
@@ -346,6 +395,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_whatismyip",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "whatismyip", "--json"],
 )
@@ -353,6 +403,7 @@ sh_binary(
 sh_binary(
     name = "native_cli_whois",
     srcs = ["run_native_cli.sh"],
+    target_compatible_with = ["@platforms//os:linux"],
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "whois", "--json", "example.com"],
 )

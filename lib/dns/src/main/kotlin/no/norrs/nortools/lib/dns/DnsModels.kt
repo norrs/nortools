@@ -19,4 +19,5 @@ data class DnsLookupResult(
     val status: String,
     val records: List<DnsRecord>,
     val isSuccessful: Boolean,
+    val resolvers: List<String> = emptyList(),
 )

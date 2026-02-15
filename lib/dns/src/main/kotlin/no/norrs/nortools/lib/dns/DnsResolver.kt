@@ -2,6 +2,7 @@ package no.norrs.nortools.lib.dns
 
 import org.xbill.DNS.*
 import java.net.InetAddress
+import java.net.UnknownHostException
 import java.time.Duration
 
 /**
@@ -12,41 +13,92 @@ class DnsResolver(
     private val server: String? = null,
     private val timeout: Duration = Duration.ofSeconds(10),
 ) {
-    private val resolver: Resolver by lazy {
+    private val configuredResolvers: List<String> =
         if (server != null) {
-            SimpleResolver(server).apply {
-                setTimeout(timeout)
-            }
+            listOf(server)
         } else {
-            ExtendedResolver().apply {
-                setTimeout(timeout)
+            systemNameServers().ifEmpty { listOf("1.1.1.1", "8.8.8.8") }
+        }
+
+    private val resolver: Resolver by lazy {
+        buildResolver(dnssec = false)
+    }
+
+    private fun buildResolver(dnssec: Boolean): Resolver {
+        val r = if (server != null) {
+            createSimpleResolver(server)
+        } else {
+            val resolvers = configuredResolvers.mapNotNull { ns ->
+                try {
+                    createSimpleResolver(ns)
+                } catch (_: UnknownHostException) {
+                    null
+                }
+            }
+            when {
+                resolvers.isEmpty() -> createSimpleResolver("1.1.1.1")
+                resolvers.size == 1 -> resolvers[0]
+                else -> ExtendedResolver(resolvers.toTypedArray()).apply { setTimeout(timeout) }
             }
         }
+
+        if (dnssec) {
+            r.setEDNS(0, 4096, ExtendedFlags.DO, emptyList())
+        }
+        return r
     }
+
+    private fun createSimpleResolver(host: String): SimpleResolver =
+        SimpleResolver(host).apply { setTimeout(timeout) }
+
+    private fun systemNameServers(): List<String> =
+        try {
+            ResolverConfig.getCurrentConfig()
+                .servers()
+                .mapNotNull { it.address?.hostAddress }
+                .distinct()
+        } catch (_: Throwable) {
+            emptyList()
+        }
 
     /**
      * Perform a DNS lookup for the given name and record type.
      * Returns a list of DnsRecord results.
      */
     fun lookup(name: String, type: Int): DnsLookupResult {
-        val lookup = Lookup(name, type)
-        lookup.setResolver(resolver)
-        lookup.run()
+        return try {
+            val dnsName = if (name.endsWith(".")) Name.fromString(name) else Name.fromString("$name.")
+            val record = Record.newRecord(dnsName, type, DClass.IN)
+            val query = Message.newQuery(record)
+            val response = resolver.send(query)
+            val answers = response.getSection(Section.ANSWER)
+            val rcode = response.header.rcode
 
-        return DnsLookupResult(
-            name = name,
-            type = Type.string(type),
-            status = Rcode.string(lookup.result),
-            records = lookup.answers?.map { record ->
-                DnsRecord(
-                    name = record.name.toString(),
-                    type = Type.string(record.type),
-                    ttl = record.ttl,
-                    data = formatRecord(record),
-                )
-            } ?: emptyList(),
-            isSuccessful = lookup.result == Lookup.SUCCESSFUL,
-        )
+            DnsLookupResult(
+                name = name,
+                type = Type.string(type),
+                status = Rcode.string(rcode),
+                records = answers.map { rec ->
+                    DnsRecord(
+                        name = rec.name.toString(),
+                        type = Type.string(rec.type),
+                        ttl = rec.ttl,
+                        data = formatRecord(rec),
+                    )
+                },
+                isSuccessful = rcode == Rcode.NOERROR && answers.isNotEmpty(),
+                resolvers = configuredResolvers,
+            )
+        } catch (e: Exception) {
+            DnsLookupResult(
+                name = name,
+                type = Type.string(type),
+                status = "ERROR: ${e.message}",
+                records = emptyList(),
+                isSuccessful = false,
+                resolvers = configuredResolvers,
+            )
+        }
     }
 
     /**
@@ -91,18 +143,7 @@ class DnsResolver(
         val query = Message.newQuery(record)
         // Set the AD (Authenticated Data) flag
         query.header.setFlag(Flags.AD.toInt())
-        // Use a dedicated resolver with EDNS + DO bit for DNSSEC
-        val dnssecResolver = if (server != null) {
-            SimpleResolver(server).apply {
-                setTimeout(timeout)
-                setEDNS(0, 4096, ExtendedFlags.DO, emptyList())
-            }
-        } else {
-            ExtendedResolver().apply {
-                setTimeout(timeout)
-                setEDNS(0, 4096, ExtendedFlags.DO, emptyList())
-            }
-        }
+        val dnssecResolver = buildResolver(dnssec = true)
         return dnssecResolver.send(query)
     }
 
@@ -131,6 +172,7 @@ class DnsResolver(
                         )
                     },
                 isSuccessful = rcode == Rcode.NOERROR && answers.any { it.type == type },
+                resolvers = configuredResolvers,
             )
         } catch (e: Exception) {
             DnsLookupResult(
@@ -139,6 +181,7 @@ class DnsResolver(
                 status = "ERROR: ${e.message}",
                 records = emptyList(),
                 isSuccessful = false,
+                resolvers = configuredResolvers,
             )
         }
     }

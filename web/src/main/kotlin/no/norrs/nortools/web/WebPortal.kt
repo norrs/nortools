@@ -81,13 +81,13 @@ fun startServer(
 
                 // Static assets and index.html are under web/ on the classpath
                 cfg.staticFiles.add { static ->
-                    static.directory = "/web"
+                    static.directory = "web"
                     static.location = Location.CLASSPATH
                 }
 
                 cfg.spaRoot.addFile(
                     "/",
-                    "/web/index.html"
+                    "web/index.html"
                 )
             }
         }

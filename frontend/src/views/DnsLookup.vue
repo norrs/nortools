@@ -4,9 +4,23 @@ import { dnsLookup } from '../api/client';
 import CliCopy from '../components/CliCopy.vue';
 import { buildCli } from '../utils/cli';
 
+interface DnsLookupResult {
+  name: string;
+  type: string;
+  status: string;
+  records: Array<{
+    name: string;
+    type: string;
+    ttl: number;
+    data: string;
+  }>;
+  isSuccessful: boolean;
+  resolvers?: string[];
+}
+
 const domain = ref('');
 const recordType = ref('A');
-const result = ref<unknown>(null);
+const result = ref<DnsLookupResult | null>(null);
 const error = ref('');
 const loading = ref(false);
 
@@ -47,6 +61,10 @@ async function lookup() {
       </button>
     </form>
     <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="result?.resolvers?.length" class="resolver-info">
+      Resolver{{ result.resolvers.length > 1 ? 's' : '' }}:
+      <strong>{{ result.resolvers.join(', ') }}</strong>
+    </div>
     <pre v-if="result" class="result">{{ JSON.stringify(result, null, 2) }}</pre>
     <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
@@ -62,5 +80,6 @@ h2 { margin-bottom: 1rem; }
 .btn:hover { background: #2a2a4e; }
 .btn:disabled { opacity: 0.6; }
 .error { color: #d32f2f; margin-bottom: 1rem; }
+.resolver-info { margin-bottom: 0.75rem; color: #334155; font-size: 0.9rem; }
 .result { background: white; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>
