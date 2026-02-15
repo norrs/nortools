@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { dnsLookup } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 const domain = ref('');
 const recordType = ref('A');
@@ -9,6 +11,13 @@ const error = ref('');
 const loading = ref(false);
 
 const recordTypes = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA', 'PTR', 'SRV', 'CAA'];
+const cliCommand = computed(() => buildCli([
+  'nortools',
+  recordType.value.toLowerCase(),
+  '--json',
+  domain.value,
+]));
+const cliDisabled = computed(() => !domain.value);
 
 async function lookup() {
   if (!domain.value) return;
@@ -39,6 +48,7 @@ async function lookup() {
     </form>
     <div v-if="error" class="error">{{ error }}</div>
     <pre v-if="result" class="result">{{ JSON.stringify(result, null, 2) }}</pre>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 
@@ -54,4 +64,3 @@ h2 { margin-bottom: 1rem; }
 .error { color: #d32f2f; margin-bottom: 1rem; }
 .result { background: white; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>
-

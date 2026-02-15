@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feedback>
+  <report_metadata>
+    <org_name>Example Org</org_name>
+    <email>postmaster@example.com</email>
+    <report_id>test-report-001</report_id>
+    <date_range>
+      <begin>1704067200</begin>
+      <end>1704153600</end>
+    </date_range>
+  </report_metadata>
+  <record>
+    <row>
+      <source_ip>203.0.113.10</source_ip>
+      <count>1</count>
+      <policy_evaluated>
+        <disposition>none</disposition>
+        <dkim>pass</dkim>
+        <spf>pass</spf>
+      </policy_evaluated>
+    </row>
+  </record>
+</feedback>

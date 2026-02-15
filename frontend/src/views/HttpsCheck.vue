@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { httpsCheck } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 interface SslInfo {
   protocol: string;
@@ -48,6 +50,8 @@ const error = ref('');
 const loading = ref(false);
 const activeTab = ref<'chain' | 'details' | 'json'>('chain');
 const selectedCertIndex = ref<number | null>(null);
+const cliCommand = computed(() => buildCli(['nortools', 'https', '--json', host.value]));
+const cliDisabled = computed(() => !host.value);
 
 const chain = computed(() => result.value?.certificateChain ?? []);
 const hasChain = computed(() => chain.value.length > 0);
@@ -196,6 +200,7 @@ function statusColor(expired: boolean): string {
         <pre class="result">{{ JSON.stringify(result, null, 2) }}</pre>
       </div>
     </div>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 

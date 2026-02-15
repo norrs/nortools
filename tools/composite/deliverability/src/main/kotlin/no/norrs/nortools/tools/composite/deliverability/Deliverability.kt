@@ -109,17 +109,25 @@ class DeliverabilityCommand : BaseCommand(
         // Reverse DNS for MX hosts
         if (mxResult.records.isNotEmpty()) {
             val mxHost = mxResult.records.first().data.split(" ").last().trimEnd('.')
-            val mxA = resolver.lookup(mxHost, Type.A)
-            if (mxA.records.isNotEmpty()) {
-                val ip = mxA.records.first().data
-                val ptr = resolver.reverseLookup(ip)
+            if (mxHost.isBlank()) {
                 checks.add(mapOf(
                     "Check" to "Reverse DNS (PTR)",
-                    "Status" to if (ptr.isSuccessful && ptr.records.isNotEmpty()) "PASS" else "WARN",
-                    "Details" to if (ptr.records.isNotEmpty())
-                        "$ip → ${ptr.records.first().data}"
-                    else "$ip — No PTR record",
+                    "Status" to "INFO",
+                    "Details" to "MX target is '.' (null MX) — skipping PTR lookup",
                 ))
+            } else {
+                val mxA = resolver.lookup(mxHost, Type.A)
+                if (mxA.records.isNotEmpty()) {
+                    val ip = mxA.records.first().data
+                    val ptr = resolver.reverseLookup(ip)
+                    checks.add(mapOf(
+                        "Check" to "Reverse DNS (PTR)",
+                        "Status" to if (ptr.isSuccessful && ptr.records.isNotEmpty()) "PASS" else "WARN",
+                        "Details" to if (ptr.records.isNotEmpty())
+                            "$ip → ${ptr.records.first().data}"
+                        else "$ip — No PTR record",
+                    ))
+                }
             }
         }
 

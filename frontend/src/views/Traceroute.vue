@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount } from 'vue';
+import { computed, ref, nextTick, onBeforeUnmount } from 'vue';
 import { traceroute } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -21,6 +23,8 @@ const error = ref('');
 const loading = ref(false);
 const activeTab = ref<'diagram' | 'map' | 'json'>('diagram');
 let mapInstance: L.Map | null = null;
+const cliCommand = computed(() => buildCli(['nortools', 'trace', '--json', host.value]));
+const cliDisabled = computed(() => !host.value);
 
 function latencyColor(ms: number | null): string {
   if (ms == null) return '#64748b';
@@ -166,6 +170,7 @@ onBeforeUnmount(() => { if (mapInstance) { mapInstance.remove(); mapInstance = n
         <pre class="json-pre">{{ JSON.stringify(result, null, 2) }}</pre>
       </div>
     </div>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 

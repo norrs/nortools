@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { dnssecChain } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 interface DnskeyInfo {
   keyTag: number; algorithm: number; algorithmName: string;
@@ -36,6 +38,8 @@ const error = ref('');
 const loading = ref(false);
 const activeTab = ref<'chain' | 'details' | 'json'>('chain');
 const selectedZone = ref<string | null>(null);
+const cliCommand = computed(() => buildCli(['nortools', 'dnssec-chain', '--json', domain.value]));
+const cliDisabled = computed(() => !domain.value);
 
 async function lookup() {
   if (!domain.value) return;
@@ -250,6 +254,7 @@ function selectZone(zone: string) {
         <pre class="json-pre">{{ JSON.stringify(result, null, 2) }}</pre>
       </div>
     </div>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 

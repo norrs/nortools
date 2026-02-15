@@ -125,7 +125,11 @@ class DkimLookupCommand : BaseCommand(
         val result = resolver.lookup(dkimDomain, Type.TXT)
 
         if (!result.isSuccessful) {
-            echo("DKIM lookup failed for $dkimDomain: ${result.status}")
+            if (jsonOutput) {
+                echo(formatter.formatDetail(mapOf("Error" to "DKIM lookup failed for $dkimDomain: ${result.status}")))
+            } else {
+                echo("DKIM lookup failed for $dkimDomain: ${result.status}")
+            }
             return
         }
 
@@ -134,7 +138,11 @@ class DkimLookupCommand : BaseCommand(
         }
 
         if (dkimRecords.isEmpty()) {
-            echo("No DKIM records found for selector '$sel' at $dkimDomain")
+            if (jsonOutput) {
+                echo(formatter.formatDetail(mapOf("Error" to "No DKIM records found for selector '$sel' at $dkimDomain")))
+            } else {
+                echo("No DKIM records found for selector '$sel' at $dkimDomain")
+            }
             return
         }
 
@@ -163,8 +171,10 @@ class DkimLookupCommand : BaseCommand(
         val formatter = createFormatter()
         val found = mutableListOf<Map<String, Any?>>()
 
-        echo("Discovering DKIM selectors for $domain (probing ${COMMON_DKIM_SELECTORS.size} common selectors)...")
-        echo()
+        if (!jsonOutput) {
+            echo("Discovering DKIM selectors for $domain (probing ${COMMON_DKIM_SELECTORS.size} common selectors)...")
+            echo()
+        }
 
         for (sel in COMMON_DKIM_SELECTORS) {
             val dkimDomain = "$sel._domainkey.$domain"
@@ -185,10 +195,17 @@ class DkimLookupCommand : BaseCommand(
                     "Flags" to (tags["t"] ?: "none"),
                     "TTL" to "${dkimRecords.first().ttl}s",
                 ))
-                echo("  ✅ Found: $sel ($dkimDomain)")
+                if (!jsonOutput) {
+                    echo("  ✅ Found: $sel ($dkimDomain)")
+                }
             } catch (_: Exception) {
                 // Timeout or DNS error — skip
             }
+        }
+
+        if (jsonOutput) {
+            echo(formatter.format(found))
+            return
         }
 
         echo()

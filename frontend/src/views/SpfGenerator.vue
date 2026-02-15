@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { spfGenerator } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 const includes = ref('');
 const ip4 = ref('');
@@ -11,6 +13,26 @@ const allPolicy = ref('~all');
 const result = ref<unknown>(null);
 const error = ref('');
 const loading = ref(false);
+const cliCommand = computed(() => {
+  const parts: Array<string | null> = ['nortools', 'spf-generator', '--json'];
+  const includeList = includes.value.split(',').map(s => s.trim()).filter(Boolean);
+  const ip4List = ip4.value.split(',').map(s => s.trim()).filter(Boolean);
+  const ip6List = ip6.value.split(',').map(s => s.trim()).filter(Boolean);
+  for (const inc of includeList) parts.push('--include', inc);
+  for (const ip of ip4List) parts.push('--ip4', ip);
+  for (const ip of ip6List) parts.push('--ip6', ip);
+  if (mx.value) parts.push('--mx');
+  if (a.value) parts.push('--a');
+  const allMap: Record<string, string> = {
+    '~all': 'softfail',
+    '-all': 'fail',
+    '+all': 'pass',
+    '?all': 'neutral',
+  };
+  parts.push('--all', allMap[allPolicy.value] ?? 'softfail');
+  return buildCli(parts);
+});
+const cliDisabled = computed(() => false);
 
 async function generate() {
   loading.value = true;
@@ -73,6 +95,7 @@ async function generate() {
     </form>
     <div v-if="error" class="error">{{ error }}</div>
     <pre v-if="result" class="result">{{ JSON.stringify(result, null, 2) }}</pre>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 
@@ -93,4 +116,3 @@ h2 { margin-bottom: 0.25rem; }
 .error { color: #d32f2f; margin-bottom: 1rem; }
 .result { background: white; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>
-

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { passwordGen } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 const length = ref(16);
 const count = ref(5);
@@ -11,6 +13,18 @@ const special = ref(true);
 const result = ref<unknown>(null);
 const error = ref('');
 const loading = ref(false);
+const cliCommand = computed(() => buildCli([
+  'nortools',
+  'password-gen',
+  '--json',
+  '--length', String(length.value),
+  '--count', String(count.value),
+  !upper.value ? '--no-uppercase' : null,
+  !lower.value ? '--no-lowercase' : null,
+  !digits.value ? '--no-digits' : null,
+  !special.value ? '--no-special' : null,
+]));
+const cliDisabled = computed(() => false);
 
 async function generate() {
   loading.value = true;
@@ -60,6 +74,7 @@ async function generate() {
     </form>
     <div v-if="error" class="error">{{ error }}</div>
     <pre v-if="result" class="result">{{ JSON.stringify(result, null, 2) }}</pre>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 
@@ -80,4 +95,3 @@ h2 { margin-bottom: 0.25rem; }
 .error { color: #d32f2f; margin-bottom: 1rem; }
 .result { background: white; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>
-

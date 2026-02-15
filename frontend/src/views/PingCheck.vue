@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { pingCheck } from '../api/client';
+import CliCopy from '../components/CliCopy.vue';
+import { buildCli } from '../utils/cli';
 
 const host = ref('');
 const count = ref(4);
 const result = ref<unknown>(null);
 const error = ref('');
 const loading = ref(false);
+const cliCommand = computed(() => buildCli([
+  'nortools',
+  'ping',
+  '--json',
+  '--count',
+  String(count.value),
+  host.value,
+]));
+const cliDisabled = computed(() => !host.value);
 
 async function check() {
   if (!host.value) return;
@@ -36,6 +47,7 @@ async function check() {
     </form>
     <div v-if="error" class="error">{{ error }}</div>
     <pre v-if="result" class="result">{{ JSON.stringify(result, null, 2) }}</pre>
+    <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
 
@@ -52,4 +64,3 @@ h2 { margin-bottom: 0.25rem; }
 .error { color: #d32f2f; margin-bottom: 1rem; }
 .result { background: white; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>
-
