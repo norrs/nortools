@@ -21,6 +21,55 @@
 
   {"name": "no.norrs.nortools.lib.dns.DnsLookupResult",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.lib.dns.DnsRecord",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
-  {"name": "no.norrs.nortools.lib.network.TcpResult",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
-  {"name": "no.norrs.nortools.lib.network.HttpResult",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true}
+  {"name": "no.norrs.nortools.lib.network.TcpConnectResult",    "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.lib.network.HttpResult",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.ErrorResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.CheckSummary",               "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.DnssecChainResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnssecZone",                 "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnssecKey",                  "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnssecRrsig",                "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnssecDs",                   "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnssecChainLink",            "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.SpfLookupResponse",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SpfMechanism",               "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DkimLookupResponse",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DkimDiscoverEntry",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DkimDiscoverResponse",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DmarcLookupResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.HttpCheckResponse",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SslInfo",                    "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.HttpsCheckResponse",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.CertificateInfo",            "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.PingReply",                  "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.PingResponse",               "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.TraceHop",                   "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.TraceResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.TraceVisualHop",             "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.TraceVisualResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.WhoisResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.SubnetCalcResponse",         "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.PasswordOptions",            "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.PasswordGenResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.EmailExtractResponse",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.BlocklistResult",            "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.BlocklistResponse",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.DnsHealthCheck",             "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.NameserverStatus",           "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SoaInfo",                    "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DnsHealthResponse",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.DomainHealthCheck",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DomainHealthResponse",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "no.norrs.nortools.web.SpfGeneratorResponse",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.DmarcGeneratorResponse",     "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true}
 ]

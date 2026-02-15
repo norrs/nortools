@@ -104,7 +104,7 @@ fun startServer(frontendMode: FrontendMode, port: Int = 7070): Javalin
 
 ### API Architecture
 
-All tool logic lives in `ApiHandlers.kt` as top-level handler functions. Each handler:
+All tool logic lives in per-domain `*Handlers.kt` files (e.g., `DnsHandlers.kt`, `EmailAuthHandlers.kt`, `NetworkHandlers.kt`) as top-level handler functions. Each handler:
 - Receives a Javalin `Context` and `Gson` instance
 - Extracts path/query parameters
 - Uses the shared `//lib/dns` and `//lib/network` libraries
@@ -227,7 +227,7 @@ nortools/
 ├── web/                      # Javalin web portal
 │   └── src/main/kotlin/
 │       └── WebPortal.kt      #   startServer(), findDistDir(), route registration
-│       └── ApiHandlers.kt    #   All 23 API handler functions
+│       └── *Handlers.kt      #   All API handler functions (split by domain)
 │
 ├── desktop/                  # Krema desktop app
 │   └── src/main/kotlin/

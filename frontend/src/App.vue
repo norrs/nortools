@@ -33,7 +33,7 @@ body {
 .main-content {
   flex: 1;
   padding: 2rem;
-  max-width: 1200px;
+  width: 100%;
+  min-width: 0;
 }
 </style>
-

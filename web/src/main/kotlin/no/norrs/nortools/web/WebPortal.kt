@@ -1,6 +1,5 @@
 package no.norrs.nortools.web
 
-import com.google.gson.Gson
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.after
 import io.javalin.apibuilder.ApiBuilder.before
@@ -58,7 +57,6 @@ fun startServer(
     port: Int = (System.getenv("PORT") ?: "7070").toInt()
 ): Javalin {
     val mode = detectFrontendMode()
-    val gson = Gson()
     val distDir: Path? = if (frontendMode == FrontendMode.DEV_DIST) {
         requireNotNull(findDistDir()).toPath()
     } else {
