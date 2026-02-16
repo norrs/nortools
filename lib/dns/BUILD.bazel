@@ -7,6 +7,8 @@ kt_jvm_library(
     deps = [
         "@maven//:com_google_code_gson_gson",
         "@maven//:dnsjava_dnsjava",
+        "@maven//:net_java_dev_jna_jna",
+        "@maven//:net_java_dev_jna_jna_platform",
     ],
 )
 
@@ -15,6 +17,7 @@ kt_jvm_test(
     srcs = glob(["src/test/kotlin/**/*.kt"]),
     args = [
         "--select-class=no.norrs.nortools.lib.dns.DnsModelsTest",
+        "--select-class=no.norrs.nortools.lib.dns.DnsResolverWindowsConfigTest",
         "--disable-banner",
     ],
     main_class = "org.junit.platform.console.ConsoleLauncher",

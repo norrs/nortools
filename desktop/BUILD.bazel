@@ -257,6 +257,7 @@ genrule(
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
             -Djava.awt.headless=true \
+            -H:+AddAllCharsets \
             -H:ConfigurationFileDirectories="$$WORKDIR/config" \
             --initialize-at-build-time=org.slf4j \
             --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
@@ -336,6 +337,7 @@ genrule(
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
             -Djava.awt.headless=true \
+            -H:+AddAllCharsets \
             -H:ConfigurationFileDirectories="$$WORKDIR/config" \
             --initialize-at-build-time=org.slf4j \
             --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \
@@ -415,6 +417,7 @@ genrule(
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
             -Djava.awt.headless=true \
+            -H:+AddAllCharsets \
             -H:CCompilerOption=-arch \
             -H:CCompilerOption=arm64 \
             -H:ConfigurationFileDirectories="$$WORKDIR/config" \
@@ -498,6 +501,7 @@ genrule(
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
             -Djava.awt.headless=true \
+            -H:+AddAllCharsets \
             -H:ConfigurationFileDirectories="$$WORKDIR/config" \
             --initialize-at-build-time=org.slf4j \
             --initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver \

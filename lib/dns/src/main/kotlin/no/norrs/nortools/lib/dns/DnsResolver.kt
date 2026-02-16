@@ -4,6 +4,8 @@ import org.xbill.DNS.*
 import java.net.InetAddress
 import java.net.UnknownHostException
 import java.time.Duration
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Shared DNS resolver wrapping dnsjava.
@@ -51,15 +53,53 @@ class DnsResolver(
     private fun createSimpleResolver(host: String): SimpleResolver =
         SimpleResolver(host).apply { setTimeout(timeout) }
 
-    private fun systemNameServers(): List<String> =
+    private fun systemNameServers(): List<String> {
+        val fromDnsJava = dnsjavaNameServers()
+        if (fromDnsJava.isNotEmpty()) return fromDnsJava
+        if (isWindowsHost()) {
+            val fromIpconfig = ipconfigNameServers()
+            if (fromIpconfig.isNotEmpty()) return fromIpconfig
+        }
+        return emptyList()
+    }
+
+    private fun dnsjavaNameServers(): List<String> =
         try {
             ResolverConfig.getCurrentConfig()
                 .servers()
-                .mapNotNull { it.address?.hostAddress }
+                .mapNotNull { server ->
+                    // Some Windows providers return unresolved socket addresses.
+                    // Keep hostString instead of dropping unresolved entries.
+                    server.address?.hostAddress
+                        ?: server.hostString?.takeIf { it.isNotBlank() }
+                }
+                .map { normalizeResolverHost(it) }
+                .filter { it.isNotBlank() }
                 .distinct()
         } catch (_: Throwable) {
             emptyList()
         }
+
+    private fun ipconfigNameServers(): List<String> {
+        return try {
+            val process = ProcessBuilder("ipconfig", "/all")
+                .redirectErrorStream(true)
+                .start()
+            val completed = process.waitFor(3, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                emptyList()
+            } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                parseWindowsIpconfigDnsServers(output)
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun isWindowsHost(): Boolean =
+        System.getProperty("os.name")?.lowercase(Locale.ROOT)?.contains("win") == true
 
     /**
      * Return the resolver list currently configured for this resolver instance.
@@ -192,6 +232,59 @@ class DnsResolver(
     }
 
     companion object {
+        private val IPV4_REGEX =
+            Regex("""\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b""")
+
+        private val IPV6_REGEX =
+            Regex("""^[0-9A-Fa-f:]+(?:%\S+)?$""")
+
+        private fun normalizeResolverHost(raw: String): String {
+            val trimmed = raw.trim().removePrefix("[").removeSuffix("]")
+            return trimmed.substringBefore(" ").trim()
+        }
+
+        private fun extractIpToken(raw: String): String? {
+            val candidate = raw.substringBefore("(").trim().substringBefore(" ").trim()
+            if (candidate.isBlank()) return null
+            return if (IPV4_REGEX.matches(candidate) || (candidate.contains(":") && IPV6_REGEX.matches(candidate))) {
+                candidate
+            } else {
+                null
+            }
+        }
+
+        fun parseWindowsIpconfigDnsServers(text: String): List<String> {
+            val out = mutableListOf<String>()
+            var inDnsBlock = false
+
+            for (line in text.lineSequence()) {
+                val trimmed = line.trim()
+                if (trimmed.isBlank()) {
+                    inDnsBlock = false
+                    continue
+                }
+
+                val colonIdx = line.indexOf(':')
+                if (colonIdx >= 0) {
+                    val key = line.substring(0, colonIdx).trim().lowercase(Locale.ROOT)
+                    val value = line.substring(colonIdx + 1).trim()
+                    if (key.contains("dns") && key.contains("server")) {
+                        inDnsBlock = true
+                        extractIpToken(value)?.let { out += it }
+                        continue
+                    }
+                    inDnsBlock = false
+                    continue
+                }
+
+                if (inDnsBlock) {
+                    extractIpToken(trimmed)?.let { out += it } ?: run { inDnsBlock = false }
+                }
+            }
+
+            return out.distinct()
+        }
+
         /**
          * Format a DNS record's RDATA into a human-readable string.
          */

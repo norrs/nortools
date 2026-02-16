@@ -7,6 +7,10 @@ build --tool_java_runtime_version=remotejdk_25
 # Better error output
 build --verbose_failures
 test --test_output=errors
+run --jvmopt=--enable-native-access=ALL-UNNAMED
+run --jvmopt=--illegal-native-access=deny
+test --jvmopt=--enable-native-access=ALL-UNNAMED
+test --jvmopt=--illegal-native-access=deny
 
 # Stamp builds with workspace status
 build --workspace_status_command=tools/bazel/workspace_status.sh

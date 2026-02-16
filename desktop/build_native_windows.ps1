@@ -83,6 +83,33 @@ if ($vs17Install) {
     }
 }
 
+function Find-VcRuntimeDir {
+    $dirs = @()
+
+    if ($env:VCToolsRedistDir) {
+        $dirs += (Join-Path $env:VCToolsRedistDir "x64\Microsoft.VC143.CRT")
+        $dirs += (Join-Path $env:VCToolsRedistDir "x64\Microsoft.VC142.CRT")
+    }
+
+    if ($vs17Install) {
+        $dirs += (Get-ChildItem -Path (Join-Path $vs17Install "VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT") -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    }
+
+    foreach ($dir in $dirs) {
+        if ((Test-Path $dir) -and (Test-Path (Join-Path $dir "vcruntime140_1.dll"))) {
+            return $dir
+        }
+    }
+
+    foreach ($dir in $dirs) {
+        if ((Test-Path $dir) -and (Test-Path (Join-Path $dir "vcruntime140.dll"))) {
+            return $dir
+        }
+    }
+
+    return $null
+}
+
 $workdir = Join-Path $env:TEMP ("nortools-native-" + [guid]::NewGuid().ToString())
 $configDir = Join-Path $workdir "config"
 New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -101,6 +128,7 @@ $nativeArgs = @(
     "-H:+UnlockExperimentalVMOptions",
     "-H:-CheckToolchain",
     "-Djava.awt.headless=true",
+    "-H:+AddAllCharsets",
     "-H:ConfigurationFileDirectories=$configDir",
     "--initialize-at-build-time=org.slf4j",
     "--initialize-at-run-time=org.xbill.DNS.ResolverConfig,org.xbill.DNS.ExtendedResolver,org.xbill.DNS.SimpleResolver,org.xbill.DNS.Lookup,org.xbill.DNS.Address,org.xbill.DNS.Options,no.norrs.nortools.lib.dns.DnsResolver",
@@ -127,6 +155,21 @@ $zipInputs = @(Join-Path $workdir "nortools.exe")
 foreach ($extra in @("webview.dll", "libwinpthread-1.dll")) {
     $p = Join-Path $workdir $extra
     if (Test-Path $p) { $zipInputs += $p }
+}
+
+# Bundle MSVC runtime DLLs for machines without VC++ Redistributable installed.
+$vcRuntimeDir = Find-VcRuntimeDir
+if ($vcRuntimeDir) {
+    foreach ($dll in @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "concrt140.dll")) {
+        $src = Join-Path $vcRuntimeDir $dll
+        if (Test-Path $src) {
+            $dest = Join-Path $workdir $dll
+            Copy-Item -Path $src -Destination $dest -Force
+            $zipInputs += $dest
+        }
+    }
+} else {
+    Write-Warning "MSVC runtime directory not found. Output zip may require VC++ Redistributable on target machines."
 }
 
 if ($GuiLauncher -and (Test-Path $GuiLauncher)) {
