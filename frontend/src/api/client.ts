@@ -22,16 +22,19 @@ export async function dnsLookup(type: string, domain: string, server?: string) {
   return fetchJson(`/dns/${type}/${domain}${qs}`);
 }
 
-export async function dnssecLookup(type: string, domain: string) {
-  return fetchJson(`/dnssec/${type}/${domain}`);
+export async function dnssecLookup(type: string, domain: string, server?: string) {
+  const qs = server ? `?server=${encodeURIComponent(server)}` : '';
+  return fetchJson(`/dnssec/${type}/${domain}${qs}`);
 }
 
-export async function dnssecChain(domain: string) {
-  return fetchJson(`/dnssec-chain/${domain}`);
+export async function dnssecChain(domain: string, server?: string) {
+  const qs = server ? `?server=${encodeURIComponent(server)}` : '';
+  return fetchJson(`/dnssec-chain/${domain}${qs}`);
 }
 
-export async function reverseLookup(ip: string) {
-  return fetchJson(`/reverse/${ip}`);
+export async function reverseLookup(ip: string, server?: string) {
+  const qs = server ? `?server=${encodeURIComponent(server)}` : '';
+  return fetchJson(`/reverse/${ip}${qs}`);
 }
 
 // Email auth tools
@@ -83,8 +86,9 @@ export async function blacklistCheck(ip: string) {
 }
 
 // Utility tools
-export async function whatIsMyIp() {
-  return fetchJson(`/whatismyip`);
+export async function whatIsMyIp(provider?: string) {
+  const qs = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+  return fetchJson(`/whatismyip${qs}`);
 }
 
 export async function subnetCalc(cidr: string) {

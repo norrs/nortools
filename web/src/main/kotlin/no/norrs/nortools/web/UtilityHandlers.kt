@@ -4,6 +4,7 @@ import io.javalin.http.Context
 import no.norrs.nortools.lib.dns.DnsResolver
 import no.norrs.nortools.lib.network.HttpClient
 import org.xbill.DNS.Type
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.security.SecureRandom
 import java.time.Duration
@@ -11,34 +12,80 @@ import kotlin.math.log2
 
 // ─── Utility Tools ───────────────────────────────────────────────────────────
 
-fun whatIsMyIp(ctx: Context) {
-    val details = linkedMapOf<String, String>()
-    try {
-        val resolver = DnsResolver()
-        val result = resolver.lookup("myip.opendns.com", Type.A)
-        if (result.isSuccessful && result.records.isNotEmpty()) {
-            details["opendns"] = result.records.first().data
-        }
-    } catch (_: Exception) {
-        details["opendns"] = "Failed"
-    }
+private const val OPENDNS_PROVIDER = "dns:opendns"
+private val HTTP_IP_PROVIDERS = linkedMapOf(
+    "https://checkip.dns.he.net/" to "checkip.dns.he.net",
+    "https://ifconfig.me/ip" to "ifconfig.me",
+    "https://icanhazip.com" to "icanhazip.com",
+    "https://api.ipify.org" to "ipify.org",
+)
+private val IPV4_REGEX = Regex("""\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b""")
+private val HEX_COLON_TOKEN_REGEX = Regex("""\b[0-9A-Fa-f:%.]+\b""")
 
+fun whatIsMyIp(ctx: Context) {
+    val selectedProvider = ctx.queryParam("provider")?.trim()?.ifEmpty { null }
+    val details = linkedMapOf<String, String>()
     val httpClient = HttpClient(timeout = Duration.ofSeconds(5))
-    val services = listOf(
-        "https://ifconfig.me/ip" to "ifconfig.me",
-        "https://icanhazip.com" to "icanhazip.com",
-        "https://api.ipify.org" to "ipify.org",
-    )
-    for ((url, name) in services) {
-        try {
-            val result = httpClient.get(url, includeBody = true)
-            val body = result.body
-            details[name] = if (result.statusCode == 200 && body != null) body.trim() else "HTTP ${result.statusCode}"
-        } catch (e: Exception) {
-            details[name] = "Failed: ${e.message}"
+    if (selectedProvider != null) {
+        when {
+            selectedProvider == OPENDNS_PROVIDER -> {
+                details["opendns"] = resolveOpenDnsIp()
+            }
+            HTTP_IP_PROVIDERS.containsKey(selectedProvider) -> {
+                val name = HTTP_IP_PROVIDERS.getValue(selectedProvider)
+                details[name] = fetchHttpIp(httpClient, selectedProvider)
+            }
+            else -> {
+                ctx.jsonResult(ErrorResponse("Unsupported provider: $selectedProvider"))
+                return
+            }
+        }
+    } else {
+        details["opendns"] = resolveOpenDnsIp()
+        for ((url, name) in HTTP_IP_PROVIDERS) {
+            details[name] = fetchHttpIp(httpClient, url)
         }
     }
     ctx.jsonResult(details)
+}
+
+private fun resolveOpenDnsIp(): String = try {
+    val resolver = DnsResolver()
+    val result = resolver.lookup("myip.opendns.com", Type.A)
+    if (result.isSuccessful && result.records.isNotEmpty()) result.records.first().data else "Failed"
+} catch (_: Exception) {
+    "Failed"
+}
+
+private fun fetchHttpIp(httpClient: HttpClient, url: String): String = try {
+    val result = httpClient.get(url, includeBody = true)
+    val body = result.body
+    if (result.statusCode == 200 && body != null) {
+        extractIpFromBody(body) ?: "No IP found"
+    } else {
+        "HTTP ${result.statusCode}"
+    }
+} catch (e: Exception) {
+    "Failed: ${e.message}"
+}
+
+private fun extractIpFromBody(body: String): String? {
+    IPV4_REGEX.find(body)?.value?.let { return it }
+
+    val candidates = HEX_COLON_TOKEN_REGEX.findAll(body).map { it.value.trim() }
+    for (candidate in candidates) {
+        val raw = candidate.trim('.', ',', ';', ')', '(', '[', ']', '<', '>', '"', '\'')
+        if (raw.count { it == ':' } < 2) continue
+        val sanitized = raw.substringBefore('%')
+        if (sanitized.isEmpty()) continue
+        val parsed = try {
+            InetAddress.getByName(sanitized)
+        } catch (_: Exception) {
+            null
+        }
+        if (parsed is Inet6Address) return sanitized
+    }
+    return null
 }
 
 fun subnetCalc(ctx: Context) {

@@ -30,7 +30,8 @@ fun dnsLookup(ctx: Context) {
 fun dnssecLookup(ctx: Context) {
     val type = ctx.pathParam("type").uppercase()
     val domain = ctx.pathParam("domain")
-    val resolver = DnsResolver()
+    val server = ctx.queryParam("server")
+    val resolver = DnsResolver(server = if (server.isNullOrBlank()) null else server)
     val typeInt = Type.value(type)
     if (typeInt == -1) {
         ctx.jsonResult(ErrorResponse("Unknown DNS type: $type"))
@@ -70,7 +71,8 @@ private fun keyLengthBits(alg: Int, keyBytes: ByteArray): Int = when (alg) {
  */
 fun dnssecChain(ctx: Context) {
     val domain = ctx.pathParam("domain").trimEnd('.')
-    val resolver = DnsResolver()
+    val server = ctx.queryParam("server")
+    val resolver = DnsResolver(server = if (server.isNullOrBlank()) null else server)
 
     // Split domain into zone levels: e.g. "norrs.no" → [".", "no", "norrs.no"]
     val labels = domain.split(".")
@@ -240,13 +242,15 @@ fun dnssecChain(ctx: Context) {
         domain = domain,
         zones = zoneResults,
         chainSecure = zoneResults.all { it.delegationStatus.startsWith("Secure") },
+        resolvers = resolver.activeResolvers(),
     )
     ctx.jsonResult(result)
 }
 
 fun reverseLookup(ctx: Context) {
     val ip = ctx.pathParam("ip")
-    val resolver = DnsResolver()
+    val server = ctx.queryParam("server")
+    val resolver = DnsResolver(server = if (server.isNullOrBlank()) null else server)
     val result = resolver.reverseLookup(ip)
     ctx.jsonResult(result)
 }
@@ -257,6 +261,7 @@ data class DnssecChainResponse(
     val domain: String,
     val zones: List<DnssecZone>,
     val chainSecure: Boolean,
+    val resolvers: List<String> = emptyList(),
 )
 
 data class DnssecZone(

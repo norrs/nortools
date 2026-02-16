@@ -62,6 +62,11 @@ class DnsResolver(
         }
 
     /**
+     * Return the resolver list currently configured for this resolver instance.
+     */
+    fun activeResolvers(): List<String> = configuredResolvers
+
+    /**
      * Perform a DNS lookup for the given name and record type.
      * Returns a list of DnsRecord results.
      */
