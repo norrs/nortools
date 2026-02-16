@@ -2,9 +2,11 @@
   "resources": {
     "includes": [
       {"pattern": "web/.*"},
+      {"pattern": "docs/.*"},
       {"pattern": "native/.*"},
       {"pattern": "META-INF/services/.*"},
-      {"pattern": "krema-errors.js"}
+      {"pattern": "krema-errors.js"},
+      {"pattern": "build-data.properties"}
     ]
   }
 }

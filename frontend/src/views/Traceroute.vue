@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onBeforeUnmount } from 'vue';
-import { traceroute } from '../api/client';
 import CliCopy from '../components/CliCopy.vue';
 import { buildCli } from '../utils/cli';
 import L from 'leaflet';
@@ -9,6 +8,7 @@ import 'leaflet/dist/leaflet.css';
 interface Hop {
   hop: number; host: string; ip: string;
   rttRaw: string; rttAvg: number | null;
+  ptr?: string;
   asn?: string; asName?: string; prefix?: string; asnCountry?: string;
   lat?: number; lon?: number;
   city?: string; region?: string; country?: string; countryCode?: string;
@@ -18,11 +18,14 @@ interface TraceResult { host: string; maxHops: number; hopCount: number; hops: H
 
 const host = ref('');
 const geo = ref(false);
+const ptrLookup = ref(true);
 const result = ref<TraceResult | null>(null);
 const error = ref('');
 const loading = ref(false);
+const traceComplete = ref(false);
 const activeTab = ref<'diagram' | 'map' | 'json'>('diagram');
 let mapInstance: L.Map | null = null;
+let traceSource: EventSource | null = null;
 const cliCommand = computed(() => buildCli(['nortools', 'trace', '--json', host.value]));
 const cliDisabled = computed(() => !host.value);
 
@@ -35,24 +38,79 @@ function latencyColor(ms: number | null): string {
   return '#ef4444';
 }
 
-const hasGeo = () => (result.value?.hops || []).some(h => h.lat != null && h.lon != null);
+const hasGeo = () => (result.value?.hops || []).some((h) => h.lat != null && h.lon != null);
+
+function closeTraceSource() {
+  if (traceSource) {
+    traceSource.close();
+    traceSource = null;
+  }
+}
+
+function upsertHop(hop: Hop) {
+  if (!result.value) return;
+  const idx = result.value.hops.findIndex((h) => h.hop === hop.hop);
+  if (idx >= 0) {
+    result.value.hops[idx] = hop;
+  } else {
+    result.value.hops.push(hop);
+    result.value.hops.sort((a, b) => a.hop - b.hop);
+  }
+  result.value.hopCount = result.value.hops.length;
+}
 
 async function trace() {
   if (!host.value) return;
+  closeTraceSource();
   loading.value = true;
+  traceComplete.value = false;
   error.value = '';
-  result.value = null;
+  result.value = { host: host.value, maxHops: 15, hopCount: 0, hops: [] };
   activeTab.value = 'diagram';
   if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-  try {
-    const data = await traceroute(host.value, geo.value) as TraceResult;
-    if (data.error) { error.value = data.error; return; }
+
+  const qs = new URLSearchParams();
+  if (geo.value) qs.set('geo', 'true');
+  if (!ptrLookup.value) qs.set('ptr', 'false');
+  const url = `/api/trace-visual-stream/${encodeURIComponent(host.value)}${qs.toString() ? `?${qs.toString()}` : ''}`;
+  traceSource = new EventSource(url);
+
+  traceSource.addEventListener('start', (ev) => {
+    const msg = JSON.parse((ev as MessageEvent).data) as { host?: string; maxHops?: number };
+    if (result.value) {
+      if (msg.host) result.value.host = msg.host;
+      if (typeof msg.maxHops === 'number') result.value.maxHops = msg.maxHops;
+    }
+  });
+
+  traceSource.addEventListener('hop', (ev) => {
+    const hop = JSON.parse((ev as MessageEvent).data) as Hop;
+    upsertHop(hop);
+  });
+
+  traceSource.addEventListener('done', (ev) => {
+    const data = JSON.parse((ev as MessageEvent).data) as TraceResult;
     result.value = data;
-  } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'An error occurred';
-  } finally {
     loading.value = false;
-  }
+    traceComplete.value = true;
+    closeTraceSource();
+  });
+
+  traceSource.addEventListener('error', (ev) => {
+    const msg = JSON.parse((ev as MessageEvent).data) as { message?: string };
+    error.value = msg.message || 'Trace stream failed';
+    loading.value = false;
+    traceComplete.value = false;
+    closeTraceSource();
+  });
+
+  traceSource.onerror = () => {
+    if (!loading.value) return;
+    error.value = 'Trace stream disconnected';
+    loading.value = false;
+    traceComplete.value = false;
+    closeTraceSource();
+  };
 }
 
 async function showMap() {
@@ -61,13 +119,15 @@ async function showMap() {
   await nextTick();
   const el = document.getElementById('trace-map');
   if (!el || !result.value) return;
-  const hops = result.value.hops.filter(h => h.lat != null && h.lon != null);
+  const hops = result.value.hops.filter((h) => h.lat != null && h.lon != null);
   if (!hops.length) return;
+
   const map = L.map(el, { scrollWheelZoom: true }).setView([hops[0].lat!, hops[0].lon!], 3);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OSM &amp; CARTO', maxZoom: 19,
   }).addTo(map);
   mapInstance = map;
+
   const bounds: L.LatLngTuple[] = [];
   for (let i = 0; i < hops.length; i++) {
     const h = hops[i];
@@ -81,11 +141,13 @@ async function showMap() {
     let popup = `<div style="font-size:12px;line-height:1.5"><b>Hop ${h.hop}</b><br>${h.host}`;
     if (h.ip && h.ip !== '*') popup += ` (${h.ip})`;
     if (h.rttAvg != null) popup += `<br><b style="color:${c}">${h.rttAvg.toFixed(1)} ms</b>`;
+    if (h.ptr) popup += `<br>PTR: ${h.ptr}`;
     if (h.asn) popup += `<br>${h.asn} ${h.asName || ''}`;
-    if (h.city || h.country) popup += `<br>📍 ${h.city ? h.city + ', ' : ''}${h.country || ''}`;
+    if (h.city || h.country) popup += `<br>${h.city ? h.city + ', ' : ''}${h.country || ''}`;
     popup += '</div>';
     marker.bindPopup(popup);
     bounds.push([h.lat!, h.lon!]);
+
     if (i < hops.length - 1) {
       const next = hops[i + 1];
       L.polyline([[h.lat!, h.lon!], [next.lat!, next.lon!]], {
@@ -93,10 +155,14 @@ async function showMap() {
       }).addTo(map);
     }
   }
+
   if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
 }
 
-onBeforeUnmount(() => { if (mapInstance) { mapInstance.remove(); mapInstance = null; } });
+onBeforeUnmount(() => {
+  closeTraceSource();
+  if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+});
 </script>
 
 <template>
@@ -109,23 +175,26 @@ onBeforeUnmount(() => { if (mapInstance) { mapInstance.remove(); mapInstance = n
         {{ loading ? 'Tracing...' : 'Trace Route' }}
       </button>
     </form>
+
     <label class="geo-toggle">
       <input type="checkbox" v-model="geo" />
       Enable geolocation lookup (world map)
     </label>
-    <div class="geo-hint">Uses <a href="https://ip-api.com" target="_blank">ip-api.com</a> free API — rate-limited to 45 req/min. Enables the 🗺️ World Map tab.</div>
+    <label class="geo-toggle">
+      <input type="checkbox" v-model="ptrLookup" />
+      Enable PTR lookup (reverse DNS)
+    </label>
+    <div class="geo-hint">Uses ip-api.com free API (rate-limited to 45 req/min).</div>
 
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="result" class="trace-results">
-      <!-- Tabs -->
       <div class="tabs">
-        <button :class="['tab', { active: activeTab === 'diagram' }]" @click="activeTab = 'diagram'">📊 Hop Diagram</button>
-        <button v-if="hasGeo()" :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">🗺️ World Map</button>
-        <button :class="['tab', { active: activeTab === 'json' }]" @click="activeTab = 'json'">📋 JSON</button>
+        <button :class="['tab', { active: activeTab === 'diagram' }]" @click="activeTab = 'diagram'">Hop Diagram</button>
+        <button v-if="hasGeo()" :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
+        <button :class="['tab', { active: activeTab === 'json' }]" @click="activeTab = 'json'">JSON</button>
       </div>
 
-      <!-- Hop Diagram -->
       <div v-show="activeTab === 'diagram'" class="tab-panel diagram-panel">
         <div class="hop-summary">{{ result.hopCount }} hops to <strong>{{ result.host }}</strong></div>
         <div class="hop-list">
@@ -135,37 +204,30 @@ onBeforeUnmount(() => { if (mapInstance) { mapInstance.remove(); mapInstance = n
             </div>
             <div class="hop-row">
               <div class="hop-node">
-                <div class="node-line" :style="{ background: latencyColor(hop.rttAvg) }"></div>
+                <div v-if="idx > 0" class="node-line" :style="{ background: latencyColor(hop.rttAvg) }"></div>
+                <div v-else class="node-line spacer"></div>
                 <div class="node-circle" :style="{ background: latencyColor(hop.rttAvg) }">{{ hop.hop }}</div>
-                <div class="node-line" :style="{ background: latencyColor(hop.rttAvg) }"></div>
+                <div v-if="idx < result.hops.length - 1" class="node-line" :style="{ background: latencyColor(hop.rttAvg) }"></div>
+                <div v-else-if="traceComplete" class="node-end">END</div>
+                <div v-else class="node-line spacer"></div>
               </div>
               <div class="hop-bar" :style="{ width: (hop.rttAvg != null ? Math.min(Math.max(hop.rttAvg / 5, 4), 200) : 0) + 'px', background: latencyColor(hop.rttAvg) }"></div>
               <div class="hop-info">
                 <span class="hop-host">{{ hop.host === '*' ? '* * *' : hop.host }}</span>
                 <span v-if="hop.ip && hop.ip !== '*'" class="hop-ip">({{ hop.ip }})</span>
                 <span v-if="hop.rttAvg != null" class="hop-rtt" :style="{ color: latencyColor(hop.rttAvg) }">{{ hop.rttAvg.toFixed(1) }} ms</span>
-                <span v-if="hop.city || hop.country" class="hop-geo">📍 {{ hop.city ? hop.city + ', ' : '' }}{{ hop.country || '' }}</span>
+                <span v-if="hop.ptr" class="hop-ptr">PTR: {{ hop.ptr }}</span>
+                <span v-if="hop.city || hop.country" class="hop-geo">{{ hop.city ? hop.city + ', ' : '' }}{{ hop.country || '' }}</span>
               </div>
             </div>
           </template>
         </div>
-        <!-- Legend -->
-        <div class="legend">
-          <span><span class="dot" style="background:#34d399"></span> &lt;30ms</span>
-          <span><span class="dot" style="background:#a3e635"></span> &lt;80ms</span>
-          <span><span class="dot" style="background:#fbbf24"></span> &lt;150ms</span>
-          <span><span class="dot" style="background:#f97316"></span> &lt;300ms</span>
-          <span><span class="dot" style="background:#ef4444"></span> &gt;300ms</span>
-          <span><span class="dot" style="background:#64748b"></span> No data</span>
-        </div>
       </div>
 
-      <!-- World Map -->
       <div v-show="activeTab === 'map'" class="tab-panel map-panel">
         <div id="trace-map" class="map-container"></div>
       </div>
 
-      <!-- JSON -->
       <div v-show="activeTab === 'json'" class="tab-panel">
         <pre class="json-pre">{{ JSON.stringify(result, null, 2) }}</pre>
       </div>
@@ -173,7 +235,6 @@ onBeforeUnmount(() => { if (mapInstance) { mapInstance.remove(); mapInstance = n
     <CliCopy :command="cliCommand" :disabled="cliDisabled" />
   </div>
 </template>
-
 
 <style scoped>
 .tool-view { padding: 1rem 0; }
@@ -189,7 +250,6 @@ h2 { margin-bottom: 0.25rem; }
 .geo-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #555; cursor: pointer; margin-bottom: 0.25rem; }
 .geo-toggle input { width: auto; accent-color: #1a1a2e; }
 .geo-hint { font-size: 0.7rem; color: #999; margin-bottom: 1rem; margin-left: 1.5rem; }
-.geo-hint a { color: #999; }
 
 .trace-results { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
@@ -212,7 +272,9 @@ h2 { margin-bottom: 0.25rem; }
 
 .hop-node { width: 52px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 .node-line { width: 2px; height: 4px; }
+.node-line.spacer { background: transparent; }
 .node-circle { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #0f172a; line-height: 1; }
+.node-end { margin-top: 4px; font-size: 0.6rem; font-weight: 700; color: #555; letter-spacing: 0.02em; }
 
 .hop-bar { height: 6px; border-radius: 3px; flex-shrink: 0; margin-right: 8px; }
 
@@ -220,10 +282,8 @@ h2 { margin-bottom: 0.25rem; }
 .hop-host { color: #1a1a2e; font-weight: 500; }
 .hop-ip { color: #888; }
 .hop-rtt { font-weight: 600; }
+.hop-ptr { color: #4b5563; font-size: 0.75rem; }
 .hop-geo { color: #888; font-size: 0.75rem; }
-
-.legend { display: flex; gap: 12px; margin-top: 16px; font-size: 0.7rem; color: #888; flex-wrap: wrap; }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
 
 .map-panel { padding: 0; }
 .map-container { height: 450px; width: 100%; }

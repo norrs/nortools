@@ -147,3 +147,8 @@ export async function dmarcGenerator(opts: {
   if (opts.aspf) p.set('aspf', opts.aspf);
   return fetchJson(`/dmarc-generator?${p}`);
 }
+
+// About
+export async function aboutInfo() {
+  return fetchJson('/about');
+}

@@ -34,6 +34,8 @@ const router = createRouter({
     // Composite
     { path: '/dns-health', name: 'dns-health', component: () => import('../views/DnsHealth.vue') },
     { path: '/domain-health', name: 'domain-health', component: () => import('../views/DomainHealth.vue') },
+    // Info
+    { path: '/about', name: 'about', component: () => import('../views/AboutView.vue') },
   ],
 });
 

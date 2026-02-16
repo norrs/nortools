@@ -83,6 +83,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   }
 
   CloseHandle(pi.hThread);
+  WaitForSingleObject(pi.hProcess, INFINITE);
+  DWORD child_exit = 0;
+  if (!GetExitCodeProcess(pi.hProcess, &child_exit)) {
+    child_exit = 1;
+  }
   CloseHandle(pi.hProcess);
-  return 0;
+  return static_cast<int>(child_exit);
 }

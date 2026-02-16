@@ -113,6 +113,7 @@ fun startServer(
             get("/api/ping/{host}") { ctx -> pingCheck(ctx) }
             get("/api/trace/{host}") { ctx -> traceCheck(ctx) }
             get("/api/trace-visual/{host}") { ctx -> traceVisual(ctx) }
+            get("/api/trace-visual-stream/{host}") { ctx -> traceVisualStream(ctx) }
 
             // WHOIS tools
             get("/api/whois/{query}") { ctx -> whoisLookup(ctx) }
@@ -122,6 +123,7 @@ fun startServer(
             get("/api/subnet/{cidr}") { ctx -> subnetCalc(ctx) }
             get("/api/password") { ctx -> passwordGen(ctx) }
             post("/api/email-extract") { ctx -> emailExtract(ctx) }
+            get("/api/about") { ctx -> aboutInfo(ctx) }
 
             // Blocklist tools
             get("/api/blacklist/{ip}") { ctx -> blacklistCheck(ctx) }

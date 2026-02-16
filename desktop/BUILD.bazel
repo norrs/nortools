@@ -92,6 +92,7 @@ java_binary(
     runtime_deps = [
         ":desktop_lib",
         ":frontend_resources",
+        ":docs_resources",
     ],
 )
 
@@ -124,6 +125,40 @@ genrule(
 java_import(
     name = "frontend_resources",
     jars = [":frontend-resources.jar"],
+    visibility = ["//visibility:public"],
+)
+
+# Package project docs into classpath resources under docs/
+genrule(
+    name = "docs_resources_jar",
+    srcs = [
+        "//:inspiration.md",
+        "//:RFC.md",
+    ],
+    outs = ["docs-resources.jar"],
+    cmd = """
+        set -e
+        OUT=$$(realpath $(OUTS))
+        TMP=$$(mktemp -d)
+        mkdir -p "$$TMP/docs"
+        cp "$(location //:inspiration.md)" "$$TMP/docs/inspiration.md"
+        cp "$(location //:RFC.md)" "$$TMP/docs/RFC.md"
+        (cd "$$TMP" && jar cf "$$OUT" docs)
+        rm -rf "$$TMP"
+    """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference='Stop'; $$out='$(OUTS)'; $$tmp=Join-Path $$env:TEMP ('nortools-docs-' + [guid]::NewGuid().ToString()); New-Item -ItemType Directory -Path (Join-Path $$tmp 'docs') -Force | Out-Null; Copy-Item -Path '$(location //:inspiration.md)' -Destination (Join-Path $$tmp 'docs\\inspiration.md') -Force; Copy-Item -Path '$(location //:RFC.md)' -Destination (Join-Path $$tmp 'docs\\RFC.md') -Force; if (Test-Path $$out) { Remove-Item $$out -Force }; & jar cf $$out -C $$tmp docs; if ($$LASTEXITCODE -ne 0) { throw ('jar failed with exit code ' + $$LASTEXITCODE) }; Remove-Item $$tmp -Recurse -Force"
+    """,
+    message = "Packaging docs into classpath resources JAR",
+    tags = [
+        "no-cache",
+        "no-remote",
+    ],
+)
+
+java_import(
+    name = "docs_resources",
+    jars = [":docs-resources.jar"],
     visibility = ["//visibility:public"],
 )
 

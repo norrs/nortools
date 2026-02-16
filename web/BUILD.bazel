@@ -1,5 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_binary")
-load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
 
 kt_jvm_library(
     name = "web_lib",
@@ -22,4 +22,23 @@ java_binary(
     data = ["//frontend:build"],
     main_class = "no.norrs.nortools.web.WebPortalKt",
     runtime_deps = [":web_lib"],
+)
+
+kt_jvm_test(
+    name = "web_test",
+    srcs = glob(["src/test/kotlin/**/*.kt"]),
+    args = [
+        "--select-class=no.norrs.nortools.web.NetworkTraceParsingTest",
+        "--disable-banner",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "no.norrs.nortools.web.NetworkTraceParsingTest",
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+    deps = [
+        ":web_lib",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )

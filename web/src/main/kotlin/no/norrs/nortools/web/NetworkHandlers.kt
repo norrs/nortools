@@ -230,39 +230,10 @@ fun pingCheck(ctx: Context) {
 
 fun traceCheck(ctx: Context) {
     val host = ctx.pathParam("host")
-    val maxHops = ctx.queryParam("maxHops")?.toIntOrNull() ?: 30
+    val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
     try {
-        val command = listOf("traceroute", "-m", "$maxHops", "-w", "3", host)
-        val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        val lines = process.inputStream.bufferedReader().readLines()
-        process.waitFor()
-
-        val hops = mutableListOf<TraceHop>()
-        val hopPattern = "^\\s*([0-9]+)\\s+(.+)$".toRegex()
-        for (line in lines.drop(1)) {
-            val match = hopPattern.find(line)
-            if (match != null) {
-                val hopNum = match.groupValues[1]
-                val rest = match.groupValues[2].trim()
-                if (rest.contains("* * *")) {
-                    hops.add(TraceHop(hop = hopNum, host = "*", ip = "*", rtt = "* * *"))
-                } else {
-                    val hostMatch = "^([^(]+)\\(([^)]+)\\)(.*)$".toRegex().find(rest)
-                    if (hostMatch != null) {
-                        hops.add(
-                            TraceHop(
-                                hop = hopNum,
-                                host = hostMatch.groupValues[1].trim(),
-                                ip = hostMatch.groupValues[2].trim(),
-                                rtt = hostMatch.groupValues[3].trim(),
-                            )
-                        )
-                    } else {
-                        hops.add(TraceHop(hop = hopNum, host = rest, ip = "", rtt = ""))
-                    }
-                }
-            }
-        }
+        val lines = runTraceCommand(host, maxHops)
+        val hops = parseTraceHopsFromOutput(lines)
         ctx.jsonResult(TraceResponse(host = host, maxHops = maxHops, hops = hops))
     } catch (e: Exception) {
         ctx.jsonResult(ErrorResponse("Traceroute failed: ${e.message}"))
@@ -278,161 +249,314 @@ fun traceCheck(ctx: Context) {
  */
 fun traceVisual(ctx: Context) {
     val host = ctx.pathParam("host")
-    val maxHops = ctx.queryParam("maxHops")?.toIntOrNull() ?: 30
+    val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
     val includeGeo = ctx.queryParam("geo")?.lowercase() == "true"
+    val includePtr = ctx.queryParam("ptr")?.lowercase() != "false"
     try {
         // Step 1: Run traceroute
-        val command = listOf("traceroute", "-m", "$maxHops", "-w", "3", host)
-        val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        val lines = process.inputStream.bufferedReader().readLines()
-        process.waitFor()
-
-        data class RawHop(val hop: Int, val host: String, val ip: String, val rttRaw: String)
-
-        val rawHops = mutableListOf<RawHop>()
-        val hopPattern = "^\\s*([0-9]+)\\s+(.+)$".toRegex()
-        for (line in lines.drop(1)) {
-            val match = hopPattern.find(line) ?: continue
-            val hopNum = match.groupValues[1].toInt()
-            val rest = match.groupValues[2].trim()
-            if (rest.contains("* * *")) {
-                rawHops.add(RawHop(hopNum, "*", "*", "* * *"))
-            } else {
-                val hostMatch = "^([^(]+)\\(([^)]+)\\)(.*)$".toRegex().find(rest)
-                if (hostMatch != null) {
-                    rawHops.add(
-                        RawHop(
-                            hopNum,
-                            hostMatch.groupValues[1].trim(),
-                            hostMatch.groupValues[2].trim(),
-                            hostMatch.groupValues[3].trim(),
-                        )
-                    )
-                } else {
-                    rawHops.add(RawHop(hopNum, rest, "", ""))
-                }
-            }
-        }
-
-        // Step 2: Parse RTT values (extract numeric ms values)
-        fun parseRtt(raw: String): Double? {
-            val times = "([0-9]+\\.?[0-9]*)\\s*ms".toRegex().findAll(raw).map { it.groupValues[1].toDouble() }.toList()
-            return if (times.isNotEmpty()) times.average() else null
-        }
-
-        // Step 3: Collect unique IPs for enrichment
-        val validIps = rawHops.map { it.ip }.filter { it != "*" && it.isNotEmpty() && it != "127.0.0.1" }.distinct()
-
-        // Step 4: ASN lookup via Team Cymru DNS (batch via individual TXT queries)
-        val resolver = DnsResolver(timeout = Duration.ofSeconds(2))
-        val asnMap = mutableMapOf<String, Map<String, String>>()
-        for (ip in validIps) {
-            try {
-                val reversed = ip.split(".").reversed().joinToString(".")
-                val dnsQuery = "$reversed.origin.asn.cymru.com"
-                val result = resolver.lookup(dnsQuery, Type.TXT)
-                if (result.isSuccessful && result.records.isNotEmpty()) {
-                    val txt = result.records.first().data
-                    val parts = txt.split("|").map { it.trim() }
-                    if (parts.size >= 5) {
-                        val asn = parts[0]
-                        // Also get AS name
-                        var asName = ""
-                        try {
-                            val nameResult = resolver.lookup("AS$asn.asn.cymru.com", Type.TXT)
-                            if (nameResult.isSuccessful && nameResult.records.isNotEmpty()) {
-                                val nameParts = nameResult.records.first().data.split("|").map { it.trim() }
-                                if (nameParts.size >= 5) asName = nameParts[4]
-                            }
-                        } catch (_: Exception) {
-                        }
-                        asnMap[ip] = mapOf(
-                            "asn" to "AS$asn",
-                            "prefix" to parts[1],
-                            "country" to parts[2],
-                            "registry" to parts[3],
-                            "asName" to asName,
-                        )
-                    }
-                }
-            } catch (_: Exception) {
-            }
-        }
-
-        // Step 5: Geolocation via ip-api.com batch API (opt-in, rate-limited)
-        val geoMap = mutableMapOf<String, Map<String, Any?>>()
-        if (includeGeo && validIps.isNotEmpty()) {
-            try {
-                val batchBody = jsonString(validIps.map { mapOf("query" to it) })
-                val uri = URI.create("http://ip-api.com/batch?fields=query,status,country,countryCode,regionName,city,lat,lon,isp,org")
-                val request = HttpRequest.newBuilder()
-                    .uri(uri).timeout(Duration.ofSeconds(5))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(batchBody)).build()
-                val client = JHttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
-                val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-                if (response.statusCode() == 200) {
-                    val arr = jsonReadTree(response.body())
-                    if (arr.isArray) {
-                        arr.forEach { node ->
-                            if (node.get("status")?.asText() == "success") {
-                                val q = node.get("query")?.asText() ?: return@forEach
-                                geoMap[q] = mapOf(
-                                    "country" to node.get("country")?.asText(),
-                                    "countryCode" to node.get("countryCode")?.asText(),
-                                    "region" to node.get("regionName")?.asText(),
-                                    "city" to node.get("city")?.asText(),
-                                    "lat" to node.get("lat")?.asDouble(),
-                                    "lon" to node.get("lon")?.asDouble(),
-                                    "isp" to node.get("isp")?.asText(),
-                                    "org" to node.get("org")?.asText(),
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // Geo lookup is best-effort
-            }
-        }
-
-        // Step 6: Build enriched response
-        val enrichedHops = rawHops.map { hop ->
-            val rttAvg = parseRtt(hop.rttRaw)
-            val asn = asnMap[hop.ip]
-            val geo = geoMap[hop.ip]
-            TraceVisualHop(
-                hop = hop.hop,
-                host = hop.host,
-                ip = hop.ip,
-                rttRaw = hop.rttRaw,
-                rttAvg = rttAvg,
-                asn = asn?.get("asn"),
-                asName = asn?.get("asName"),
-                prefix = asn?.get("prefix"),
-                asnCountry = asn?.get("country"),
-                lat = geo?.get("lat") as? Double,
-                lon = geo?.get("lon") as? Double,
-                city = geo?.get("city") as? String,
-                region = geo?.get("region") as? String,
-                country = geo?.get("country") as? String,
-                countryCode = geo?.get("countryCode") as? String,
-                isp = geo?.get("isp") as? String,
-                org = geo?.get("org") as? String,
-            )
-        }
-
-        ctx.jsonResult(
-            TraceVisualResponse(
-                host = host,
-                maxHops = maxHops,
-                hopCount = rawHops.size,
-                hops = enrichedHops,
-            )
-        )
+        val lines = runTraceCommand(host, maxHops)
+        val rawHops = parseTraceHopsFromOutput(lines)
+        ctx.jsonResult(buildTraceVisualResponse(host, maxHops, rawHops, includeGeo, includePtr))
     } catch (e: Exception) {
         ctx.jsonResult(ErrorResponse("Traceroute failed: ${e.message}"))
     }
+}
+
+fun traceVisualStream(ctx: Context) {
+    val host = ctx.pathParam("host")
+    val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
+    val includeGeo = ctx.queryParam("geo")?.lowercase() == "true"
+    val includePtr = ctx.queryParam("ptr")?.lowercase() != "false"
+
+    ctx.res().status = 200
+    ctx.res().characterEncoding = "UTF-8"
+    ctx.res().contentType = "text/event-stream"
+    ctx.res().setHeader("Cache-Control", "no-cache")
+    ctx.res().setHeader("Connection", "keep-alive")
+
+    val writer = ctx.res().writer
+    fun emit(event: String, payload: Any) {
+        writer.write("event: $event\n")
+        writer.write("data: ${jsonString(payload)}\n\n")
+        writer.flush()
+    }
+
+    try {
+        emit("start", mapOf("host" to host, "maxHops" to maxHops, "geo" to includeGeo, "ptr" to includePtr))
+
+        val isWindows = isWindowsHost()
+        val command = if (isWindows) {
+            listOf("tracert", "-d", "-h", "$maxHops", "-w", "700", host)
+        } else {
+            listOf("traceroute", "-n", "-q", "1", "-m", "$maxHops", "-w", "1", host)
+        }
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        val rawHops = mutableListOf<TraceHop>()
+        val ptrResolver = DnsResolver(timeout = Duration.ofMillis(300))
+        val ptrCache = mutableMapOf<String, String?>()
+
+        process.inputStream.bufferedReader().useLines { seq ->
+            seq.forEach { line ->
+                val hop = parseTraceHopLine(line, isWindows) ?: return@forEach
+                rawHops.add(hop)
+                val ptr = if (includePtr) resolvePtrName(hop.ip, ptrResolver, ptrCache) else null
+                val visualHop = TraceVisualHop(
+                    hop = hop.hop.toIntOrNull() ?: 0,
+                    host = hop.host,
+                    ip = hop.ip,
+                    rttRaw = hop.rtt,
+                    rttAvg = parseAverageRttMs(hop.rtt),
+                    ptr = ptr,
+                )
+                emit("hop", visualHop)
+            }
+        }
+        process.waitFor()
+
+        val finalResponse = buildTraceVisualResponse(host, maxHops, rawHops, includeGeo, includePtr)
+        emit("done", finalResponse)
+    } catch (e: Exception) {
+        emit("error", mapOf("message" to ("Traceroute failed: ${e.message}")))
+    } finally {
+        writer.close()
+    }
+}
+
+private fun buildTraceVisualResponse(
+    host: String,
+    maxHops: Int,
+    rawHops: List<TraceHop>,
+    includeGeo: Boolean,
+    includePtr: Boolean,
+): TraceVisualResponse {
+    // Step 2: Parse RTT values (extract numeric ms values)
+    // Step 3: Collect unique IPs for enrichment
+    val validIps = rawHops.map { it.ip }.filter { it != "*" && it.isNotEmpty() && it != "127.0.0.1" }.distinct()
+    val enrichIps = validIps.take(12)
+
+    // Step 4: ASN lookup via Team Cymru DNS (batch via individual TXT queries)
+    val resolver = DnsResolver(timeout = Duration.ofSeconds(1))
+    val asnMap = mutableMapOf<String, Map<String, String>>()
+    val asNameCache = mutableMapOf<String, String>()
+    val ptrCache = mutableMapOf<String, String?>()
+    for (ip in enrichIps) {
+        try {
+            val reversed = ip.split(".").reversed().joinToString(".")
+            val dnsQuery = "$reversed.origin.asn.cymru.com"
+            val result = resolver.lookup(dnsQuery, Type.TXT)
+            if (result.isSuccessful && result.records.isNotEmpty()) {
+                val txt = result.records.first().data
+                val parts = txt.split("|").map { it.trim() }
+                if (parts.size >= 5) {
+                    val asn = parts[0].split(" ").firstOrNull().orEmpty()
+                    if (asn.isBlank()) continue
+                    val asName = lookupAsName(asn, resolver, asNameCache, parts.getOrNull(5) ?: "")
+                    asnMap[ip] = mapOf(
+                        "asn" to "AS$asn",
+                        "prefix" to parts[1],
+                        "country" to parts[2],
+                        "registry" to parts[3],
+                        "asName" to asName,
+                    )
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    // Step 5: Geolocation via ip-api.com batch API (opt-in, rate-limited)
+    val geoMap = mutableMapOf<String, Map<String, Any?>>()
+    if (includeGeo && validIps.isNotEmpty()) {
+        try {
+            val batchBody = jsonString(validIps.map { mapOf("query" to it) })
+            val uri = URI.create("http://ip-api.com/batch?fields=query,status,country,countryCode,regionName,city,lat,lon,isp,org")
+            val request = HttpRequest.newBuilder()
+                .uri(uri).timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(batchBody)).build()
+            val client = JHttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() == 200) {
+                val arr = jsonReadTree(response.body())
+                if (arr.isArray) {
+                    arr.forEach { node ->
+                        if (node.get("status")?.asText() == "success") {
+                            val q = node.get("query")?.asText() ?: return@forEach
+                            geoMap[q] = mapOf(
+                                "country" to node.get("country")?.asText(),
+                                "countryCode" to node.get("countryCode")?.asText(),
+                                "region" to node.get("regionName")?.asText(),
+                                "city" to node.get("city")?.asText(),
+                                "lat" to node.get("lat")?.asDouble(),
+                                "lon" to node.get("lon")?.asDouble(),
+                                "isp" to node.get("isp")?.asText(),
+                                "org" to node.get("org")?.asText(),
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Geo lookup is best-effort
+        }
+    }
+
+    // Step 6: Build enriched response
+    val enrichedHops = rawHops.map { hop ->
+        val rttAvg = parseAverageRttMs(hop.rtt)
+        val asn = asnMap[hop.ip]
+        val geo = geoMap[hop.ip]
+        val ptr = if (includePtr) resolvePtrName(hop.ip, resolver, ptrCache) else null
+        TraceVisualHop(
+            hop = hop.hop.toIntOrNull() ?: 0,
+            host = hop.host,
+            ip = hop.ip,
+            rttRaw = hop.rtt,
+            rttAvg = rttAvg,
+            ptr = ptr,
+            asn = asn?.get("asn"),
+            asName = asn?.get("asName"),
+            prefix = asn?.get("prefix"),
+            asnCountry = asn?.get("country"),
+            lat = geo?.get("lat") as? Double,
+            lon = geo?.get("lon") as? Double,
+            city = geo?.get("city") as? String,
+            region = geo?.get("region") as? String,
+            country = geo?.get("country") as? String,
+            countryCode = geo?.get("countryCode") as? String,
+            isp = geo?.get("isp") as? String,
+            org = geo?.get("org") as? String,
+        )
+    }
+
+    return TraceVisualResponse(
+        host = host,
+        maxHops = maxHops,
+        hopCount = rawHops.size,
+        hops = enrichedHops,
+    )
+}
+
+private fun lookupAsName(
+    asn: String,
+    resolver: DnsResolver,
+    cache: MutableMap<String, String>,
+    fallback: String = "",
+): String {
+    if (asn.isBlank()) return fallback
+    cache[asn]?.let { return it }
+    val value = try {
+        val result = resolver.lookup("AS$asn.asn.cymru.com", Type.TXT)
+        if (result.isSuccessful && result.records.isNotEmpty()) {
+            val parts = result.records.first().data.split("|").map { it.trim() }
+            parts.getOrNull(4)?.takeIf { it.isNotBlank() } ?: fallback
+        } else {
+            fallback
+        }
+    } catch (_: Exception) {
+        fallback
+    }
+    cache[asn] = value
+    return value
+}
+
+private fun resolvePtrName(
+    ip: String,
+    resolver: DnsResolver,
+    cache: MutableMap<String, String?>,
+): String? {
+    if (ip.isBlank() || ip == "*" || ip == "127.0.0.1") return null
+    if (cache.containsKey(ip)) return cache[ip]
+    val value = try {
+        val result = resolver.reverseLookup(ip)
+        if (result.isSuccessful && result.records.isNotEmpty()) {
+            result.records.first().data.trimEnd('.').ifBlank { null }
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
+    }
+    cache[ip] = value
+    return value
+}
+
+private fun isWindowsHost(): Boolean =
+    System.getProperty("os.name").lowercase().contains("win")
+
+private fun runTraceCommand(host: String, maxHops: Int): List<String> {
+    val command = if (isWindowsHost()) {
+        // -d skips reverse DNS lookups, which dramatically improves response time.
+        listOf("tracert", "-d", "-h", "$maxHops", "-w", "700", host)
+    } else {
+        // -n avoids reverse lookups, -q 1 sends one probe per hop for faster API responses.
+        listOf("traceroute", "-n", "-q", "1", "-m", "$maxHops", "-w", "1", host)
+    }
+    val process = ProcessBuilder(command).redirectErrorStream(true).start()
+    val lines = process.inputStream.bufferedReader().readLines()
+    process.waitFor()
+    return lines
+}
+
+fun parseTraceHopsFromOutput(lines: List<String>, isWindows: Boolean = isWindowsHost()): List<TraceHop> {
+    val hops = mutableListOf<TraceHop>()
+    for (line in lines) {
+        val parsed = parseTraceHopLine(line, isWindows) ?: continue
+        hops.add(parsed)
+    }
+    return hops
+}
+
+fun parseTraceHopLine(line: String, isWindows: Boolean = isWindowsHost()): TraceHop? {
+    val hopPattern = "^\\s*(\\d+)\\s+(.+)$".toRegex()
+    val ipRegex = "(\\d{1,3}(?:\\.\\d{1,3}){3})".toRegex()
+    val msRegex = "<?\\d+\\s*ms".toRegex()
+
+    val match = hopPattern.find(line) ?: return null
+    val hopNum = match.groupValues[1]
+    val rest = match.groupValues[2].trim()
+
+    if (rest.contains("Request timed out", ignoreCase = true) || rest.contains("* * *")) {
+        return TraceHop(hopNum, "*", "*", "* * *")
+    }
+
+    if (isWindows) {
+        val ip = ipRegex.find(rest)?.groupValues?.get(1) ?: ""
+        val rtts = msRegex.findAll(rest).map { it.value.trim() }.toList()
+        val rttRaw = if (rtts.isNotEmpty()) rtts.joinToString(" ") else ""
+        val host = if (ip.isNotEmpty()) {
+            val bracketed = "\\[(.*?)\\]".toRegex().find(rest)?.groupValues?.get(1)
+            if (!bracketed.isNullOrBlank()) {
+                rest.substringBefore("[").trim().ifBlank { ip }
+            } else {
+                ip
+            }
+        } else {
+            rest
+        }
+        return TraceHop(hopNum, host, ip, rttRaw)
+    }
+
+    val hostMatch = "^([^(]+)\\(([^)]+)\\)(.*)$".toRegex().find(rest)
+    return if (hostMatch != null) {
+        TraceHop(
+            hopNum,
+            hostMatch.groupValues[1].trim(),
+            hostMatch.groupValues[2].trim(),
+            hostMatch.groupValues[3].trim(),
+        )
+    } else {
+        val ip = ipRegex.find(rest)?.groupValues?.get(1) ?: ""
+        TraceHop(hopNum, rest, ip, rest)
+    }
+}
+
+fun parseAverageRttMs(raw: String): Double? {
+    val times = "<?([0-9]+\\.?[0-9]*)\\s*ms".toRegex()
+        .findAll(raw)
+        .map { it.groupValues[1].toDouble() }
+        .toList()
+    return if (times.isNotEmpty()) times.average() else null
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
@@ -521,6 +645,7 @@ data class TraceVisualHop(
     val ip: String,
     val rttRaw: String,
     val rttAvg: Double?,
+    val ptr: String? = null,
     val asn: String? = null,
     val asName: String? = null,
     val prefix: String? = null,

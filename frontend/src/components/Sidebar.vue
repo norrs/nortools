@@ -63,6 +63,12 @@ const toolGroups = [
       { name: 'Domain Health', path: '/domain-health' },
     ],
   },
+  {
+    name: 'Info',
+    tools: [
+      { name: 'About', path: '/about' },
+    ],
+  },
 ];
 </script>
 
