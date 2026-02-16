@@ -1,3 +1,5 @@
+web/git-build-info.properties
+
 # OS junk
 .DS_Store
 Thumbs.db

@@ -8,6 +8,9 @@ interface AboutBuildInfo {
   buildTime?: string;
   buildTimestamp?: string;
   gitCommit?: string;
+  gitShortCommit?: string;
+  gitBranch?: string;
+  gitDirty?: string;
 }
 
 interface AboutResponse {
@@ -209,6 +212,9 @@ onMounted(load);
         <h3>{{ about.appName }}</h3>
         <div class="kv"><span>Version</span><strong>{{ about.version }}</strong></div>
         <div class="kv"><span>Git Commit</span><code>{{ about.build.gitCommit || 'unknown' }}</code></div>
+        <div class="kv"><span>Git Short</span><code>{{ about.build.gitShortCommit || 'unknown' }}</code></div>
+        <div class="kv"><span>Git Branch</span><code>{{ about.build.gitBranch || 'unknown' }}</code></div>
+        <div class="kv"><span>Git Dirty</span><code>{{ about.build.gitDirty || 'unknown' }}</code></div>
         <div class="kv"><span>Build Time</span><code>{{ about.build.buildTime || 'unknown' }}</code></div>
         <div class="kv"><span>Build Target</span><code>{{ about.build.target || 'unknown' }}</code></div>
         <div class="kv"><span>Main Class</span><code>{{ about.build.mainClass || 'unknown' }}</code></div>

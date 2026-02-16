@@ -9,7 +9,7 @@ build --verbose_failures
 test --test_output=errors
 
 # Stamp builds with workspace status
-build --workspace_status_command="echo STABLE_GIT_COMMIT $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+build --workspace_status_command=tools/bazel/workspace_status.sh
 
 # Windows needs a populated runfiles tree for Kotlin workers.
 build --enable_runfiles

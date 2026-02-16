@@ -89,6 +89,7 @@ kt_jvm_binary(
 java_binary(
     name = "desktop_jar",
     main_class = "no.norrs.nortools.desktop.KremaAppKt",
+    stamp = 1,
     runtime_deps = [
         ":desktop_lib",
         ":frontend_resources",

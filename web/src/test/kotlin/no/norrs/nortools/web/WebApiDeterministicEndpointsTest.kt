@@ -114,6 +114,10 @@ class WebApiDeterministicEndpointsTest {
         assertTrue(json.has("credits"))
         assertTrue(json.has("inspiration"))
         assertTrue(json.has("rfc"))
+        assertTrue(json["build"]["target"].asText().isNotBlank())
+        assertTrue(json["build"]["mainClass"].asText().isNotBlank())
+        assertTrue(json["build"]["buildTime"].asText().isNotBlank())
+        assertTrue(json["build"]["buildTimestamp"].asText().isNotBlank())
     }
 
     private fun get(path: String): HttpResponse<String> {

@@ -1,8 +1,14 @@
+load(":git_build_info.bzl", "git_build_info")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
 
+git_build_info(
+    name = "git_build_info",
+)
+
 kt_jvm_library(
     name = "web_lib",
+    resources = [":git_build_info"],
     srcs = glob(["src/main/kotlin/**/*.kt"]),
     visibility = ["//visibility:public"],
     deps = [
@@ -21,6 +27,7 @@ java_binary(
     name = "web",
     data = ["//frontend:build"],
     main_class = "no.norrs.nortools.web.WebPortalKt",
+    stamp = 1,
     runtime_deps = [":web_lib"],
 )
 
