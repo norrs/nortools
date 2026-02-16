@@ -162,6 +162,11 @@ java_import(
     visibility = ["//visibility:public"],
 )
 
+exports_files(
+    ["graal/reflect-config.json"],
+    visibility = ["//visibility:public"],
+)
+
 filegroup(
     name = "graal_configs",
     srcs = [

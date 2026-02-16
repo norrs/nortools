@@ -15,9 +15,10 @@ interface Hop {
   isp?: string; org?: string;
 }
 interface TraceResult { host: string; maxHops: number; hopCount: number; hops: Hop[]; error?: string; }
+type LookupMode = 'geo' | 'asn-country';
 
 const host = ref('');
-const geo = ref(false);
+const lookupMode = ref<LookupMode>('geo');
 const ptrLookup = ref(true);
 const result = ref<TraceResult | null>(null);
 const error = ref('');
@@ -37,8 +38,6 @@ function latencyColor(ms: number | null): string {
   if (ms < 300) return '#f97316';
   return '#ef4444';
 }
-
-const hasGeo = () => (result.value?.hops || []).some((h) => h.lat != null && h.lon != null);
 
 function closeTraceSource() {
   if (traceSource) {
@@ -70,7 +69,7 @@ async function trace() {
   if (mapInstance) { mapInstance.remove(); mapInstance = null; }
 
   const qs = new URLSearchParams();
-  if (geo.value) qs.set('geo', 'true');
+  qs.set('lookupMode', lookupMode.value);
   if (!ptrLookup.value) qs.set('ptr', 'false');
   const url = `/api/trace-visual-stream/${encodeURIComponent(host.value)}${qs.toString() ? `?${qs.toString()}` : ''}`;
   traceSource = new EventSource(url);
@@ -143,7 +142,8 @@ async function showMap() {
     if (h.rttAvg != null) popup += `<br><b style="color:${c}">${h.rttAvg.toFixed(1)} ms</b>`;
     if (h.ptr) popup += `<br>PTR: ${h.ptr}`;
     if (h.asn) popup += `<br>${h.asn} ${h.asName || ''}`;
-    if (h.city || h.country) popup += `<br>${h.city ? h.city + ', ' : ''}${h.country || ''}`;
+    if (lookupMode.value === 'asn-country' && h.asnCountry) popup += `<br>ASN Country: ${h.asnCountry}`;
+    if (lookupMode.value === 'geo' && (h.city || h.country)) popup += `<br>${h.city ? h.city + ', ' : ''}${h.country || ''}`;
     popup += '</div>';
     marker.bindPopup(popup);
     bounds.push([h.lat!, h.lon!]);
@@ -168,7 +168,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="tool-view">
     <h2>Traceroute (Visual)</h2>
-    <p class="desc">Trace the network path with ASN info and hop diagram. Optionally enable geolocation for world map view.</p>
+    <p class="desc">Trace the network path with ASN info and hop diagram. Choose IP lookup mode for map labeling.</p>
     <form @submit.prevent="trace" class="lookup-form">
       <input v-model="host" placeholder="Enter host (e.g. google.com)" class="input" />
       <button type="submit" :disabled="loading" class="btn">
@@ -176,22 +176,29 @@ onBeforeUnmount(() => {
       </button>
     </form>
 
-    <label class="geo-toggle">
-      <input type="checkbox" v-model="geo" />
-      Enable geolocation lookup (world map)
-    </label>
+    <div class="lookup-mode">
+      <span class="lookup-label">IP lookup mode:</span>
+      <label class="geo-toggle">
+        <input type="radio" value="geo" v-model="lookupMode" />
+        Geo lookup
+      </label>
+      <label class="geo-toggle">
+        <input type="radio" value="asn-country" v-model="lookupMode" />
+        ASN country lookup
+      </label>
+    </div>
+    <div class="geo-hint">Geo lookup uses ip-api.com free API (rate-limited to 45 req/min, non-commercial use only).</div>
     <label class="geo-toggle">
       <input type="checkbox" v-model="ptrLookup" />
       Enable PTR lookup (reverse DNS)
     </label>
-    <div class="geo-hint">Uses ip-api.com free API (rate-limited to 45 req/min).</div>
 
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="result" class="trace-results">
       <div class="tabs">
         <button :class="['tab', { active: activeTab === 'diagram' }]" @click="activeTab = 'diagram'">Hop Diagram</button>
-        <button v-if="hasGeo()" :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
+        <button :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
         <button :class="['tab', { active: activeTab === 'json' }]" @click="activeTab = 'json'">JSON</button>
       </div>
 
@@ -217,7 +224,24 @@ onBeforeUnmount(() => {
                 <span v-if="hop.ip && hop.ip !== '*'" class="hop-ip">({{ hop.ip }})</span>
                 <span v-if="hop.rttAvg != null" class="hop-rtt" :style="{ color: latencyColor(hop.rttAvg) }">{{ hop.rttAvg.toFixed(1) }} ms</span>
                 <span v-if="hop.ptr" class="hop-ptr">PTR: {{ hop.ptr }}</span>
-                <span v-if="hop.city || hop.country" class="hop-geo">{{ hop.city ? hop.city + ', ' : '' }}{{ hop.country || '' }}</span>
+                <span v-if="lookupMode === 'geo' && (hop.city || hop.country)" class="hop-geo hop-geo--pin">
+                  <span class="hop-geo-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.8"/>
+                    </svg>
+                  </span>
+                  {{ hop.city ? hop.city + ', ' : '' }}{{ hop.country || '' }}
+                </span>
+                <span v-if="lookupMode === 'asn-country' && hop.asnCountry" class="hop-geo hop-geo--asn">
+                  <span class="hop-geo-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                      <path d="M4 12h16M12 4c2.4 2.2 3.8 5.1 3.8 8S14.4 17.8 12 20M12 4c-2.4 2.2-3.8 5.1-3.8 8S9.6 17.8 12 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                  ASN Country: {{ hop.asnCountry }}
+                </span>
               </div>
             </div>
           </template>
@@ -226,6 +250,9 @@ onBeforeUnmount(() => {
 
       <div v-show="activeTab === 'map'" class="tab-panel map-panel">
         <div id="trace-map" class="map-container"></div>
+        <div v-if="!result.hops.some((h) => h.lat != null && h.lon != null)" class="map-empty">
+          No map coordinates were returned for this trace.
+        </div>
       </div>
 
       <div v-show="activeTab === 'json'" class="tab-panel">
@@ -249,6 +276,8 @@ h2 { margin-bottom: 0.25rem; }
 
 .geo-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #555; cursor: pointer; margin-bottom: 0.25rem; }
 .geo-toggle input { width: auto; accent-color: #1a1a2e; }
+.lookup-mode { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+.lookup-label { font-size: 0.8rem; color: #666; }
 .geo-hint { font-size: 0.7rem; color: #999; margin-bottom: 1rem; margin-left: 1.5rem; }
 
 .trace-results { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -283,10 +312,15 @@ h2 { margin-bottom: 0.25rem; }
 .hop-ip { color: #888; }
 .hop-rtt { font-weight: 600; }
 .hop-ptr { color: #4b5563; font-size: 0.75rem; }
-.hop-geo { color: #888; font-size: 0.75rem; }
+.hop-geo { color: #888; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem; }
+.hop-geo-icon { width: 0.85rem; height: 0.85rem; display: inline-flex; color: #6b7280; }
+.hop-geo-icon svg { width: 100%; height: 100%; }
+.hop-geo--pin .hop-geo-icon { color: #1f6feb; }
+.hop-geo--asn .hop-geo-icon { color: #8b5cf6; }
 
 .map-panel { padding: 0; }
 .map-container { height: 450px; width: 100%; }
+.map-empty { padding: 0.75rem 1rem; font-size: 0.8rem; color: #666; }
 
 .json-pre { font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; line-height: 1.5; max-height: 500px; overflow: auto; }
 </style>

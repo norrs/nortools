@@ -228,6 +228,167 @@ fun pingCheck(ctx: Context) {
     }
 }
 
+fun pingStream(ctx: Context) {
+    val host = ctx.pathParam("host")
+    val continuous = ctx.queryParam("continuous")?.lowercase() == "true"
+    val count = if (continuous) null else (ctx.queryParam("count")?.toIntOrNull() ?: 4).coerceIn(1, 200)
+    val timeoutSeconds = (ctx.queryParam("timeout")?.toIntOrNull() ?: 5).coerceIn(1, 30)
+    val intervalMs = 1000L
+    val isWindows = isWindowsHost()
+
+    ctx.res().status = 200
+    ctx.res().characterEncoding = "UTF-8"
+    ctx.res().contentType = "text/event-stream"
+    ctx.res().setHeader("Cache-Control", "no-cache")
+    ctx.res().setHeader("Connection", "keep-alive")
+
+    val writer = ctx.res().writer
+    fun emit(event: String, payload: Any) {
+        writer.write("event: $event\n")
+        writer.write("data: ${jsonString(payload)}\n\n")
+        writer.flush()
+    }
+
+    val replies = mutableListOf<PingReply>()
+    val rtts = mutableListOf<Double>()
+    var sent = 0
+    var received = 0
+    var completed = false
+
+    try {
+        emit(
+            "start",
+            mapOf(
+                "host" to host,
+                "continuous" to continuous,
+                "count" to count,
+                "timeoutSeconds" to timeoutSeconds,
+                "intervalMs" to intervalMs,
+            ),
+        )
+
+        while (continuous || sent < (count ?: 0)) {
+            val probe = runSinglePingProbe(host, timeoutSeconds, isWindows)
+            sent += 1
+            if (probe.success) {
+                received += 1
+                probe.timeMs?.let { rtts.add(it) }
+                replies.add(
+                    PingReply(
+                        from = probe.from ?: host,
+                        time = probe.timeMs?.let { formatMs(it) } ?: "?",
+                    )
+                )
+            }
+
+            emit(
+                "sample",
+                mapOf(
+                    "seq" to sent,
+                    "from" to probe.from,
+                    "timeMs" to probe.timeMs,
+                    "status" to if (probe.success) "reply" else "timeout",
+                    "message" to if (probe.success) {
+                        "${probe.from ?: host} ${probe.timeMs?.let { formatMs(it) } ?: ""}".trim()
+                    } else {
+                        "No response within ${timeoutSeconds}s"
+                    },
+                ),
+            )
+
+            val moreProbes = continuous || sent < (count ?: 0)
+            if (moreProbes) {
+                try {
+                    Thread.sleep(intervalMs)
+                } catch (_: InterruptedException) {
+                    break
+                }
+            }
+        }
+
+        completed = true
+        val packetLoss = if (sent > 0) ((sent - received) * 100.0) / sent else 0.0
+        val summary = PingResponse(
+            host = host,
+            packetsSent = sent,
+            packetsReceived = received.toString(),
+            packetLoss = "${"%.1f".format(packetLoss)}%",
+            minRtt = rtts.minOrNull()?.let { formatMs(it) },
+            avgRtt = if (rtts.isNotEmpty()) formatMs(rtts.average()) else null,
+            maxRtt = rtts.maxOrNull()?.let { formatMs(it) },
+            status = if (received > 0) "Reachable" else "Unreachable",
+            replies = replies,
+        )
+        emit("summary", summary)
+        emit("done", summary)
+    } catch (e: Exception) {
+        // Client disconnected (Stop clicked) or probe execution failed.
+        if (sent == 0) {
+            try {
+                emit("error", mapOf("message" to ("Ping failed: ${e.message ?: "unknown error"}")))
+            } catch (_: Exception) {
+                // Connection already closed.
+            }
+            return
+        }
+        if (!completed) {
+            val packetLoss = if (sent > 0) ((sent - received) * 100.0) / sent else 0.0
+            val partial = PingResponse(
+                host = host,
+                packetsSent = sent,
+                packetsReceived = received.toString(),
+                packetLoss = "${"%.1f".format(packetLoss)}%",
+                minRtt = rtts.minOrNull()?.let { formatMs(it) },
+                avgRtt = if (rtts.isNotEmpty()) formatMs(rtts.average()) else null,
+                maxRtt = rtts.maxOrNull()?.let { formatMs(it) },
+                status = if (received > 0) "Reachable" else "Unreachable",
+                replies = replies,
+            )
+            try {
+                emit("done", partial)
+            } catch (_: Exception) {
+                // Connection already closed.
+            }
+        }
+    } finally {
+        writer.close()
+    }
+}
+
+private fun runSinglePingProbe(host: String, timeoutSeconds: Int, isWindows: Boolean): PingProbeResult {
+    val command = if (isWindows) {
+        listOf("ping", "-n", "1", "-w", "${timeoutSeconds * 1000}", host)
+    } else {
+        listOf("ping", "-n", "-c", "1", "-W", "$timeoutSeconds", host)
+    }
+    val process = ProcessBuilder(command).redirectErrorStream(true).start()
+    val lines = process.inputStream.bufferedReader().readLines()
+    process.waitFor()
+
+    val regex = if (isWindows) {
+        ".*Reply from ([^:]+):.*time[=<]([0-9.]+)ms.*".toRegex(RegexOption.IGNORE_CASE)
+    } else {
+        ".*from ([^: ]+):.*time[=<]?([0-9.]+)\\s*ms.*".toRegex(RegexOption.IGNORE_CASE)
+    }
+    val match = lines.firstNotNullOfOrNull { regex.find(it) }
+    if (match != null) {
+        return PingProbeResult(
+            success = true,
+            from = match.groupValues[1],
+            timeMs = match.groupValues[2].toDoubleOrNull(),
+            raw = lines.joinToString("\n"),
+        )
+    }
+    return PingProbeResult(
+        success = false,
+        from = null,
+        timeMs = null,
+        raw = lines.joinToString("\n"),
+    )
+}
+
+private fun formatMs(value: Double): String = "${"%.1f".format(value)}ms"
+
 fun traceCheck(ctx: Context) {
     val host = ctx.pathParam("host")
     val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
@@ -250,13 +411,13 @@ fun traceCheck(ctx: Context) {
 fun traceVisual(ctx: Context) {
     val host = ctx.pathParam("host")
     val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
-    val includeGeo = ctx.queryParam("geo")?.lowercase() == "true"
+    val lookupMode = parseLookupMode(ctx.queryParam("lookupMode"))
     val includePtr = ctx.queryParam("ptr")?.lowercase() != "false"
     try {
         // Step 1: Run traceroute
         val lines = runTraceCommand(host, maxHops)
         val rawHops = parseTraceHopsFromOutput(lines)
-        ctx.jsonResult(buildTraceVisualResponse(host, maxHops, rawHops, includeGeo, includePtr))
+        ctx.jsonResult(buildTraceVisualResponse(host, maxHops, rawHops, lookupMode, includePtr))
     } catch (e: Exception) {
         ctx.jsonResult(ErrorResponse("Traceroute failed: ${e.message}"))
     }
@@ -265,7 +426,7 @@ fun traceVisual(ctx: Context) {
 fun traceVisualStream(ctx: Context) {
     val host = ctx.pathParam("host")
     val maxHops = (ctx.queryParam("maxHops")?.toIntOrNull() ?: 15).coerceIn(1, 30)
-    val includeGeo = ctx.queryParam("geo")?.lowercase() == "true"
+    val lookupMode = parseLookupMode(ctx.queryParam("lookupMode"))
     val includePtr = ctx.queryParam("ptr")?.lowercase() != "false"
 
     ctx.res().status = 200
@@ -282,7 +443,7 @@ fun traceVisualStream(ctx: Context) {
     }
 
     try {
-        emit("start", mapOf("host" to host, "maxHops" to maxHops, "geo" to includeGeo, "ptr" to includePtr))
+        emit("start", mapOf("host" to host, "maxHops" to maxHops, "lookupMode" to lookupMode, "ptr" to includePtr))
 
         val isWindows = isWindowsHost()
         val command = if (isWindows) {
@@ -313,7 +474,7 @@ fun traceVisualStream(ctx: Context) {
         }
         process.waitFor()
 
-        val finalResponse = buildTraceVisualResponse(host, maxHops, rawHops, includeGeo, includePtr)
+        val finalResponse = buildTraceVisualResponse(host, maxHops, rawHops, lookupMode, includePtr)
         emit("done", finalResponse)
     } catch (e: Exception) {
         emit("error", mapOf("message" to ("Traceroute failed: ${e.message}")))
@@ -326,7 +487,7 @@ private fun buildTraceVisualResponse(
     host: String,
     maxHops: Int,
     rawHops: List<TraceHop>,
-    includeGeo: Boolean,
+    lookupMode: String,
     includePtr: Boolean,
 ): TraceVisualResponse {
     // Step 2: Parse RTT values (extract numeric ms values)
@@ -363,13 +524,13 @@ private fun buildTraceVisualResponse(
         } catch (_: Exception) {
         }
     }
-
-    // Step 5: Geolocation via ip-api.com batch API (opt-in, rate-limited)
+    // Step 5: Geolocation via ip-api.com batch API (geo mode only, rate-limited)
     val geoMap = mutableMapOf<String, Map<String, Any?>>()
-    if (includeGeo && validIps.isNotEmpty()) {
+    if (lookupMode == "geo" && validIps.isNotEmpty()) {
         try {
             val batchBody = jsonString(validIps.map { mapOf("query" to it) })
-            val uri = URI.create("http://ip-api.com/batch?fields=query,status,country,countryCode,regionName,city,lat,lon,isp,org")
+            val fields = "query,status,country,countryCode,regionName,city,lat,lon,isp,org"
+            val uri = URI.create("http://ip-api.com/batch?fields=$fields")
             val request = HttpRequest.newBuilder()
                 .uri(uri).timeout(Duration.ofSeconds(5))
                 .header("Content-Type", "application/json")
@@ -406,6 +567,10 @@ private fun buildTraceVisualResponse(
         val rttAvg = parseAverageRttMs(hop.rtt)
         val asn = asnMap[hop.ip]
         val geo = geoMap[hop.ip]
+        val asnCountry = asn?.get("country")
+        val geoCountryCode = if (lookupMode == "geo") geo?.get("countryCode") as? String else null
+        val geoCountry = if (lookupMode == "geo") geo?.get("country") as? String else null
+        val countryCode = if (lookupMode == "asn-country") asnCountry else geoCountryCode
         val ptr = if (includePtr) resolvePtrName(hop.ip, resolver, ptrCache) else null
         TraceVisualHop(
             hop = hop.hop.toIntOrNull() ?: 0,
@@ -417,15 +582,15 @@ private fun buildTraceVisualResponse(
             asn = asn?.get("asn"),
             asName = asn?.get("asName"),
             prefix = asn?.get("prefix"),
-            asnCountry = asn?.get("country"),
-            lat = geo?.get("lat") as? Double,
-            lon = geo?.get("lon") as? Double,
-            city = geo?.get("city") as? String,
-            region = geo?.get("region") as? String,
-            country = geo?.get("country") as? String,
-            countryCode = geo?.get("countryCode") as? String,
-            isp = geo?.get("isp") as? String,
-            org = geo?.get("org") as? String,
+            asnCountry = asnCountry,
+            lat = if (lookupMode == "geo") geo?.get("lat") as? Double else null,
+            lon = if (lookupMode == "geo") geo?.get("lon") as? Double else null,
+            city = if (lookupMode == "geo") geo?.get("city") as? String else null,
+            region = if (lookupMode == "geo") geo?.get("region") as? String else null,
+            country = if (lookupMode == "geo") geoCountry else countryCode,
+            countryCode = countryCode,
+            isp = if (lookupMode == "geo") geo?.get("isp") as? String else null,
+            org = if (lookupMode == "geo") geo?.get("org") as? String else null,
         )
     }
 
@@ -435,6 +600,13 @@ private fun buildTraceVisualResponse(
         hopCount = rawHops.size,
         hops = enrichedHops,
     )
+}
+
+private fun parseLookupMode(value: String?): String {
+    return when (value?.lowercase()) {
+        "asn-country" -> "asn-country"
+        else -> "geo"
+    }
 }
 
 private fun lookupAsName(
@@ -524,15 +696,16 @@ fun parseTraceHopLine(line: String, isWindows: Boolean = isWindowsHost()): Trace
         val ip = ipRegex.find(rest)?.groupValues?.get(1) ?: ""
         val rtts = msRegex.findAll(rest).map { it.value.trim() }.toList()
         val rttRaw = if (rtts.isNotEmpty()) rtts.joinToString(" ") else ""
+        val hostPart = rest.replaceFirst("^(?:<?\\d+\\s*ms\\s+){1,3}".toRegex(), "").trim()
         val host = if (ip.isNotEmpty()) {
-            val bracketed = "\\[(.*?)\\]".toRegex().find(rest)?.groupValues?.get(1)
+            val bracketed = "\\[(.*?)\\]".toRegex().find(hostPart)?.groupValues?.get(1)
             if (!bracketed.isNullOrBlank()) {
-                rest.substringBefore("[").trim().ifBlank { ip }
+                hostPart.substringBefore("[").trim().ifBlank { ip }
             } else {
-                ip
+                hostPart.ifBlank { ip }
             }
         } else {
-            rest
+            hostPart.ifBlank { rest }
         }
         return TraceHop(hopNum, host, ip, rttRaw)
     }
@@ -547,7 +720,12 @@ fun parseTraceHopLine(line: String, isWindows: Boolean = isWindowsHost()): Trace
         )
     } else {
         val ip = ipRegex.find(rest)?.groupValues?.get(1) ?: ""
-        TraceHop(hopNum, rest, ip, rest)
+        if (ip.isNotEmpty()) {
+            val rtt = rest.removePrefix(ip).trim().ifBlank { rest }
+            TraceHop(hopNum, ip, ip, rtt)
+        } else {
+            TraceHop(hopNum, rest, ip, rest)
+        }
     }
 }
 
@@ -612,6 +790,21 @@ data class CertificateInfo(
 data class PingReply(
     val from: String,
     val time: String,
+)
+
+data class PingStreamSample(
+    val seq: Int,
+    val from: String?,
+    val timeMs: Double?,
+    val status: String,
+    val message: String,
+)
+
+data class PingProbeResult(
+    val success: Boolean,
+    val from: String?,
+    val timeMs: Double?,
+    val raw: String,
 )
 
 data class PingResponse(

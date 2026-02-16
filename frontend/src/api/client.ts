@@ -68,8 +68,8 @@ export async function pingCheck(host: string, count: number = 4) {
   return fetchJson(`/ping/${host}?count=${count}`);
 }
 
-export async function traceroute(host: string, geo: boolean = false) {
-  return fetchJson(`/trace-visual/${host}${geo ? '?geo=true' : ''}`);
+export async function traceroute(host: string, lookupMode: 'geo' | 'asn-country' = 'geo') {
+  return fetchJson(`/trace-visual/${host}?lookupMode=${encodeURIComponent(lookupMode)}`);
 }
 
 // WHOIS tools

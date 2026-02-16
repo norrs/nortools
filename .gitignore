@@ -37,6 +37,11 @@ replay_pid*
 # Bazel
 bazel-*/
 **/bazel-*/
+bazel-bin
+bazel-nortools
+bazel-out
+bazel-testlogs
+
 
 # Local env files / secrets
 .env

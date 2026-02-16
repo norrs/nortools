@@ -111,6 +111,7 @@ fun startServer(
             get("/api/http/{url}") { ctx -> httpCheck(ctx) }
             get("/api/https/{host}") { ctx -> httpsCheck(ctx) }
             get("/api/ping/{host}") { ctx -> pingCheck(ctx) }
+            get("/api/ping-stream/{host}") { ctx -> pingStream(ctx) }
             get("/api/trace/{host}") { ctx -> traceCheck(ctx) }
             get("/api/trace-visual/{host}") { ctx -> traceVisual(ctx) }
             get("/api/trace-visual-stream/{host}") { ctx -> traceVisualStream(ctx) }

@@ -50,8 +50,11 @@ class DsLookupCommand : BaseCommand(
         val rows = dsRecords.map { record ->
             val algName = DNSSEC.Algorithm.string(record.algorithm)
             val digestTypeName = when (record.digestID) {
+                @SuppressWarnings("Deprecation")
                 DSRecord.Digest.SHA1 -> "SHA-1"
+                @SuppressWarnings("Deprecation")
                 DSRecord.Digest.SHA256 -> "SHA-256"
+                @SuppressWarnings("Deprecation")
                 DSRecord.Digest.SHA384 -> "SHA-384"
                 else -> "Type ${record.digestID}"
             }
