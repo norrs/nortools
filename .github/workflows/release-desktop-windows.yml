@@ -1,0 +1,134 @@
+name: Release Desktop Windows Native
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (example: v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows-native:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve release tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "${{ inputs.tag }}" }
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw "Release tag is required."
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "artifact_name=nortools-windows-x64-$tag.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Setup GraalVM JDK 25 + native-image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: "true"
+
+      - name: Verify Visual Studio C++ toolchain and Windows SDK
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe not found at '$vswhere'"
+          }
+
+          $vsPath = (& $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath).Trim()
+          if ([string]::IsNullOrWhiteSpace($vsPath)) {
+            throw "Missing required Visual Studio C++ components: Workload.NativeDesktop and/or VC.Tools.x86.x64"
+          }
+
+          $sdkComponents = @(
+            "Microsoft.VisualStudio.Component.Windows11SDK.26100",
+            "Microsoft.VisualStudio.Component.Windows11SDK.22621",
+            "Microsoft.VisualStudio.Component.Windows10SDK.19041"
+          )
+          $sdkFound = $false
+          foreach ($sdk in $sdkComponents) {
+            $sdkPath = (& $vswhere -latest -products * -requires $sdk -property installationPath).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($sdkPath)) {
+              Write-Host "Found Windows SDK component: $sdk"
+              $sdkFound = $true
+              break
+            }
+          }
+          if (-not $sdkFound) {
+            throw "Missing required Windows SDK component (checked: $($sdkComponents -join ', '))"
+          }
+
+          Write-Host "Visual Studio installation: $vsPath"
+
+      - name: Build native Windows archive
+        shell: pwsh
+        run: |
+          bazelisk build //desktop:native-windows-x64
+
+      - name: Locate archive
+        id: locate
+        shell: pwsh
+        run: |
+          $artifact = (bazelisk cquery --output=files //desktop:native-windows-x64 | Select-Object -First 1).Trim()
+          if ([string]::IsNullOrWhiteSpace($artifact) -or -not (Test-Path $artifact)) {
+            throw "Could not locate built archive for //desktop:native-windows-x64"
+          }
+          "artifact=$artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # Disabled in CI for release builds: native desktop smoke tests may require
+      # launching GUI-capable components that are not available on hosted runners.
+      # - name: Smoke test native archive
+      #   shell: pwsh
+      #   run: |
+      #     ./desktop/test_native_windows_smoke.ps1 "${{ steps.locate.outputs.artifact }}"
+
+      - name: Prepare release files
+        id: package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          $archive = "release/${{ steps.meta.outputs.artifact_name }}"
+          Copy-Item "${{ steps.locate.outputs.artifact }}" $archive -Force
+          $hash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumFile = "$archive.sha256"
+          "$hash  ${{ steps.meta.outputs.artifact_name }}" | Out-File -FilePath $checksumFile -Encoding ascii
+          "archive=$archive" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "checksum=$checksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          files: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+          fail_on_unmatched_files: true
