@@ -81,12 +81,14 @@ jobs:
           fi
           echo "artifact=${artifact}" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke test native archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x desktop/test_native_linux_smoke.sh
-          desktop/test_native_linux_smoke.sh "${{ steps.locate.outputs.artifact }}"
+      # Disabled in CI for release builds: the native desktop smoke test may require
+      # launching GUI-capable components that are not available on GitHub runners.
+      # - name: Smoke test native archive
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     chmod +x desktop/test_native_linux_smoke.sh
+      #     desktop/test_native_linux_smoke.sh "${{ steps.locate.outputs.artifact }}"
 
       - name: Prepare release files
         id: package
