@@ -1,4 +1,4 @@
-name: Release Desktop Linux amd64 Native
+name: Release Desktop macOS x64 Native
 
 on:
   workflow_dispatch:
@@ -12,8 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  release-linux-native:
-    runs-on: ubuntu-24.04
+  release-macos-x64-native:
+    runs-on: macos-15-intel
 
     steps:
       - name: Checkout
@@ -36,7 +36,7 @@ jobs:
             exit 1
           fi
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=nortools-linux-amd64-${tag}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=nortools-macos-x64-${tag}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -49,43 +49,23 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: "true"
 
-      - name: Install Linux native build dependencies
+      - name: Build native macOS x64 archive
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            zlib1g-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev
-
-      - name: Build native Linux archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          bazelisk build //desktop:native-linux-amd64
+          bazelisk build //desktop:native-macos-x64
 
       - name: Locate archive
         id: locate
         shell: bash
         run: |
           set -euo pipefail
-          artifact="$(bazelisk cquery --output=files //desktop:native-linux-amd64 | head -n1)"
+          artifact="$(bazelisk cquery --output=files //desktop:native-macos-x64 | head -n1)"
           if [[ -z "${artifact}" || ! -f "${artifact}" ]]; then
-            echo "Could not locate built archive for //desktop:native-linux-amd64" >&2
+            echo "Could not locate built archive for //desktop:native-macos-x64" >&2
             exit 1
           fi
           echo "artifact=${artifact}" >> "$GITHUB_OUTPUT"
-
-      # Disabled in CI for release builds: the native desktop smoke test may require
-      # launching GUI-capable components that are not available on GitHub runners.
-      # - name: Smoke test native archive
-      #   shell: bash
-      #   run: |
-      #     set -euo pipefail
-      #     chmod +x desktop/test_native_linux_smoke.sh
-      #     desktop/test_native_linux_smoke.sh "${{ steps.locate.outputs.artifact }}"
 
       - name: Prepare release files
         id: package
@@ -94,7 +74,7 @@ jobs:
           set -euo pipefail
           mkdir -p release
           cp "${{ steps.locate.outputs.artifact }}" "release/${{ steps.meta.outputs.artifact_name }}"
-          sha256sum "release/${{ steps.meta.outputs.artifact_name }}" > "release/${{ steps.meta.outputs.artifact_name }}.sha256"
+          shasum -a 256 "release/${{ steps.meta.outputs.artifact_name }}" > "release/${{ steps.meta.outputs.artifact_name }}.sha256"
           echo "archive=release/${{ steps.meta.outputs.artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "checksum=release/${{ steps.meta.outputs.artifact_name }}.sha256" >> "$GITHUB_OUTPUT"
 

@@ -97,29 +97,31 @@ java_binary(
     ],
 )
 
-# Package the built frontend into a resources JAR under web/ so it is merged into the deploy JAR
 genrule(
     name = "frontend_resources_jar",
     srcs = ["//frontend:build"],
     outs = ["frontend-resources.jar"],
     cmd = """
-        set -e
-        OUT=$$(realpath $(OUTS))
-        TMP=$$(mktemp -d)
+        set -euo pipefail
+
+        OUT="$(OUTS)"
+        TMP="$$(mktemp -d)"
         mkdir -p "$$TMP/web"
-        SRC=$$(realpath $(location //frontend:build))
+
+        SRC="$(location //frontend:build)"
+        # Copy everything from the dist/ output into web/
         cp -R "$$SRC"/. "$$TMP/web/" || true
-        (cd "$$TMP" && jar cf "$$OUT" web)
+
+        # Create jar with web/ at root
+        jar cf "$$OUT" -C "$$TMP" web
+
         rm -rf "$$TMP"
     """,
     cmd_bat = """
         powershell -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference='Stop'; $$out='$(OUTS)'; $$src=(Resolve-Path '$(location //frontend:build)').Path; $$tmp=Join-Path $$env:TEMP ('nortools-front-' + [guid]::NewGuid().ToString()); New-Item -ItemType Directory -Path (Join-Path $$tmp 'web') -Force | Out-Null; Copy-Item -Path (Join-Path $$src '*') -Destination (Join-Path $$tmp 'web') -Recurse -Force; if (Test-Path $$out) { Remove-Item $$out -Force }; & jar cf $$out -C $$tmp web; if ($$LASTEXITCODE -ne 0) { throw ('jar failed with exit code ' + $$LASTEXITCODE) }; Remove-Item $$tmp -Recurse -Force"
     """,
     message = "Packaging frontend build into a web/ resources JAR",
-    tags = [
-        "no-cache",
-        "no-remote",
-    ],
+    tags = ["no-cache", "no-remote"],
 )
 
 # Expose the resources JAR on the Java classpath so singlejar merges it into the deploy JAR
@@ -138,23 +140,20 @@ genrule(
     ],
     outs = ["docs-resources.jar"],
     cmd = """
-        set -e
-        OUT=$$(realpath $(OUTS))
-        TMP=$$(mktemp -d)
+        set -euo pipefail
+
+        OUT="$(OUTS)"
+        TMP="$$(mktemp -d)"
         mkdir -p "$$TMP/docs"
+
         cp "$(location //:inspiration.md)" "$$TMP/docs/inspiration.md"
         cp "$(location //:RFC.md)" "$$TMP/docs/RFC.md"
-        (cd "$$TMP" && jar cf "$$OUT" docs)
+
+        jar cf "$$OUT" -C "$$TMP" docs
         rm -rf "$$TMP"
     """,
-    cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference='Stop'; $$out='$(OUTS)'; $$tmp=Join-Path $$env:TEMP ('nortools-docs-' + [guid]::NewGuid().ToString()); New-Item -ItemType Directory -Path (Join-Path $$tmp 'docs') -Force | Out-Null; Copy-Item -Path '$(location //:inspiration.md)' -Destination (Join-Path $$tmp 'docs\\inspiration.md') -Force; Copy-Item -Path '$(location //:RFC.md)' -Destination (Join-Path $$tmp 'docs\\RFC.md') -Force; if (Test-Path $$out) { Remove-Item $$out -Force }; & jar cf $$out -C $$tmp docs; if ($$LASTEXITCODE -ne 0) { throw ('jar failed with exit code ' + $$LASTEXITCODE) }; Remove-Item $$tmp -Recurse -Force"
-    """,
     message = "Packaging docs into classpath resources JAR",
-    tags = [
-        "no-cache",
-        "no-remote",
-    ],
+    tags = ["no-cache", "no-remote"],
 )
 
 java_import(
@@ -286,6 +285,12 @@ genrule(
     ],
 )
 
+alias(
+    name = "native-linux-amd64",
+    actual = ":native-linux-x64",
+    visibility = ["//visibility:public"],
+)
+
 genrule(
     name = "native-macos-x64",
     srcs = [
@@ -295,40 +300,39 @@ genrule(
     ],
     outs = ["nortools-macos-x64.tar.gz"],
     cmd = """
-        set -e
-        HOME=$${HOME:-$$(eval echo ~)}
-        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
-        OUTPUT=$$(realpath $(OUTS))
+        set -euo pipefail
 
-        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        HOME=$${HOME:-$$(eval echo ~)}
+
+        DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
+
+        OUT="$$PWD/$(OUTS)"
+        mkdir -p "$$(dirname "$$OUT")"
+
         if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
             NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
         elif command -v native-image >/dev/null 2>&1; then
             NATIVE_IMAGE=$$(command -v native-image)
         else
-            # Search mise install paths for GraalVM
             NATIVE_IMAGE=""
-            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+            for candidate in $${HOME}/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
                 if [ -x "$$candidate" ]; then
                     NATIVE_IMAGE="$$candidate"
                 fi
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
-                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
-                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
                 exit 1
             fi
         fi
 
-        # Create GraalVM native-image configuration from checked-in files
         WORKDIR=$$(mktemp -d)
         mkdir -p "$$WORKDIR/config"
+
         for f in $(locations :graal_configs); do
             cp "$$f" "$$WORKDIR/config/"
         done
 
-        # Run native-image using the deploy JAR, which already contains web/ resources
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
@@ -344,7 +348,6 @@ genrule(
             -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
             --no-fallback
 
-        # Extract native webview library from the deploy JAR
         cd "$$WORKDIR"
         jar xf "$$DEPLOY_JAR" native/macos/x86_64/libwebview.dylib 2>/dev/null || true
         if [ -f native/macos/x86_64/libwebview.dylib ]; then
@@ -352,9 +355,9 @@ genrule(
         fi
         rm -rf native config
 
-        # Package into tar.gz
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        tar czf "$$OUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
+            tar czf "$$OUT" -C "$$WORKDIR" nortools
+
         rm -rf "$$WORKDIR"
     """,
     message = "Building native macOS x86_64 binary with GraalVM native-image",
@@ -375,40 +378,39 @@ genrule(
     ],
     outs = ["nortools-macos-arm64.tar.gz"],
     cmd = """
-        set -e
-        HOME=$${HOME:-$$(eval echo ~)}
-        DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
-        OUTPUT=$$(realpath $(OUTS))
+        set -euo pipefail
 
-        # Find native-image: GRAALVM_HOME > PATH > mise install paths
+        HOME=$${HOME:-$$(eval echo ~)}
+
+        DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
+
+        OUT="$$PWD/$(OUTS)"
+        mkdir -p "$$(dirname "$$OUT")"
+
         if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
             NATIVE_IMAGE="$$GRAALVM_HOME/bin/native-image"
         elif command -v native-image >/dev/null 2>&1; then
             NATIVE_IMAGE=$$(command -v native-image)
         else
-            # Search mise install paths for GraalVM
             NATIVE_IMAGE=""
-            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
+            for candidate in $${HOME}/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
                 if [ -x "$$candidate" ]; then
                     NATIVE_IMAGE="$$candidate"
                 fi
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
-                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
-                echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
                 exit 1
             fi
         fi
 
-        # Create GraalVM native-image configuration from checked-in files
         WORKDIR=$$(mktemp -d)
         mkdir -p "$$WORKDIR/config"
+
         for f in $(locations :graal_configs); do
             cp "$$f" "$$WORKDIR/config/"
         done
 
-        # Run native-image using the deploy JAR (with ARM64 cross-compile flags)
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
@@ -426,7 +428,6 @@ genrule(
             -H:IncludeResourceBundles=jakarta.servlet.LocalStrings,jakarta.servlet.http.LocalStrings \
             --no-fallback
 
-        # Extract native webview library from the deploy JAR
         cd "$$WORKDIR"
         jar xf "$$DEPLOY_JAR" native/macos/aarch64/libwebview.dylib 2>/dev/null || true
         if [ -f native/macos/aarch64/libwebview.dylib ]; then
@@ -434,9 +435,9 @@ genrule(
         fi
         rm -rf native config
 
-        # Package into tar.gz
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        tar czf "$$OUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
+            tar czf "$$OUT" -C "$$WORKDIR" nortools
+
         rm -rf "$$WORKDIR"
     """,
     message = "Building native macOS ARM64 binary with GraalVM native-image",

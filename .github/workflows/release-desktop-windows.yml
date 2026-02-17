@@ -1,9 +1,6 @@
 name: Release Desktop Windows Native
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:

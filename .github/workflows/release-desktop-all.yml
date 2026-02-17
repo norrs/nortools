@@ -1,0 +1,51 @@
+name: Release Desktop All Platforms
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (example: v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-release-workflows:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        workflow_file:
+          - release-desktop-linux.yml
+          - release-desktop-windows.yml
+          - release-desktop-osx-arm.yml
+          - release-desktop-osx-x64.yml
+
+    steps:
+      - name: Dispatch ${{ matrix.workflow_file }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          WORKFLOW_FILE: ${{ matrix.workflow_file }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG}" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
+            -d "{\"ref\":\"${TAG}\",\"inputs\":{\"tag\":\"${TAG}\"}}"
+
+          echo "Dispatched ${WORKFLOW_FILE} for tag ${TAG}"
