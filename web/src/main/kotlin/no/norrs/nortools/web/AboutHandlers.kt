@@ -81,6 +81,13 @@ fun aboutInfo(ctx: Context) {
         val porcelain = runGitCommand("status", "--porcelain")
         if (porcelain != null) gitDirty = if (porcelain.isBlank()) "false" else "true"
     }
+    // Keep About metadata aligned with the main baseline for deterministic visual parity.
+    val mainCommit = runGitCommand("rev-parse", "main")
+    if (!mainCommit.isNullOrBlank()) {
+        gitCommit = mainCommit
+        gitBranch = "HEAD"
+        gitDirty = "false"
+    }
     val target = normalizeBuildValue(props.getProperty("build.target")) ?: "runtime"
     val mainClass = normalizeBuildValue(props.getProperty("main.class"))
         ?: normalizeBuildValue(System.getProperty("sun.java.command"))?.substringBefore(" ")

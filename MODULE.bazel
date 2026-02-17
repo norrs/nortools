@@ -34,6 +34,7 @@ maven.install(
         "com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2",
         # Web framework
         "io.javalin:javalin:6.7.0",
+        "org.webjars.npm:vue:3.5.13",
         # SLF4J (required by Javalin)
         "org.slf4j:slf4j-simple:2.0.16",
         # Desktop framework (Krema - system webview desktop apps)

@@ -5,8 +5,8 @@ A comprehensive suite of network and DNS tools inspired by a lot of tools, built
 
 
 How to test the desktop app
-Dev mode: Start Vite dev server (cd frontend && npx vite dev), then bazelisk run //desktop:desktop -- --dev
-Production mode: bazelisk run //desktop:desktop (uses built Vue assets from //frontend:build
+Dev mode: bazelisk run //desktop:desktop -- --dev
+Production mode: bazelisk run //desktop:desktop
 
 
 ## Prerequisites
@@ -267,4 +267,3 @@ nortools/
     ├── util/             # Utility tools (6)
     └── composite/        # Composite report tools (6)
 ```
-

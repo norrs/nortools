@@ -52,7 +52,6 @@ import no.norrs.nortools.tools.util.whatismyip.WhatIsMyIpCommand
 import no.norrs.nortools.tools.whois.arin.ArinLookupCommand
 import no.norrs.nortools.tools.whois.asn.AsnLookupCommand
 import no.norrs.nortools.tools.whois.whois.WhoisLookupCommand
-import no.norrs.nortools.web.FrontendMode
 import no.norrs.nortools.web.startServer
 import kotlin.system.exitProcess
 
@@ -70,7 +69,7 @@ fun main(args: Array<String>) {
 
     // Start the embedded Javalin web server (Vue SPA + API routes)
     // Port 0 picks a random available port
-    val server = startServer(FrontendMode.CLASSPATH_SPA, port = 0)
+    val server = startServer(port = 0)
     val serverUrl = "http://localhost:${server.port()}"
     println("[NorTools] Embedded server running at $serverUrl")
 

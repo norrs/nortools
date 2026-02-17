@@ -1,36 +1,22 @@
 # Development Notes
 
-## Updating Frontend npm Dependencies (Bazel + pnpm)
+## Frontend Ownership
 
-The frontend dependency graph is hermetic and lockfile-driven:
+The UI is now served from resources under `web/src/main/resources`:
 
-- `pnpm-lock.yaml` is the source of truth for npm resolution.
-- `MODULE.bazel` uses `npm_translate_lock(...)` to turn that lockfile into Bazel repos.
-- `frontend/BUILD.bazel` controls which npm packages are present during Vite build via `BUILD_DEPS`.
+- `web/src/main/resources/vue` for JavalinVue layout/components
 
-If any of these are skipped, Bazel can fail with errors like:
-`Rollup failed to resolve import "..."`
+The old standalone `frontend/` Vite project and legacy SPA bundle are no longer part of active Bazel targets.
 
-### Workflow
+## Verify Main Targets
 
-1. Edit `frontend/package.json` and add/remove dependency entries.
-2. Regenerate lockfile from repo root:
-   - If you have `pnpm` locally:
-     - `pnpm install --lockfile-only`
-   - If you do not have `pnpm` locally, use Bazel-managed pnpm:
-     - `bazelisk run @pnpm//:pnpm -- install --lockfile-only`
-3. Update `frontend/BUILD.bazel` `BUILD_DEPS` list to include the package label(s):
-   - Example: add `"markdown-it"` as `":node_modules/markdown-it"`.
-4. Verify:
-   - `bazelisk build //frontend:build`
-   - If the frontend is consumed by desktop/web, also verify:
-     - `bazelisk build //desktop:run-native-linux-x64`
-     - `bazelisk test //web:web_test`
+```bash
+bazelisk test //web:web_test
+bazelisk build //web:web //desktop:desktop //desktop:desktop_jar_deploy.jar
+```
 
-### Notes
+## Native Smoke
 
-- Keep `pnpm-lock.yaml` committed with `frontend/package.json` changes.
-- For TypeScript-only type packages, include them in `BUILD_DEPS` when they are needed by compilation.
-- If IDE/Bazel server cache gets stale after dependency changes, restart Bazel server once:
-  - `bazelisk shutdown`
-
+```bash
+bazelisk run //desktop:run-native-linux-x64
+```
