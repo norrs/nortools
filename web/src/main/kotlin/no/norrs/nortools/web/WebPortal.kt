@@ -5,6 +5,7 @@ import io.javalin.apibuilder.ApiBuilder.after
 import io.javalin.apibuilder.ApiBuilder.before
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
+import io.javalin.http.Context
 import io.javalin.http.staticfiles.Location
 import java.io.File
 import java.nio.file.Path
@@ -56,7 +57,6 @@ fun startServer(
     frontendMode: FrontendMode,
     port: Int = (System.getenv("PORT") ?: "7070").toInt()
 ): Javalin {
-    val mode = detectFrontendMode()
     val distDir: Path? = if (frontendMode == FrontendMode.DEV_DIST) {
         requireNotNull(findDistDir()).toPath()
     } else {
@@ -147,38 +147,23 @@ fun startServer(
 
         }
     }
+
     // Catch-all route for SPA (history mode).
-    // Returns index.html from the classpath so the client-side router can handle it.
-    app.get("{*path}") { ctx ->
-        val path = ctx.path()
-
-        // Let API and other backend-only paths fall through.
-        if (path.startsWith("/api/")) {
-            ctx.status(404)
-            return@get
-        }
-
-        if (frontendMode == FrontendMode.DEV_DIST) {
-            val indexPath = distDir!!.resolve("index.html").toFile()
-            if (!indexPath.exists()) {
-                ctx.status(500).result("index.html not found in dist dir")
-                return@get
-            }
-            ctx.contentType("text/html")
-            ctx.result(indexPath.inputStream())
+    app.get("/{path}") { ctx ->
+        if (shouldServeSpaIndex(ctx.path())) {
+            serveSpaIndex(ctx, frontendMode, distDir)
         } else {
-            ctx.contentType("text/html")
-            val indexStream =
-                Thread.currentThread().contextClassLoader.getResourceAsStream("web/index.html")
-            if (indexStream == null) {
-                ctx.status(500)
-                    .result("SPA index.html not found in resources (/web/index.html)")
-                return@get
-            }
-            ctx.contentType("text/html; charset=utf-8")
-            ctx.result(indexStream)
+            ctx.status(404)
         }
     }
+
+    // Robust SPA fallback: handles static 404s on refresh (e.g. /help/mta-sts-dns).
+    app.error(404) { ctx ->
+        if (ctx.method() == "GET" && shouldServeSpaIndex(ctx.path())) {
+            serveSpaIndex(ctx, frontendMode, distDir)
+        }
+    }
+
     app.start(port)
     println("Listening on http://127.0.0.1:${port}/")
     return app
@@ -187,4 +172,31 @@ fun startServer(
 fun main() {
     // Keep main thin: just start the server using the existing entry point.
     startServer(FrontendMode.DEV_DIST)
+}
+
+private fun shouldServeSpaIndex(path: String): Boolean {
+    if (path.startsWith("/api/")) return false
+    // If it looks like a static asset request, keep 404 behavior for missing files.
+    if (path.substringAfterLast('/', "").contains(".")) return false
+    return true
+}
+
+private fun serveSpaIndex(ctx: Context, frontendMode: FrontendMode, distDir: Path?) {
+    if (frontendMode == FrontendMode.DEV_DIST) {
+        val indexPath = distDir!!.resolve("index.html").toFile()
+        if (!indexPath.exists()) {
+            ctx.status(500).result("index.html not found in dist dir")
+            return
+        }
+        ctx.contentType("text/html; charset=utf-8")
+        ctx.result(indexPath.inputStream())
+    } else {
+        val indexStream = Thread.currentThread().contextClassLoader.getResourceAsStream("web/index.html")
+        if (indexStream == null) {
+            ctx.status(500).result("SPA index.html not found in resources (/web/index.html)")
+            return
+        }
+        ctx.contentType("text/html; charset=utf-8")
+        ctx.result(indexStream)
+    }
 }

@@ -25,7 +25,11 @@ import { toolGroups } from '../navigation/toolGroups';
   background: #1a1a2e;
   color: #eee;
   padding: 1rem;
-  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
 }
 
 .logo {
@@ -69,4 +73,3 @@ import { toolGroups } from '../navigation/toolGroups';
   color: #4fc3f7;
 }
 </style>
-

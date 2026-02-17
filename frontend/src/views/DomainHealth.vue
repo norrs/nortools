@@ -25,6 +25,12 @@ interface DomainHealthResult {
   checks: DomainHealthCheck[];
 }
 
+interface RemediationHelp {
+  text: string;
+  helpPath?: string;
+  helpLabel?: string;
+}
+
 const domain = ref('');
 const result = ref<DomainHealthResult | null>(null);
 const error = ref('');
@@ -32,17 +38,38 @@ const loading = ref(false);
 const activeTab = ref<'report' | 'json'>('report');
 const cliCommand = computed(() => buildCli(['nortools', 'domain-health', '--json', domain.value]));
 const cliDisabled = computed(() => !domain.value);
+const dmarcRecordInDomainHealth = computed(() => {
+  if (!result.value) return null;
+  const dmarcCheck = result.value.checks.find((c) => c.check === 'Mail / DMARC Record');
+  if (!dmarcCheck?.detail?.startsWith('v=DMARC1')) return null;
+  return dmarcCheck.detail;
+});
+const dmarcTagsInDomainHealth = computed(() => parseDmarcTags(dmarcRecordInDomainHealth.value));
+const dmarcRowsInDomainHealth = computed(() =>
+  Object.entries(dmarcTagsInDomainHealth.value).map(([key, value]) => ({
+    key,
+    value,
+    meaning: explainDmarcTag(key, value),
+  })),
+);
+
 const checkGroups = computed(() => {
   if (!result.value) return [];
+
+  const isMailCheck = (name: string) =>
+    name.startsWith('Mail /') ||
+    ['MX Records', 'SPF Record', 'DMARC Record'].includes(name);
 
   const groups = [
     {
       title: 'DNS',
-      checks: result.value.checks.filter((c) => ['SOA Record', 'NS Records', 'A Record', 'AAAA Record', 'DNSSEC', 'CAA Record'].includes(c.check)),
+      checks: result.value.checks.filter((c) =>
+        ['SOA Record', 'NS Records', 'A Record', 'AAAA Record', 'DNSSEC', 'CAA Record'].includes(c.check),
+      ),
     },
     {
-      title: 'Email',
-      checks: result.value.checks.filter((c) => ['MX Records', 'SPF Record', 'DMARC Record'].includes(c.check)),
+      title: 'Mail',
+      checks: result.value.checks.filter((c) => isMailCheck(c.check)),
     },
     {
       title: 'Web',
@@ -50,10 +77,18 @@ const checkGroups = computed(() => {
     },
     {
       title: 'Other',
-      checks: result.value.checks.filter((c) => ![
-        'SOA Record', 'NS Records', 'A Record', 'AAAA Record', 'DNSSEC', 'CAA Record',
-        'MX Records', 'SPF Record', 'DMARC Record', 'HTTPS',
-      ].includes(c.check)),
+      checks: result.value.checks.filter(
+        (c) =>
+          ![
+            'SOA Record',
+            'NS Records',
+            'A Record',
+            'AAAA Record',
+            'DNSSEC',
+            'CAA Record',
+            'HTTPS',
+          ].includes(c.check) && !isMailCheck(c.check),
+      ),
     },
   ];
 
@@ -77,6 +112,125 @@ async function check() {
 
 function statusClass(status: string): string {
   return `status-${status.toLowerCase()}`;
+}
+
+function remediationForCheck(check: string, status: string, detail: string): RemediationHelp | null {
+  if (status === 'PASS') return null;
+
+  if (check === 'Mail / MX Records') {
+    return { text: 'Publish valid MX records for receiving mail, or use Null MX (`MX 0 .`) if this domain should not receive email.' };
+  }
+  if (check === 'Mail / MX Host Address Records') {
+    return { text: 'Each MX hostname should resolve to at least one A or AAAA record.' };
+  }
+  if (check === 'Mail / IPv6 Support On MX') {
+    return { text: 'Add AAAA records on MX hosts to improve IPv6 reachability and standards compliance.' };
+  }
+  if (check === 'Mail / SPF Record') {
+    return { text: 'Publish exactly one SPF TXT record starting with `v=spf1` and ending in `-all` or `~all`.' };
+  }
+  if (check === 'Mail / Single SPF Record') {
+    return { text: 'Keep only one SPF record for the domain. Multiple SPF records cause SPF evaluation failures.' };
+  }
+  if (check === 'Mail / DMARC Record') {
+    return { text: 'Publish a DMARC TXT record at `_dmarc.<domain>` with at least `v=DMARC1; p=...`.' };
+  }
+  if (check === 'Mail / DMARC Policy') {
+    return { text: 'Move from `p=none` to enforcement (`p=quarantine` or `p=reject`) after monitoring.' };
+  }
+  if (check === 'Mail / DMARC Reporting') {
+    return { text: 'Configure `rua=` (and optionally `ruf=`) so you receive DMARC reports and can monitor abuse.' };
+  }
+  if (check === 'Mail / DKIM (Common Selectors)') {
+    return { text: 'Ensure your mail provider publishes DKIM keys under your domain and that messages are signed.' };
+  }
+  if (check === 'Mail / MTA-STS DNS') {
+    return {
+      text: 'Publish `_mta-sts.<domain> TXT "v=STSv1; id=..."` to enable MTA-STS.',
+      helpPath: '/help/mta-sts-dns',
+      helpLabel: 'MTA-STS DNS Help',
+    };
+  }
+  if (check === 'Mail / MTA-STS Policy HTTPS') {
+    return { text: 'Serve `https://mta-sts.<domain>/.well-known/mta-sts.txt` over valid HTTPS with `version`, `mode`, and `max_age`.' };
+  }
+  if (check === 'Mail / TLS-RPT Record') {
+    return { text: 'Publish `_smtp._tls.<domain> TXT "v=TLSRPTv1; rua=mailto:..."` for TLS reporting.' };
+  }
+  if (check === 'Mail / STARTTLS Advertised' || check === 'Mail / STARTTLS Handshake Command') {
+    return { text: 'Enable STARTTLS on SMTP port 25 and ensure the handshake succeeds for external senders.' };
+  }
+  if (check === 'Mail / DANE TLSA Record') {
+    return { text: 'If you use DNSSEC for mail transport security, publish valid TLSA records at `_25._tcp.<mx-host>`.' };
+  }
+  if (check === 'Mail / PTR For Primary MX') {
+    return { text: 'Configure reverse DNS (PTR) for MX IPs and keep forward/reverse DNS consistent.' };
+  }
+  if (check === 'NS Records') {
+    return { text: 'Use at least two authoritative nameservers on separate infrastructure.' };
+  }
+  if (check === 'SOA Record') {
+    return { text: 'Ensure the zone is correctly delegated and authoritative nameservers return a valid SOA record.' };
+  }
+  if (check === 'HTTPS') {
+    return { text: 'Make sure HTTPS is reachable with a valid certificate and stable 2xx/3xx response.' };
+  }
+  if (check === 'DNSSEC') {
+    return { text: 'Enable DNSSEC and publish DS records at the parent zone if you want signed DNS validation.' };
+  }
+  if (check === 'CAA Record') {
+    return { text: 'Consider adding CAA to restrict which certificate authorities may issue certs for this domain.' };
+  }
+
+  if (status === 'FAIL') return { text: `Needs attention: ${detail}` };
+  return null;
+}
+
+function parseDmarcTags(record?: string | null): Record<string, string> {
+  if (!record) return {};
+  const tags: Record<string, string> = {};
+  for (const part of record.split(';')) {
+    const trimmed = part.trim();
+    if (!trimmed.includes('=')) continue;
+    const [key, value] = trimmed.split('=', 2);
+    tags[key.trim().toLowerCase()] = value.trim();
+  }
+  return tags;
+}
+
+function explainDmarcTag(tag: string, value: string): string {
+  switch (tag) {
+    case 'v':
+      return value === 'DMARC1' ? 'DMARC version 1 (valid).' : 'Unexpected DMARC version.';
+    case 'p':
+      if (value === 'none') return 'Monitor-only policy for the main domain.';
+      if (value === 'quarantine') return 'Failing mail should go to spam/quarantine.';
+      if (value === 'reject') return 'Failing mail should be rejected.';
+      return 'Requested DMARC policy.';
+    case 'sp':
+      if (value === 'none') return 'Subdomains are monitor-only.';
+      if (value === 'quarantine') return 'Failing subdomain mail should be quarantined.';
+      if (value === 'reject') return 'Failing subdomain mail should be rejected.';
+      return 'Subdomain policy override.';
+    case 'adkim':
+      return value === 's' ? 'Strict DKIM alignment.' : 'Relaxed DKIM alignment.';
+    case 'aspf':
+      return value === 's' ? 'Strict SPF alignment.' : 'Relaxed SPF alignment.';
+    case 'pct':
+      return `Policy applies to ${value}% of messages.`;
+    case 'fo':
+      return 'Forensic/failure reporting options.';
+    case 'rf':
+      return 'Failure report format.';
+    case 'ri':
+      return `Aggregate report interval: ${value} seconds.`;
+    case 'rua':
+      return 'Aggregate DMARC report destination(s).';
+    case 'ruf':
+      return 'Forensic/failure report destination(s).';
+    default:
+      return 'Custom/optional DMARC tag.';
+  }
 }
 </script>
 
@@ -124,6 +278,44 @@ function statusClass(status: string): string {
               <div class="check-content">
                 <strong>{{ item.check }}</strong>
                 <p>{{ item.detail }}</p>
+                <template v-if="remediationForCheck(item.check, item.status, item.detail)">
+                  <p class="hint">{{ remediationForCheck(item.check, item.status, item.detail)?.text }}</p>
+                  <router-link
+                    v-if="remediationForCheck(item.check, item.status, item.detail)?.helpPath"
+                    :to="remediationForCheck(item.check, item.status, item.detail)?.helpPath || '/help/mta-sts-dns'"
+                    class="help-link"
+                  >
+                    {{ remediationForCheck(item.check, item.status, item.detail)?.helpLabel || 'Learn more' }}
+                  </router-link>
+                </template>
+                <div
+                  v-if="item.check === 'Mail / DMARC Record' && dmarcRecordInDomainHealth"
+                  class="dmarc-inline-panel"
+                >
+                  <div class="dmarc-title">DMARC Explanation</div>
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tag</th>
+                          <th>Value</th>
+                          <th>Meaning</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in dmarcRowsInDomainHealth" :key="row.key">
+                          <td><code>{{ row.key }}</code></td>
+                          <td><code>{{ row.value }}</code></td>
+                          <td>{{ row.meaning }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="raw-wrap">
+                    <div class="label">Raw DMARC record</div>
+                    <pre class="raw-pre">{{ dmarcRecordInDomainHealth }}</pre>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -172,6 +364,13 @@ h3 { font-size: 0.92rem; margin-bottom: 0.5rem; color: #0f172a; }
 .check-item { display: flex; gap: 0.6rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #f1f5f9; }
 .check-item:last-child { border-bottom: none; }
 .check-content p { margin-top: 0.2rem; color: #475569; font-size: 0.82rem; }
+.check-content .hint { color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.35rem 0.45rem; margin-top: 0.35rem; }
+.help-link { display: inline-block; margin-top: 0.35rem; font-size: 0.8rem; color: #1d4ed8; text-decoration: none; }
+.help-link:hover { text-decoration: underline; }
+.dmarc-inline-panel { border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.65rem; margin-top: 0.6rem; background: #fcfdff; }
+.dmarc-title { font-size: 0.82rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
+.raw-wrap { margin-top: 0.55rem; }
+.raw-pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.7rem; overflow-x: auto; font-size: 0.78rem; }
 .status-pill { font-size: 0.72rem; font-weight: 700; min-width: 46px; text-align: center; padding: 0.2rem 0.4rem; border-radius: 999px; border: 1px solid transparent; height: fit-content; }
 .status-pass { color: #166534; background: #dcfce7; border-color: #86efac; }
 .status-warn { color: #92400e; background: #fef3c7; border-color: #fcd34d; }

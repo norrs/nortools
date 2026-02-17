@@ -73,6 +73,12 @@ export const toolGroups: ToolGroup[] = [
     ],
   },
   {
+    name: 'Help',
+    tools: [
+      { name: 'MTA-STS DNS Help', path: '/help/mta-sts-dns', icon: '📘', description: 'How to configure the _mta-sts TXT record and policy file' },
+    ],
+  },
+  {
     name: 'Info',
     tools: [
       { name: 'About', path: '/about', description: 'About this project and architecture details' },
