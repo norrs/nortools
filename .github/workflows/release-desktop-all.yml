@@ -12,40 +12,54 @@ on:
         type: string
 
 permissions:
-  actions: write
-  contents: read
+  contents: write
 
 jobs:
-  dispatch-release-workflows:
+  resolve-tag:
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        workflow_file:
-          - release-desktop-linux.yml
-          - release-desktop-windows.yml
-          - release-desktop-osx-arm.yml
-          - release-desktop-osx-x64.yml
-
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - name: Dispatch ${{ matrix.workflow_file }}
+      - name: Resolve release tag
+        id: meta
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          WORKFLOW_FILE: ${{ matrix.workflow_file }}
-          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ -z "${TAG}" ]]; then
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ inputs.tag }}"
+          fi
+          if [[ -z "${tag}" ]]; then
             echo "Release tag is required." >&2
             exit 1
           fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
-            -d "{\"ref\":\"${TAG}\",\"inputs\":{\"tag\":\"${TAG}\"}}"
+  release-linux-native:
+    needs: resolve-tag
+    uses: ./.github/workflows/release-desktop-linux.yml
+    with:
+      tag: ${{ needs.resolve-tag.outputs.tag }}
+    secrets: inherit
 
-          echo "Dispatched ${WORKFLOW_FILE} for tag ${TAG}"
+  release-windows-native:
+    needs: resolve-tag
+    uses: ./.github/workflows/release-desktop-windows.yml
+    with:
+      tag: ${{ needs.resolve-tag.outputs.tag }}
+    secrets: inherit
+
+  release-macos-arm64-native:
+    needs: resolve-tag
+    uses: ./.github/workflows/release-desktop-osx-arm.yml
+    with:
+      tag: ${{ needs.resolve-tag.outputs.tag }}
+    secrets: inherit
+
+  release-macos-x64-native:
+    needs: resolve-tag
+    uses: ./.github/workflows/release-desktop-osx-x64.yml
+    with:
+      tag: ${{ needs.resolve-tag.outputs.tag }}
+    secrets: inherit

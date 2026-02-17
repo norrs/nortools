@@ -1,7 +1,7 @@
 name: Release Desktop Linux amd64 Native
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       tag:
         description: "Release tag to publish (example: v0.1.0)"
@@ -19,18 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ inputs.tag }}
 
       - name: Resolve release tag
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            tag="${GITHUB_REF_NAME}"
-          else
-            tag="${{ inputs.tag }}"
-          fi
+          tag="${{ inputs.tag }}"
           if [[ -z "${tag}" ]]; then
             echo "Release tag is required." >&2
             exit 1
@@ -77,15 +73,6 @@ jobs:
             exit 1
           fi
           echo "artifact=${artifact}" >> "$GITHUB_OUTPUT"
-
-      # Disabled in CI for release builds: the native desktop smoke test may require
-      # launching GUI-capable components that are not available on GitHub runners.
-      # - name: Smoke test native archive
-      #   shell: bash
-      #   run: |
-      #     set -euo pipefail
-      #     chmod +x desktop/test_native_linux_smoke.sh
-      #     desktop/test_native_linux_smoke.sh "${{ steps.locate.outputs.artifact }}"
 
       - name: Prepare release files
         id: package

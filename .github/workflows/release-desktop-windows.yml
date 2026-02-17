@@ -1,7 +1,7 @@
 name: Release Desktop Windows Native
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       tag:
         description: "Release tag to publish (example: v0.1.0)"
@@ -19,13 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ inputs.tag }}
 
       - name: Resolve release tag
         id: meta
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "${{ inputs.tag }}" }
+          $tag = "${{ inputs.tag }}"
           if ([string]::IsNullOrWhiteSpace($tag)) {
             throw "Release tag is required."
           }
@@ -92,13 +92,6 @@ jobs:
             throw "Could not locate built archive for //desktop:native-windows-x64"
           }
           "artifact=$artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      # Disabled in CI for release builds: native desktop smoke tests may require
-      # launching GUI-capable components that are not available on hosted runners.
-      # - name: Smoke test native archive
-      #   shell: pwsh
-      #   run: |
-      #     ./desktop/test_native_windows_smoke.ps1 "${{ steps.locate.outputs.artifact }}"
 
       - name: Prepare release files
         id: package
