@@ -159,7 +159,7 @@ fun startServer(
 
     // Robust SPA fallback: handles static 404s on refresh (e.g. /help/mta-sts-dns).
     app.error(404) { ctx ->
-        if (ctx.method() == "GET" && shouldServeSpaIndex(ctx.path())) {
+        if (ctx.method().name == "GET" && shouldServeSpaIndex(ctx.path())) {
             serveSpaIndex(ctx, frontendMode, distDir)
         }
     }
