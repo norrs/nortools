@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>$title</title>
+  <title>NorTools</title>
   <script src="@cdnWebjar/vue/3.5.13/dist/vue.global.prod.js"></script>
   <script>
     const app = Vue.createApp({})
@@ -223,6 +223,36 @@
 
     ;(function setActiveSidebarLink() {
       const path = window.location.pathname
+      const routeTitles = {
+        '/': 'NorTools',
+        '/dns': 'DNS Lookup',
+        '/dnssec': 'DNSSEC Lookup',
+        '/dnssec-lookup': 'DNSSEC Lookup',
+        '/reverse-dns': 'Reverse DNS',
+        '/spf': 'SPF Lookup',
+        '/dkim': 'DKIM Lookup',
+        '/dmarc': 'DMARC Lookup',
+        '/tcp': 'TCP Check',
+        '/http': 'HTTP Check',
+        '/https': 'HTTPS / SSL',
+        '/ping': 'Ping',
+        '/traceroute': 'Traceroute',
+        '/whois': 'WHOIS Lookup',
+        '/blacklist': 'Blacklist Check',
+        '/whatismyip': 'What Is My IP',
+        '/subnet': 'Subnet Calculator',
+        '/password': 'Password Generator',
+        '/email-extract': 'Email Extractor',
+        '/spf-generator': 'SPF Generator',
+        '/dmarc-generator': 'DMARC Generator',
+        '/dns-health': 'DNS Health',
+        '/domain-health': 'Domain Health',
+        '/help/mta-sts-dns': 'MTA-STS DNS Help',
+        '/about': 'About',
+      }
+      const pageTitle = routeTitles[path] || 'NorTools'
+      document.title = pageTitle === 'NorTools' ? 'NorTools' : `${pageTitle} • NorTools`
+
       document.querySelectorAll('.sidebar a[href]').forEach((link) => {
         const href = link.getAttribute('href')
         if (!href) return
