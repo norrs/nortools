@@ -25,3 +25,6 @@ build --repo_env=BAZEL_VS=C:/PROGRA~2/MICROS~3/2022/BUILDT~1
 build --repo_env=BAZEL_VC=C:/PROGRA~2/MICROS~3/2022/BUILDT~1/VC
 build --repo_env=BAZEL_WINSDK=C:/PROGRA~2/WI3CF2~1/10
 build --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.26100.0
+
+# Optional local, machine-specific Bazel settings.
+try-import %workspace%/.bazelrc-local

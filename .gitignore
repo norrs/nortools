@@ -43,6 +43,7 @@ bazel-bin
 bazel-nortools
 bazel-out
 bazel-testlogs
+.bazelrc-local
 
 
 # Local env files / secrets
