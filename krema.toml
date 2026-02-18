@@ -15,13 +15,12 @@ fullscreen = false
 decorations = true
 
 [build]
-frontend_command = "bazelisk build //frontend:build"
-frontend_dev_command = "cd frontend && npx vite dev"
-frontend_dev_url = "http://localhost:5173"
-out_dir = "frontend/dist"
+# Frontend is served by JavalinVue resources under web/src/main/resources/vue.
+frontend_command = "echo 'No standalone frontend build needed (JavalinVue resources are bundled via //web:web_lib)'"
+frontend_dev_command = "echo 'No standalone frontend dev server needed'"
+out_dir = "web/src/main/resources"
 main_class = "no.norrs.nortools.desktop.KremaAppKt"
 assets_path = "web"
 
 [permissions]
 allow = []
-

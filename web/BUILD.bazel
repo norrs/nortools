@@ -1,4 +1,4 @@
-load(":git_build_info.bzl", "git_build_info")
+load(":git_build_info.bzl", "build_data_info", "git_build_info")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
 
@@ -6,9 +6,18 @@ git_build_info(
     name = "git_build_info",
 )
 
+build_data_info(
+    name = "build_data_info",
+    build_target = "//web:web",
+    main_class = "no.norrs.nortools.web.WebPortalKt",
+)
+
 kt_jvm_library(
     name = "web_lib",
-    resources = [":git_build_info"],
+    resources = glob(["src/main/resources/vue/**"]) + [
+        ":git_build_info",
+        ":build_data_info",
+    ],
     srcs = glob(["src/main/kotlin/**/*.kt"]),
     visibility = ["//visibility:public"],
     deps = [
@@ -19,13 +28,13 @@ kt_jvm_library(
         "@maven//:com_google_code_gson_gson",  # kept temporarily to avoid breaking other files that still reference Gson
         "@maven//:dnsjava_dnsjava",
         "@maven//:io_javalin_javalin",
+        "@maven//:org_webjars_npm_vue",
         "@maven//:org_slf4j_slf4j_simple",
     ],
 )
 
 java_binary(
     name = "web",
-    data = ["//frontend:build"],
     main_class = "no.norrs.nortools.web.WebPortalKt",
     stamp = 1,
     runtime_deps = [":web_lib"],
@@ -49,7 +58,6 @@ kt_jvm_test(
     test_class = "no.norrs.nortools.web.NetworkTraceParsingTest",
     runtime_deps = [
         "//desktop:docs_resources",
-        "//desktop:frontend_resources",
         "@maven//:org_junit_jupiter_junit_jupiter_engine",
         "@maven//:org_junit_platform_junit_platform_console_standalone",
     ],

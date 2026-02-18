@@ -27,7 +27,7 @@ class WebApiDeterministicEndpointsTest {
         @BeforeAll
         fun start() {
             val port = ServerSocket(0).use { it.localPort }
-            app = startServer(FrontendMode.CLASSPATH_SPA, port)
+            app = startServer(port = port)
             baseUrl = "http://127.0.0.1:$port"
         }
 

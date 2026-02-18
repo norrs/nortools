@@ -27,7 +27,9 @@ data class AboutResponse(
 fun aboutInfo(ctx: Context) {
     val props = loadBuildProperties()
     val gitProps = loadGitBuildProperties()
-    val nowEpochSeconds = Instant.now().epochSecond
+    val version = normalizeBuildValue(props.firstNonBlank("build.version"))
+        ?: normalizeBuildValue(gitProps.firstNonBlank("build.version", "git.describe", "STABLE_GIT_DESCRIBE"))
+        ?: "unknown"
     var gitCommit = gitProps.firstNonBlank(
         "git.commit",
         "build.changelist",
@@ -75,26 +77,19 @@ fun aboutInfo(ctx: Context) {
     gitCommit = normalizeBuildValue(gitCommit)
     gitBranch = normalizeBuildValue(gitBranch)
     gitDirty = normalizeBuildValue(gitDirty)
-    if (gitCommit.isNullOrBlank()) gitCommit = runGitCommand("rev-parse", "HEAD")
-    if (gitBranch.isNullOrBlank()) gitBranch = runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-    if (gitDirty.isNullOrBlank()) {
-        val porcelain = runGitCommand("status", "--porcelain")
-        if (porcelain != null) gitDirty = if (porcelain.isBlank()) "false" else "true"
-    }
-    val target = normalizeBuildValue(props.getProperty("build.target")) ?: "runtime"
+    val target = normalizeBuildValue(props.getProperty("build.target")) ?: "unknown"
     val mainClass = normalizeBuildValue(props.getProperty("main.class"))
-        ?: normalizeBuildValue(System.getProperty("sun.java.command"))?.substringBefore(" ")
         ?: "unknown"
     val buildTimestamp = normalizeBuildValue(
         props.firstNonBlank("build.timestamp", "build.timestamp.as.int"),
-    ) ?: nowEpochSeconds.toString()
+    ) ?: "unknown"
     val buildTime = normalizeBuildValue(props.getProperty("build.time"))
-        ?: runCatching { Instant.ofEpochSecond(buildTimestamp.toLong()).toString() }.getOrNull()
-        ?: Instant.ofEpochSecond(nowEpochSeconds).toString()
+        ?: runCatching { buildTimestamp.toLong() }.getOrNull()?.let { Instant.ofEpochSecond(it).toString() }
+        ?: "unknown"
 
     val response = AboutResponse(
         appName = "NorTools",
-        version = "0.1.0",
+        version = version,
         build = AboutBuildInfo(
             target = target,
             mainClass = mainClass,
@@ -123,7 +118,10 @@ private fun normalizeBuildValue(value: String?): String? {
 }
 
 private fun loadBuildProperties(): Properties {
-    val candidates = loadPropertiesByResourceNames("build-data.properties")
+    val candidates = loadPropertiesByResourceNames(
+        "build-data.properties",
+        "web/build-data.properties",
+    )
     if (candidates.isEmpty()) return Properties()
     return candidates.maxByOrNull { scoreBuildProperties(it) } ?: candidates.first()
 }
@@ -180,17 +178,6 @@ private fun Properties.findFirstByTokens(vararg tokens: String): String? {
         }
     }
     return null
-}
-
-private fun runGitCommand(vararg args: String): String? = try {
-    val process = ProcessBuilder(listOf("git", *args))
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().use { it.readText().trim() }
-    val exit = process.waitFor()
-    if (exit == 0 && output.isNotBlank()) output else null
-} catch (_: Exception) {
-    null
 }
 
 private fun scoreBuildProperties(props: Properties): Int {

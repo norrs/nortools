@@ -75,12 +75,13 @@ kt_jvm_library(
 # Desktop app — run via: bazelisk run //desktop:desktop
 kt_jvm_binary(
     name = "desktop",
-    data = ["//frontend:build"],
     jvm_flags = [
         "--enable-native-access=ALL-UNNAMED",
     ],
     main_class = "no.norrs.nortools.desktop.KremaAppKt",
-    runtime_deps = [":desktop_lib"],
+    runtime_deps = [
+        ":desktop_lib",
+    ],
 )
 
 # Fat JAR (deploy jar) — all classes merged into a single JAR for native-image.
@@ -92,43 +93,8 @@ java_binary(
     stamp = 1,
     runtime_deps = [
         ":desktop_lib",
-        ":frontend_resources",
         ":docs_resources",
     ],
-)
-
-genrule(
-    name = "frontend_resources_jar",
-    srcs = ["//frontend:build"],
-    outs = ["frontend-resources.jar"],
-    cmd = """
-        set -euo pipefail
-
-        OUT="$(OUTS)"
-        TMP="$$(mktemp -d)"
-        mkdir -p "$$TMP/web"
-
-        SRC="$(location //frontend:build)"
-        # Copy everything from the dist/ output into web/
-        cp -R "$$SRC"/. "$$TMP/web/" || true
-
-        # Create jar with web/ at root
-        jar cf "$$OUT" -C "$$TMP" web
-
-        rm -rf "$$TMP"
-    """,
-    cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference='Stop'; $$out='$(OUTS)'; $$src=(Resolve-Path '$(location //frontend:build)').Path; $$tmp=Join-Path $$env:TEMP ('nortools-front-' + [guid]::NewGuid().ToString()); New-Item -ItemType Directory -Path (Join-Path $$tmp 'web') -Force | Out-Null; Copy-Item -Path (Join-Path $$src '*') -Destination (Join-Path $$tmp 'web') -Recurse -Force; if (Test-Path $$out) { Remove-Item $$out -Force }; & jar cf $$out -C $$tmp web; if ($$LASTEXITCODE -ne 0) { throw ('jar failed with exit code ' + $$LASTEXITCODE) }; Remove-Item $$tmp -Recurse -Force"
-    """,
-    message = "Packaging frontend build into a web/ resources JAR",
-    tags = ["no-cache", "no-remote"],
-)
-
-# Expose the resources JAR on the Java classpath so singlejar merges it into the deploy JAR
-java_import(
-    name = "frontend_resources",
-    jars = [":frontend-resources.jar"],
-    visibility = ["//visibility:public"],
 )
 
 # Package project docs into classpath resources under docs/
@@ -209,7 +175,6 @@ genrule(
     name = "native-linux-x64",
     srcs = [
         ":desktop_jar_deploy.jar",
-        "//frontend:build",
         ":graal_configs",
     ],
     outs = ["nortools-linux-x64.tar.gz"],
@@ -295,7 +260,6 @@ genrule(
     name = "native-macos-x64",
     srcs = [
         ":desktop_jar_deploy.jar",
-        "//frontend:build",
         ":graal_configs",
     ],
     outs = ["nortools-macos-x64.tar.gz"],
@@ -373,7 +337,6 @@ genrule(
     name = "native-macos-arm64",
     srcs = [
         ":desktop_jar_deploy.jar",
-        "//frontend:build",
         ":graal_configs",
     ],
     outs = ["nortools-macos-arm64.tar.gz"],
@@ -453,7 +416,6 @@ genrule(
     name = "native-windows-x64",
     srcs = [
         ":desktop_jar_deploy.jar",
-        "//frontend:build",
         ":graal_configs",
         "build_native_windows.ps1",
         ":windows_gui_launcher",
