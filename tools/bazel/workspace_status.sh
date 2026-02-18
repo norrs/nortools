@@ -3,6 +3,7 @@ set -euo pipefail
 
 git_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+git_describe="$(git describe --tags --always 2>/dev/null || echo unknown)"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   git_dirty="true"
   scm_status="Modified"
@@ -20,3 +21,4 @@ echo "BUILD_SCM_BRANCH ${git_branch}"
 echo "STABLE_GIT_COMMIT ${git_commit}"
 echo "STABLE_GIT_BRANCH ${git_branch}"
 echo "STABLE_GIT_DIRTY ${git_dirty}"
+echo "STABLE_GIT_DESCRIBE ${git_describe}"
