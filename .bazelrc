@@ -1,3 +1,6 @@
+# Enable auto platform configs: build:{linux,macos,windows}
+common --enable_platform_specific_config
+
 # Java toolchain settings
 build --java_language_version=25
 build --java_runtime_version=remotejdk_25
@@ -12,19 +15,21 @@ run --jvmopt=--illegal-native-access=deny
 test --jvmopt=--enable-native-access=ALL-UNNAMED
 test --jvmopt=--illegal-native-access=deny
 
-# Stamp builds with workspace status
-build --workspace_status_command=tools/bazel/workspace_status.sh
+# Stamp builds with workspace status (platform-specific command implementation)
+build:linux --workspace_status_command=tools/bazel/workspace_status.sh
+build:macos --workspace_status_command=tools/bazel/workspace_status.sh
+build:windows --workspace_status_command=tools/bazel/workspace_status.cmd
 
 # Windows needs a populated runfiles tree for Kotlin workers.
-build --enable_runfiles
+build:windows --enable_runfiles
 # Keep legacy external runfiles layout for rules_kotlin runfiles resolution on Windows.
-build --legacy_external_runfiles
+build:windows --legacy_external_runfiles
 
 # Ensure Bazel C++ toolchain detection can find VS Build Tools on Windows.
-build --repo_env=BAZEL_VS=C:/PROGRA~2/MICROS~3/2022/BUILDT~1
-build --repo_env=BAZEL_VC=C:/PROGRA~2/MICROS~3/2022/BUILDT~1/VC
-build --repo_env=BAZEL_WINSDK=C:/PROGRA~2/WI3CF2~1/10
-build --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.26100.0
+build:windows --repo_env=BAZEL_VS=C:/PROGRA~2/MICROS~3/2022/BUILDT~1
+build:windows --repo_env=BAZEL_VC=C:/PROGRA~2/MICROS~3/2022/BUILDT~1/VC
+build:windows --repo_env=BAZEL_WINSDK=C:/PROGRA~2/WI3CF2~1/10
+build:windows --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.26100.0
 
 # Optional local, machine-specific Bazel settings.
 try-import %workspace%/.bazelrc-local
