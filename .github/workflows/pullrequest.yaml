@@ -165,6 +165,17 @@ jobs:
               })
             }
 
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-smoke-reports
+          retention-days: 7
+          path: |
+            bazel-testlogs/**/test.xml
+            bazel-testlogs/**/test.log
+            native-linux-smoke-failures.md
+
       - name: Fail job if smoke suite failed
         if: steps.smoke.outcome == 'failure'
         shell: bash
