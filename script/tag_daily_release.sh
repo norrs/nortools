@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Create and push a tag of form v0.0.YYYYMMDDNNN.
+# Create and push a tag of form v0.0.YYMMDDNNN.
 # Sequence NNN is derived from LOCAL tags for today's date.
-# Examples: v0.0.20260219001, v0.0.20260219002
+# Examples: v0.0.260219001, v0.0.260219002
 #
 # Usage:
 #   script/tag_daily_release.sh
@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
       cat <<USAGE
 Usage: $0 [--remote <name>] [--dry-run]
 
-Creates a tag in format v0.0.YYYYMMDDNNN based on local tags and pushes it.
+Creates a tag in format v0.0.YYMMDDNNN based on local tags and pushes it.
 
 Options:
   --remote <name>  Git remote to push to (default: origin)
@@ -57,10 +57,10 @@ if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
   exit 1
 fi
 
-date_part="$(date +%Y%m%d)"
+date_part="$(date +%y%m%d)"
 base="v0.0.${date_part}"
 
-# Collect local tags that exactly match v0.0.YYYYMMDDNNN for today.
+# Collect local tags that exactly match v0.0.YYMMDDNNN for today.
 existing_today="$({ git tag -l "${base}*" || true; } | sed -n "s/^${base}\([0-9][0-9][0-9]\)$/\1/p")"
 
 next_seq=1

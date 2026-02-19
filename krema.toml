@@ -1,5 +1,6 @@
 [package]
 name = "nortools"
+# this version gets rewritten by //tools/bazel:krema_toml_info
 version = "0.1.0"
 identifier = "no.norrs.nortools"
 description = "Network and DNS tools desktop application"

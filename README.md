@@ -38,7 +38,12 @@ Security model:
 Desktop app version source:
 
 - `KremaApp` reads stamped build metadata (`git-build-info.properties` / `build-data.properties`).
-- It uses `build.version` / `git.describe` and strips a leading `v` prefix (for example `v0.2.0` -> `0.2.0`).
+- It uses `build.version` / `git.describe`, strips leading `v`, and uses the stable core version (`0.0.YYMMDDNNN`) for Krema updater comparisons.
+
+Generated `krema.toml` build artifact:
+
+- Bazel target `//:krema_toml_generated` emits `bazel-bin/krema.generated.toml`.
+- This artifact keeps your checked-in template but stamps `package.version` from build metadata with the same Krema-safe normalization.
 
 
 ## Prerequisites

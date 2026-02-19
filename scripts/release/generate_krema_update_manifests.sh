@@ -48,6 +48,19 @@ if [[ -z "$version" || "$version" == "$TAG" ]]; then
   exit 1
 fi
 
+normalize_manifest_version() {
+  raw="$1"
+  s="${raw#v}"
+  s="${s#V}"
+  s="${s//.+/.}"
+  s="${s//+/.}"
+  s="$(echo "$s" | sed -E 's/\\.{2,}/./g; s/^\\.//; s/\\.$//')"
+  s="${s%%-*}"
+  printf '%s' "$s"
+}
+
+version="$(normalize_manifest_version "$version")"
+
 # Optional signing support.
 # Private key must be base64 PKCS#8 Ed25519 key expected by Krema UpdateSigner.
 signer_jar=""

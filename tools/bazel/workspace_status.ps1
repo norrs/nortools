@@ -21,6 +21,21 @@ function Get-GitValue {
 $gitCommit = Get-GitValue -Args @("rev-parse", "HEAD")
 $gitBranch = Get-GitValue -Args @("rev-parse", "--abbrev-ref", "HEAD")
 $gitDescribe = Get-GitValue -Args @("describe", "--tags", "--always")
+$kremaVersion = $gitDescribe `
+    -replace '^[vV]', '' `
+    -replace '\.\+', '.' `
+    -replace '\+', '.' `
+    -replace '\.{2,}', '.' `
+    -replace '-.*$', '' `
+    -replace '^\.', '' `
+    -replace '\.$', ''
+# Backward compatibility: convert 0.0.YYYYMMDDNNN -> 0.0.YYMMDDNNN.
+if ($kremaVersion -match '^([0-9]+)\.([0-9]+)\.([0-9]{11})$') {
+    $kremaVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3].Substring(2))"
+}
+if ([string]::IsNullOrWhiteSpace($kremaVersion) -or $kremaVersion -eq "unknown") {
+    $kremaVersion = "0.0.0"
+}
 
 $gitDirty = "false"
 $scmStatus = "Clean"
@@ -44,3 +59,4 @@ Write-Output "STABLE_GIT_COMMIT $gitCommit"
 Write-Output "STABLE_GIT_BRANCH $gitBranch"
 Write-Output "STABLE_GIT_DIRTY $gitDirty"
 Write-Output "STABLE_GIT_DESCRIBE $gitDescribe"
+Write-Output "STABLE_KREMA_VERSION $kremaVersion"

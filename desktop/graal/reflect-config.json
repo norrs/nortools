@@ -74,5 +74,9 @@
   {"name": "no.norrs.nortools.web.SpfGeneratorResponse",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.DmarcGeneratorResponse",     "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.AboutBuildInfo",             "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
-  {"name": "no.norrs.nortools.web.AboutResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true}
+  {"name": "no.norrs.nortools.web.AboutResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+
+  {"name": "build.krema.core.updater.UpdateManifest",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "build.krema.core.updater.UpdateManifest$PlatformEntry", "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "build.krema.core.updater.UpdateInfo",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true}
 ]
