@@ -58,9 +58,7 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
-          report_paths: |
-            bazel-testlogs/**/test.xml
-            bazel-out/**/testlogs/**/test.xml
+          report_paths: "**/testlogs/**/test.xml"
           detailed_summary: true
           include_passed: true
           check_name: "Native Linux CLI Smoke (Bazel)"
@@ -77,10 +75,7 @@ jobs:
           import os
           import xml.etree.ElementTree as ET
 
-          junit_files = sorted(set(
-            glob.glob("bazel-testlogs/**/test.xml", recursive=True)
-            + glob.glob("bazel-out/**/testlogs/**/test.xml", recursive=True)
-          ))
+          junit_files = sorted({os.path.realpath(p) for p in glob.glob("**/testlogs/**/test.xml", recursive=True)})
           failed_tests = []
 
           def has_failures(xml_path: str) -> bool:
@@ -127,50 +122,6 @@ jobs:
 
           cat native-linux-smoke-failures.md
 
-      - name: Comment failed smoke logs on PR
-        if: always() && github.event_name == 'pull_request' && steps.failed_logs.outputs.has_failures == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs')
-            const marker = '<!-- native-linux-cli-smoke-logs -->'
-            const path = 'native-linux-smoke-failures.md'
-            let body = fs.existsSync(path)
-              ? fs.readFileSync(path, 'utf8')
-              : '## Native Linux smoke failures\n\nNo failure log file was generated.'
-
-            const maxLen = 60000
-            if (body.length > maxLen) {
-              body = body.slice(0, maxLen) + '\n\n...truncated...'
-            }
-            body = `${marker}\n${body}`
-
-            const { owner, repo } = context.repo
-            const issue_number = context.issue.number
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            })
-            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker))
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              })
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              })
-            }
-
       - name: Upload smoke artifacts
         id: upload_smoke_artifacts
         if: always()
@@ -185,19 +136,25 @@ jobs:
             bazel-out/**/testlogs/**/test.log
             native-linux-smoke-failures.md
 
-      - name: Comment smoke summary on PR
+      - name: Comment smoke run results on PR
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs')
             const marker = '<!-- native-linux-cli-smoke-summary -->'
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`
             const smokeOutcome = `${{ steps.smoke.outcome }}`
             const junitCount = `${{ steps.failed_logs.outputs.junit_count }}`
+            const hasFailures = `${{ steps.failed_logs.outputs.has_failures }}`
             const statusLine = smokeOutcome === 'success'
               ? 'Test suite passed.'
               : 'Test suite failed.'
-            const body = `${marker}
+            const failuresPath = 'native-linux-smoke-failures.md'
+            const failuresBody = fs.existsSync(failuresPath)
+              ? fs.readFileSync(failuresPath, 'utf8')
+              : '## Native Linux smoke failures\n\nNo failure log file was generated.'
+            let body = `${marker}
             ## Native Linux CLI Smoke
             
             ${statusLine}
@@ -206,6 +163,14 @@ jobs:
             - Artifacts: [native-linux-smoke-reports](${runUrl})
             - Artifact retention: 7 days
             `
+            if (hasFailures === 'true') {
+              body += `\n\n${failuresBody}`
+            }
+
+            const maxLen = 60000
+            if (body.length > maxLen) {
+              body = body.slice(0, maxLen) + '\n\n...truncated...'
+            }
 
             const { owner, repo } = context.repo
             const issue_number = context.issue.number
