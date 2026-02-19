@@ -1,0 +1,5 @@
+ping
+--json
+--count
+2
+example.com

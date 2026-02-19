@@ -1,0 +1,5 @@
+bulk
+--json
+_main/cli_native/samples/domains.txt
+--type
+A

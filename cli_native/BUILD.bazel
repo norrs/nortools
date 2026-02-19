@@ -1,5 +1,6 @@
 # Linux-only shell wrappers; no Windows equivalents yet.
 package(default_visibility = ["//visibility:public"])
+load(":smoke_tests.bzl", "define_native_linux_cli_smoke_tests")
 
 sh_binary(
     name = "native_cli_a",
@@ -407,3 +408,5 @@ sh_binary(
     data = ["//desktop:native-linux-x64"],
     args = ["$(location //desktop:native-linux-x64)", "whois", "--json", "example.com"],
 )
+
+define_native_linux_cli_smoke_tests()
