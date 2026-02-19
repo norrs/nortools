@@ -86,6 +86,13 @@ jobs:
           distribution: temurin
           java-version: "25"
 
+      - name: Install manifest tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq curl
+
       - name: Generate Krema updater manifests
         shell: bash
         env:
