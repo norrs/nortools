@@ -6,7 +6,227 @@
   <title>NorTools</title>
   <script src="@cdnWebjar/vue/3.5.13/dist/vue.global.prod.js"></script>
   <script>
-    const app = Vue.createApp({})
+    const app = Vue.createApp({
+      data() {
+        return {
+          updater: {
+            supported: false,
+            checking: false,
+            installing: false,
+            installed: false,
+            restartSupported: false,
+            available: false,
+            currentVersion: "",
+            version: "",
+            notes: "",
+            date: "",
+            mandatory: false,
+            size: 0,
+            downloading: false,
+            downloadProgress: 0,
+            ready: false,
+            error: "",
+            status: "",
+          },
+        }
+      },
+      mounted() {
+        this.loadCurrentVersion()
+        this.detectRestartSupport()
+        this.initUpdater()
+      },
+      methods: {
+        hasKremaUpdater() {
+          return !!(window.krema && typeof window.krema.invoke === "function" && typeof window.krema.on === "function")
+        },
+        formatBytes(bytes) {
+          const n = Number(bytes)
+          if (!Number.isFinite(n) || n <= 0) return "Unknown size"
+          const units = ["B", "KB", "MB", "GB"]
+          let value = n
+          let unit = 0
+          while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024
+            unit += 1
+          }
+          return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
+        },
+        async initUpdater() {
+          if (!this.hasKremaUpdater()) return
+          this.updater.supported = true
+
+          window.krema.on("updater:update-available", (payload) => {
+            this.updater.installed = false
+            this.updater.available = true
+            this.updater.ready = false
+            this.updater.error = ""
+            this.updater.version = String(payload?.version || "")
+            this.updater.notes = String(payload?.notes || "")
+            this.updater.date = String(payload?.date || "")
+            this.updater.mandatory = Boolean(payload?.mandatory)
+            this.updater.size = Number(payload?.size || 0)
+            this.updater.status = "A newer version is available."
+          })
+
+          window.krema.on("updater:download-progress", (payload) => {
+            this.updater.downloading = true
+            const progress = Number(payload?.progress || 0)
+            this.updater.downloadProgress = Math.max(0, Math.min(1, progress))
+          })
+
+          window.krema.on("updater:update-ready", () => {
+            this.updater.downloading = false
+            this.updater.downloadProgress = 1
+            this.updater.ready = true
+            this.updater.error = ""
+            this.updater.status = "Update downloaded. Ready to install."
+          })
+
+          window.krema.on("updater:error", (payload) => {
+            this.updater.downloading = false
+            this.updater.installing = false
+            this.updater.checking = false
+            const message = String(payload?.message || "Updater error")
+            // Do not let late/background updater errors overwrite a successful state.
+            if (this.updater.ready || this.updater.installed) {
+              this.updater.status = `Updater warning: ${message}`
+              return
+            }
+            if (this.updater.available && !this.updater.downloading && !this.updater.installing) {
+              this.updater.status = `Updater warning: ${message}`
+              return
+            }
+            this.updater.error = message
+          })
+
+        },
+        async loadCurrentVersion() {
+          try {
+            const res = await fetch("/api/about")
+            if (!res.ok) return
+            const about = await res.json()
+            this.updater.currentVersion = String(about?.version || "")
+          } catch (_e) {
+            // Best effort only.
+          }
+        },
+        async detectRestartSupport() {
+          if (!this.hasKremaUpdater()) return
+          try {
+            const platform = String(await window.krema.invoke("os:platform") || "").toLowerCase()
+            if (platform === "windows" || platform === "macos") {
+              this.updater.restartSupported = true
+              return
+            }
+            if (platform === "linux") {
+              // Krema restart is reliable on Linux AppImage installs.
+              const appImage = String(await window.krema.invoke("app:getEnvironmentVar", { key: "APPIMAGE" }) || "").trim()
+              this.updater.restartSupported = appImage.length > 0
+            }
+          } catch (_e) {
+            this.updater.restartSupported = false
+          }
+        },
+        async checkForUpdates() {
+          if (!this.hasKremaUpdater()) return
+          this.updater.checking = true
+          this.updater.error = ""
+          this.updater.status = "Checking for updates..."
+          try {
+            const result = await window.krema.invoke("updater:check")
+            if (result && result.updateAvailable) {
+              this.updater.installed = false
+              this.updater.available = true
+              this.updater.ready = false
+              this.updater.version = String(result.version || "")
+              this.updater.notes = String(result.notes || "")
+              this.updater.date = String(result.date || "")
+              this.updater.mandatory = Boolean(result.mandatory)
+              this.updater.size = Number(result.size || 0)
+              this.updater.error = ""
+              this.updater.status = "A newer version is available."
+            } else {
+              this.updater.status = "No updates available."
+            }
+          } catch (e) {
+            if (!this.updater.available) {
+              this.updater.error = e instanceof Error ? e.message : "Failed to check for updates"
+            }
+          } finally {
+            this.updater.checking = false
+          }
+        },
+        async downloadUpdate() {
+          if (!this.hasKremaUpdater()) return
+          this.updater.error = ""
+          this.updater.status = "Downloading update..."
+          this.updater.downloading = true
+          this.updater.installed = false
+          this.updater.downloadProgress = 0
+          try {
+            const result = await window.krema.invoke("updater:download")
+            if (!result || !result.downloaded) {
+              this.updater.downloading = false
+              this.updater.error = "No update available to download"
+              this.updater.status = ""
+            } else {
+              // If event delivery is delayed/missed, keep UI consistent with command result.
+              this.updater.ready = true
+              this.updater.downloading = false
+              this.updater.error = ""
+              this.updater.status = "Update downloaded. Ready to install."
+            }
+          } catch (e) {
+            this.updater.downloading = false
+            if (this.updater.ready) {
+              // Download can complete while command still surfaces a non-fatal error.
+              this.updater.error = ""
+              this.updater.status = "Update downloaded. Ready to install."
+            } else {
+              this.updater.error = e instanceof Error ? e.message : "Failed to download update"
+              this.updater.status = ""
+            }
+          }
+        },
+        async installUpdate() {
+          if (!this.hasKremaUpdater()) return
+          this.updater.error = ""
+          this.updater.installing = true
+          this.updater.status = "Installing update..."
+          try {
+            await window.krema.invoke("updater:install")
+            this.updater.installing = false
+            this.updater.installed = true
+            this.updater.ready = false
+            this.updater.available = false
+            this.updater.error = ""
+            this.updater.status = "Update installed successfully. Please close and relaunch NorTools."
+          } catch (e) {
+            this.updater.installing = false
+            this.updater.error = e instanceof Error ? e.message : "Failed to install update"
+            this.updater.status = ""
+          }
+        },
+        async installAndRestart() {
+          if (!this.hasKremaUpdater()) return
+          this.updater.error = ""
+          this.updater.installing = true
+          this.updater.status = "Installing update and restarting..."
+          try {
+            await window.krema.invoke("updater:installAndRestart")
+          } catch (e) {
+            this.updater.installing = false
+            // In some packaging modes install succeeds but automatic relaunch fails.
+            // Treat this as installed and instruct manual relaunch instead of hard failure.
+            this.updater.installed = true
+            this.updater.ready = false
+            this.updater.available = false
+            this.updater.error = ""
+            this.updater.status = "Update installed. Automatic restart did not complete; please relaunch NorTools manually."
+          }
+        },
+      },
+    })
     app.config.compilerOptions.whitespace = "condense"
   </script>
   @componentRegistration
@@ -88,6 +308,102 @@
       padding: 2rem;
       width: 100%;
       min-width: 0;
+    }
+
+    .updater-banner {
+      background: #ecfeff;
+      border: 1px solid #67e8f9;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+      color: #0f172a;
+    }
+
+    .updater-title {
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .updater-meta {
+      color: #334155;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .updater-progress {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: #bae6fd;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+
+    .updater-progress-fill {
+      height: 100%;
+      background: #0284c7;
+      transition: width 120ms linear;
+    }
+
+    .updater-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .updater-actions button {
+      border: 1px solid #0ea5e9;
+      background: #0ea5e9;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .updater-actions button.secondary {
+      background: #fff;
+      color: #0c4a6e;
+    }
+
+    .updater-error {
+      color: #b91c1c;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .updater-status {
+      color: #0c4a6e;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .updater-notes {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      padding: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .updater-notes-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #0c4a6e;
+      margin-bottom: 0.35rem;
+    }
+
+    .updater-notes-body {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #334155;
+      font-size: 0.85rem;
+      line-height: 1.35;
+      max-height: 11rem;
+      overflow: auto;
     }
 
     .card {
@@ -213,6 +529,61 @@
       </nav>
 
       <main class="main-content">
+        <section
+          v-if="updater.supported && (updater.available || updater.checking || updater.downloading || updater.ready || updater.installing || updater.installed || updater.error || updater.status)"
+          class="updater-banner"
+        >
+          <div class="updater-title">
+            <template v-if="updater.installed">Update Installed</template>
+            <template v-else-if="updater.ready">Update Ready</template>
+            <template v-else-if="updater.downloading">Downloading Update</template>
+            <template v-else-if="updater.available">Update Available</template>
+            <template v-else-if="updater.checking">Checking for Updates</template>
+            <template v-else>Updater Status</template>
+          </div>
+
+          <div class="updater-meta" v-if="updater.version || updater.currentVersion">
+            Version:
+            <strong>{{ updater.currentVersion || "unknown" }}</strong>
+            <span>→</span>
+            <strong>{{ updater.version || "unknown" }}</strong>
+            <span v-if="updater.size > 0">({{ formatBytes(updater.size) }})</span>
+          </div>
+          <div class="updater-meta" v-if="updater.date">Published: {{ updater.date }}</div>
+          <div class="updater-status" v-if="updater.status">{{ updater.status }}</div>
+          <div class="updater-notes" v-if="updater.notes">
+            <div class="updater-notes-title">What's New</div>
+            <div class="updater-notes-body">{{ updater.notes }}</div>
+          </div>
+
+          <div class="updater-progress" v-if="updater.downloading">
+            <div class="updater-progress-fill" :style="{ width: `${Math.round(updater.downloadProgress * 100)}%` }"></div>
+          </div>
+          <div class="updater-meta" v-if="updater.downloading">
+            {{ Math.round(updater.downloadProgress * 100) }}%
+          </div>
+
+          <div class="updater-error" v-if="updater.error">{{ updater.error }}</div>
+
+          <div class="updater-actions">
+            <button v-if="updater.available && !updater.downloading && !updater.ready && !updater.installing" @click="downloadUpdate">
+              Upgrade to {{ updater.version || "new version" }}
+            </button>
+            <button v-if="updater.ready && updater.restartSupported && !updater.installing" @click="installAndRestart">
+              Install and Restart
+            </button>
+            <button v-if="updater.ready && !updater.restartSupported && !updater.installing" @click="installUpdate">
+              Install Update
+            </button>
+            <button class="secondary" v-if="!updater.downloading && !updater.installing" @click="checkForUpdates">
+              Check Again
+            </button>
+          </div>
+          <div class="updater-meta" v-if="(updater.ready && !updater.restartSupported) || updater.installing || updater.status.includes('Please close and relaunch')">
+            Close and launch the app again after install to run the new version.
+          </div>
+        </section>
+
         @routeComponent
       </main>
     </div>
