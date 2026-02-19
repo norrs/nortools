@@ -1,0 +1,5 @@
+dmarc-generator
+--json
+example.com
+--policy
+none

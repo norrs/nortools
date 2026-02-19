@@ -1,0 +1,95 @@
+name: Pull Request Native Smoke
+
+on:
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: pullrequest-native-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-linux-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Setup GraalVM JDK 25 + native-image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: "true"
+
+      - name: Install Linux native build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            zlib1g-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev
+
+      - name: Run native Linux CLI smoke suite
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk test //cli_native:native_linux_cli_smoke_suite --test_output=errors
+
+      - name: Publish JUnit report to PR/checks
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: "bazel-testlogs/**/test.xml"
+          detailed_summary: true
+          include_passed: true
+          check_name: "Native Linux CLI Smoke (Bazel)"
+          fail_on_failure: false
+
+      - name: Setup Node.js for HTML report
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate HTML report from JUnit XML
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g junit-viewer
+          junit-viewer --results "bazel-testlogs/**/test.xml" --save "native-linux-smoke-junit.html"
+
+      - name: Upload JUnit and HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-smoke-reports
+          path: |
+            bazel-testlogs/**/test.xml
+            bazel-testlogs/**/test.log
+            native-linux-smoke-junit.html
+
+      - name: Fail job if smoke suite failed
+        if: steps.smoke.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "Native Linux smoke suite failed"
+          exit 1

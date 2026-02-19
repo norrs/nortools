@@ -20,7 +20,7 @@ class DnsPropagationCommand : BaseCommand(
     helpText = "Check DNS propagation across multiple public DNS servers worldwide",
 ) {
     private val domain by argument(help = "Domain name to check")
-    private val type by option("--type", "-t", help = "Record type (A, AAAA, MX, TXT, CNAME, NS, SOA)")
+    private val type by option("--type", help = "Record type (A, AAAA, MX, TXT, CNAME, NS, SOA)")
         .default("A")
 
     private val publicDnsServers = listOf(

@@ -1,0 +1,3 @@
+dmarc-report
+--json
+_main/cli_native/samples/dmarc_report.xml
