@@ -43,7 +43,8 @@ jobs:
             build-essential \
             zlib1g-dev \
             libgtk-3-dev \
-            libwebkit2gtk-4.1-dev
+            libwebkit2gtk-4.1-dev \
+            traceroute
 
       - name: Run native Linux CLI smoke suite
         id: smoke
@@ -163,17 +164,6 @@ jobs:
                 body,
               })
             }
-
-      - name: Upload JUnit and HTML artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-linux-smoke-reports
-          retention-days: 5
-          path: |
-            bazel-testlogs/**/test.xml
-            bazel-testlogs/**/test.log
-            native-linux-smoke-junit.html
 
       - name: Fail job if smoke suite failed
         if: steps.smoke.outcome == 'failure'
