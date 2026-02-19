@@ -58,7 +58,9 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
-          report_paths: "bazel-testlogs/**/test.xml"
+          report_paths: |
+            bazel-testlogs/**/test.xml
+            bazel-out/**/testlogs/**/test.xml
           detailed_summary: true
           include_passed: true
           check_name: "Native Linux CLI Smoke (Bazel)"
@@ -75,7 +77,10 @@ jobs:
           import os
           import xml.etree.ElementTree as ET
 
-          junit_files = sorted(glob.glob("bazel-testlogs/**/test.xml", recursive=True))
+          junit_files = sorted(set(
+            glob.glob("bazel-testlogs/**/test.xml", recursive=True)
+            + glob.glob("bazel-out/**/testlogs/**/test.xml", recursive=True)
+          ))
           failed_tests = []
 
           def has_failures(xml_path: str) -> bool:
@@ -92,7 +97,7 @@ jobs:
           for xml_path in junit_files:
             try:
               if has_failures(xml_path):
-                failed_tests.append(os.path.basename(os.path.dirname(xml_path)))
+                failed_tests.append((os.path.basename(os.path.dirname(xml_path)), os.path.dirname(xml_path)))
             except Exception:
               continue
 
@@ -101,8 +106,8 @@ jobs:
               out.write("## Native Linux smoke failures\n\nNone. All smoke tests passed.\n")
             else:
               out.write("## Native Linux smoke failures\n\n")
-              for test_name in failed_tests:
-                log_path = f"bazel-testlogs/cli_native/{test_name}/test.log"
+              for test_name, test_dir in failed_tests:
+                log_path = os.path.join(test_dir, "test.log")
                 out.write(f"### `{test_name}`\n\n")
                 if os.path.exists(log_path):
                   with open(log_path, "r", encoding="utf-8", errors="replace") as f:
@@ -117,6 +122,7 @@ jobs:
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write(f"has_failures={'true' if failed_tests else 'false'}\n")
+            out.write(f"junit_count={len(junit_files)}\n")
           PY
 
           cat native-linux-smoke-failures.md
@@ -166,6 +172,7 @@ jobs:
             }
 
       - name: Upload smoke artifacts
+        id: upload_smoke_artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -174,7 +181,57 @@ jobs:
           path: |
             bazel-testlogs/**/test.xml
             bazel-testlogs/**/test.log
+            bazel-out/**/testlogs/**/test.xml
+            bazel-out/**/testlogs/**/test.log
             native-linux-smoke-failures.md
+
+      - name: Comment smoke summary on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- native-linux-cli-smoke-summary -->'
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`
+            const smokeOutcome = `${{ steps.smoke.outcome }}`
+            const junitCount = `${{ steps.failed_logs.outputs.junit_count }}`
+            const statusLine = smokeOutcome === 'success'
+              ? 'Test suite passed.'
+              : 'Test suite failed.'
+            const body = `${marker}
+            ## Native Linux CLI Smoke
+            
+            ${statusLine}
+            
+            - JUnit files discovered: \`${junitCount || '0'}\`
+            - Artifacts: [native-linux-smoke-reports](${runUrl})
+            - Artifact retention: 7 days
+            `
+
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              })
+            }
 
       - name: Fail job if smoke suite failed
         if: steps.smoke.outcome == 'failure'
