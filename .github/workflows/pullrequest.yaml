@@ -54,11 +54,35 @@ jobs:
           set -euo pipefail
           bazelisk test //cli_native:native_linux_cli_smoke_suite --test_output=errors
 
+      - name: Collect Bazel test reports
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf smoke-testlogs-collected
+          mkdir -p smoke-testlogs-collected
+
+          TESTLOGS_DIR="$(bazelisk info bazel-testlogs || true)"
+          if [[ -z "${TESTLOGS_DIR}" || ! -d "${TESTLOGS_DIR}" ]]; then
+            echo "No bazel testlogs directory found"
+            exit 0
+          fi
+
+          while IFS= read -r -d '' file; do
+            rel="${file#${TESTLOGS_DIR}/}"
+            dest="smoke-testlogs-collected/${rel}"
+            mkdir -p "$(dirname "${dest}")"
+            cp "${file}" "${dest}"
+          done < <(find "${TESTLOGS_DIR}" -type f \( -name 'test.xml' -o -name 'test.log' \) -print0)
+
+          echo "Collected files:"
+          find smoke-testlogs-collected -type f | sed -n '1,200p'
+
       - name: Publish JUnit report to PR/checks
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
-          report_paths: "**/testlogs/**/test.xml"
+          report_paths: "smoke-testlogs-collected/**/test.xml"
           detailed_summary: true
           include_passed: true
           check_name: "Native Linux CLI Smoke (Bazel)"
@@ -75,7 +99,7 @@ jobs:
           import os
           import xml.etree.ElementTree as ET
 
-          junit_files = sorted({os.path.realpath(p) for p in glob.glob("**/testlogs/**/test.xml", recursive=True)})
+          junit_files = sorted(glob.glob("smoke-testlogs-collected/**/test.xml", recursive=True))
           failed_tests = []
 
           def has_failures(xml_path: str) -> bool:
@@ -130,10 +154,8 @@ jobs:
           name: native-linux-smoke-reports
           retention-days: 7
           path: |
-            bazel-testlogs/**/test.xml
-            bazel-testlogs/**/test.log
-            bazel-out/**/testlogs/**/test.xml
-            bazel-out/**/testlogs/**/test.log
+            smoke-testlogs-collected/**/test.xml
+            smoke-testlogs-collected/**/test.log
             native-linux-smoke-failures.md
 
       - name: Comment smoke run results on PR
