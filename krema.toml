@@ -23,4 +23,7 @@ main_class = "no.norrs.nortools.desktop.KremaAppKt"
 assets_path = "web"
 
 [permissions]
-allow = []
+allow = [
+    "network",
+    "clipboard:write",
+]

@@ -63,3 +63,54 @@ jobs:
     with:
       tag: ${{ needs.resolve-tag.outputs.tag }}
     secrets: inherit
+
+  publish-updater-manifests:
+    needs:
+      - resolve-tag
+      - release-linux-native
+      - release-windows-native
+      - release-macos-arm64-native
+      - release-macos-x64-native
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Install manifest tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq curl
+
+      - name: Generate Krema updater manifests
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KREMA_UPDATER_PRIVATE_KEY_B64: ${{ secrets.KREMA_UPDATER_PRIVATE_KEY_B64 }}
+          KREMA_UPDATER_PUBLIC_KEY_B64: ${{ secrets.KREMA_UPDATER_PUBLIC_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          ./scripts/release/generate_krema_update_manifests.sh "${{ needs.resolve-tag.outputs.tag }}" release
+
+      - name: Publish updater manifest assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          files: |
+            release/nortools-update-linux-x86_64.json
+            release/nortools-update-darwin-x86_64.json
+            release/nortools-update-darwin-aarch64.json
+            release/nortools-update-windows-x86_64.json
+            release/nortools-updater-public-key.txt
+          fail_on_unmatched_files: false

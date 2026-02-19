@@ -50,6 +50,7 @@ bazel-testlogs
 .env
 .env.*
 *.local
+krema-private.key
 
 # Temporary files
 tmp/

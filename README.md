@@ -8,6 +8,38 @@ How to test the desktop app
 Dev mode: bazelisk run //desktop:desktop -- --dev
 Production mode: bazelisk run //desktop:desktop
 
+## Desktop Auto-Update Release Flow
+
+Desktop release tags (`v*`) now drive updater manifests automatically:
+
+1. Push a tag (example: `v0.2.0`).
+2. `release-desktop-all.yml` builds and uploads platform artifacts.
+3. The same workflow then generates and uploads:
+   - `nortools-update-linux-x86_64.json`
+   - `nortools-update-darwin-x86_64.json`
+   - `nortools-update-darwin-aarch64.json`
+   - `nortools-update-windows-x86_64.json`
+4. Krema updater endpoint is:
+   - `https://github.com/norrs/nortools/releases/latest/download/nortools-update-{{target}}.json`
+
+Optional signing secrets (recommended):
+
+- `KREMA_UPDATER_PRIVATE_KEY_B64`: base64 PKCS#8 Ed25519 private key used to sign artifacts.
+- `KREMA_UPDATER_PUBLIC_KEY_B64`: matching base64 public key (uploaded as `nortools-updater-public-key.txt`).
+
+Security model:
+
+- Runtime override for updater public key is intentionally disabled.
+- Pin the updater public key directly in `desktop/src/main/kotlin/no/norrs/nortools/desktop/KremaApp.kt`
+  (`PINNED_UPDATER_PUBLIC_KEY_B64`).
+- If that constant is blank, updater is disabled (fail-closed).
+- Endpoint override via `NORTOOLS_UPDATER_ENDPOINT` is still allowed.
+
+Desktop app version source:
+
+- `KremaApp` reads stamped build metadata (`git-build-info.properties` / `build-data.properties`).
+- It uses `build.version` / `git.describe` and strips a leading `v` prefix (for example `v0.2.0` -> `0.2.0`).
+
 
 ## Prerequisites
 

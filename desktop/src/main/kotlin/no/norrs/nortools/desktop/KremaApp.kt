@@ -53,7 +53,13 @@ import no.norrs.nortools.tools.whois.arin.ArinLookupCommand
 import no.norrs.nortools.tools.whois.asn.AsnLookupCommand
 import no.norrs.nortools.tools.whois.whois.WhoisLookupCommand
 import no.norrs.nortools.web.startServer
+import java.util.Properties
 import kotlin.system.exitProcess
+
+private const val FALLBACK_APP_VERSION = "0.0.0"
+private const val DEFAULT_UPDATER_ENDPOINT =
+    "https://github.com/norrs/nortools/releases/latest/download/nortools-update-{{target}}.json"
+private const val PINNED_UPDATER_PUBLIC_KEY_B64 = "MCowBQYDK2VwAyEAEAaiTgA8yZq2JopBfuPZvnF/rxVYGX6buzz7Ndo8wAw="
 
 fun main(args: Array<String>) {
     val hasUiFlag = args.contains("--ui")
@@ -72,21 +78,113 @@ fun main(args: Array<String>) {
     val server = startServer(port = 0)
     val serverUrl = "http://localhost:${server.port()}"
     println("[NorTools] Embedded server running at $serverUrl")
+    val appVersion = resolveAppVersion()
+    println("[NorTools] Version resolved to $appVersion")
 
     val app = Krema.app()
         .title("NorTools")
-        .version("0.1.0")
+        .version(appVersion)
         .identifier("no.norrs.nortools")
         .size(1200, 800)
         .minSize(900, 600)
         .debug(devMode)
         .devUrl(serverUrl)
+        .updaterConfig(buildUpdaterConfig(devMode))
 
     println("[NorTools] Opening desktop window")
     app.run()
 
     // Shut down the server when the window closes
     server.stop()
+}
+
+private fun resolveAppVersion(): String {
+    val props = loadBuildProperties()
+    val rawVersion = props.firstNonBlank("build.version", "git.describe", "STABLE_GIT_DESCRIBE")
+        ?: System.getenv("STABLE_GIT_DESCRIBE")
+        ?: FALLBACK_APP_VERSION
+    val normalized = normalizeVersion(rawVersion)
+    return normalized ?: FALLBACK_APP_VERSION
+}
+
+private fun normalizeVersion(value: String?): String? {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isBlank()) return null
+    if (trimmed.equals("unknown", ignoreCase = true)) return null
+
+    // Normalize to stable semver core and drop any prerelease/build suffix.
+    var normalized = trimmed.removePrefix("v").removePrefix("V")
+    normalized = normalized.replace(".+", ".").replace("+", ".")
+    normalized = normalized.replace(Regex("\\.{2,}"), ".").trim('.')
+    normalized = normalized.substringBefore("-")
+
+    return normalized.ifBlank { null }
+}
+
+private fun loadBuildProperties(): Properties {
+    val candidates = loadPropertiesByResourceNames(
+        "git-build-info.properties",
+        "web/git-build-info.properties",
+        "build-data.properties",
+        "web/build-data.properties",
+    )
+    if (candidates.isEmpty()) return Properties()
+    return candidates.maxByOrNull { scoreBuildProperties(it) } ?: candidates.first()
+}
+
+private fun loadPropertiesByResourceNames(vararg names: String): List<Properties> {
+    val loader = Thread.currentThread().contextClassLoader
+    val candidates = mutableListOf<Properties>()
+    for (name in names) {
+        val resources = loader.getResources(name)
+        while (resources.hasMoreElements()) {
+            val url = resources.nextElement()
+            val props = Properties()
+            try {
+                url.openStream().use { props.load(it) }
+                candidates.add(props)
+            } catch (_: Exception) {
+                // Skip unreadable candidates.
+            }
+        }
+    }
+    return candidates
+}
+
+private fun Properties.firstNonBlank(vararg keys: String): String? {
+    for (key in keys) {
+        val value = getProperty(key)?.trim()
+        if (!value.isNullOrEmpty()) return value
+    }
+    return null
+}
+
+private fun scoreBuildProperties(props: Properties): Int {
+    var score = 0
+    if (!props.firstNonBlank("build.version", "git.describe", "STABLE_GIT_DESCRIBE").isNullOrBlank()) score += 300
+    if (!props.firstNonBlank("git.commit", "STABLE_GIT_COMMIT", "build.changelist").isNullOrBlank()) score += 200
+    if (!props.firstNonBlank("build.target", "main.class").isNullOrBlank()) score += 100
+    return score
+}
+
+private fun buildUpdaterConfig(devMode: Boolean): Map<String, Any> {
+    if (devMode) return emptyMap()
+    if (PINNED_UPDATER_PUBLIC_KEY_B64.isBlank()) {
+        println("[NorTools] Updater disabled: PINNED_UPDATER_PUBLIC_KEY_B64 is not configured")
+        return emptyMap()
+    }
+
+    val endpoint =
+        System.getenv("NORTOOLS_UPDATER_ENDPOINT")
+            ?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_UPDATER_ENDPOINT
+
+    return mapOf(
+        "endpoints" to listOf(endpoint),
+        "pubkey" to PINNED_UPDATER_PUBLIC_KEY_B64,
+        "timeout" to 30,
+        "checkOnStartup" to true,
+    )
 }
 
 private fun runCliIfRequested(args: Array<String>): Boolean {
