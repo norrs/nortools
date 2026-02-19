@@ -12,15 +12,22 @@ Production mode: bazelisk run //desktop:desktop
 
 Desktop release tags (`v*`) now drive updater manifests automatically:
 
-1. Push a tag (example: `v0.2.0`).
-2. `release-desktop-all.yml` builds and uploads platform artifacts.
-3. The same workflow then generates and uploads:
+1. (Recommended) Add release notes file `release-notes/<tag>.md` (example: `release-notes/v0.2.0.md`) in the tag commit.
+2. Push a tag (example: `v0.2.0`).
+3. `release-desktop-all.yml` sets the GitHub release body from `release-notes/<tag>.md`.
+   - If the file is missing, it falls back to a generated commit list since the previous tag.
+4. The workflow builds and uploads platform artifacts.
+5. The same workflow then generates and uploads:
    - `nortools-update-linux-x86_64.json`
    - `nortools-update-darwin-x86_64.json`
    - `nortools-update-darwin-aarch64.json`
    - `nortools-update-windows-x86_64.json`
-4. Krema updater endpoint is:
+6. Krema updater endpoint is:
    - `https://github.com/norrs/nortools/releases/latest/download/nortools-update-{{target}}.json`
+
+Release notes folder:
+
+- See `release-notes/README.md` for expected naming and content.
 
 Optional signing secrets (recommended):
 

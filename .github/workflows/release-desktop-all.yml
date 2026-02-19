@@ -36,29 +36,81 @@ jobs:
           fi
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
-  release-linux-native:
+  prepare-release-notes:
     needs: resolve-tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Build release notes body
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ needs.resolve-tag.outputs.tag }}"
+          notes_file="release-notes/${tag}.md"
+          body_file="release-body.md"
+
+          if [[ -f "${notes_file}" ]]; then
+            cp "${notes_file}" "${body_file}"
+            echo "Using notes file: ${notes_file}"
+          else
+            prev_tag="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+            {
+              echo "## Changes"
+              echo
+              if [[ -n "${prev_tag}" ]]; then
+                git log --pretty=format:'- %s (%h)' "${prev_tag}..${tag}"
+              else
+                git log --pretty=format:'- %s (%h)' "${tag}"
+              fi
+            } > "${body_file}"
+            echo "No ${notes_file} found; generated notes from commit history."
+          fi
+
+      - name: Ensure GitHub release body is set
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          body_path: release-body.md
+
+  release-linux-native:
+    needs:
+      - resolve-tag
+      - prepare-release-notes
     uses: ./.github/workflows/release-desktop-linux.yml
     with:
       tag: ${{ needs.resolve-tag.outputs.tag }}
     secrets: inherit
 
   release-windows-native:
-    needs: resolve-tag
+    needs:
+      - resolve-tag
+      - prepare-release-notes
     uses: ./.github/workflows/release-desktop-windows.yml
     with:
       tag: ${{ needs.resolve-tag.outputs.tag }}
     secrets: inherit
 
   release-macos-arm64-native:
-    needs: resolve-tag
+    needs:
+      - resolve-tag
+      - prepare-release-notes
     uses: ./.github/workflows/release-desktop-osx-arm.yml
     with:
       tag: ${{ needs.resolve-tag.outputs.tag }}
     secrets: inherit
 
   release-macos-x64-native:
-    needs: resolve-tag
+    needs:
+      - resolve-tag
+      - prepare-release-notes
     uses: ./.github/workflows/release-desktop-osx-x64.yml
     with:
       tag: ${{ needs.resolve-tag.outputs.tag }}
