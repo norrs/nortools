@@ -1,0 +1,3 @@
+email-extract
+--json
+_main/cli_native/samples/emails.txt

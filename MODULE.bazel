@@ -3,6 +3,8 @@ module(
     version = "0.1.0",
 )
 
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
 # Java rules (override bundled version for JDK 25 support + java_tools v19.0)
 bazel_dep(name = "rules_java", version = "9.5.0")
 
@@ -76,3 +78,14 @@ npm.npm_translate_lock(
     verify_node_modules_ignored = "//:.bazelignore",
 )
 use_repo(npm, "npm")
+
+# Hermetic jq binary for Linux shell tests.
+http_file(
+    name = "jq_linux_amd64",
+    downloaded_file_path = "jq",
+    executable = True,
+    sha256 = "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d",
+    urls = [
+        "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64",
+    ],
+)

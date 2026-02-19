@@ -1,0 +1,5 @@
+nsec
+--json
+--server
+1.1.1.1
+cloudflare.com

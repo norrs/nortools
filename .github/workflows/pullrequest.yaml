@@ -1,0 +1,228 @@
+name: Pull Request Native Smoke
+
+on:
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: pullrequest-native-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-linux-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Setup GraalVM JDK 25 + native-image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: "true"
+
+      - name: Install Linux native build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            zlib1g-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            traceroute
+
+      - name: Run native Linux CLI smoke suite
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk test //cli_native:native_linux_cli_smoke_suite --test_output=errors
+
+      - name: Collect Bazel test reports
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf smoke-testlogs-collected
+          mkdir -p smoke-testlogs-collected
+
+          TESTLOGS_DIR="$(bazelisk info bazel-testlogs || true)"
+          if [[ -z "${TESTLOGS_DIR}" || ! -d "${TESTLOGS_DIR}" ]]; then
+            echo "No bazel testlogs directory found"
+            exit 0
+          fi
+
+          while IFS= read -r -d '' file; do
+            rel="${file#${TESTLOGS_DIR}/}"
+            dest="smoke-testlogs-collected/${rel}"
+            mkdir -p "$(dirname "${dest}")"
+            cp "${file}" "${dest}"
+          done < <(find "${TESTLOGS_DIR}" -type f \( -name 'test.xml' -o -name 'test.log' \) -print0)
+
+          echo "Collected files:"
+          find smoke-testlogs-collected -type f | sed -n '1,200p'
+
+      - name: Publish JUnit report to PR/checks
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: "smoke-testlogs-collected/**/test.xml"
+          detailed_summary: true
+          include_passed: true
+          check_name: "Native Linux CLI Smoke (Bazel)"
+          fail_on_failure: false
+
+      - name: Dump failed Bazel test logs
+        id: failed_logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+
+          junit_files = sorted(glob.glob("smoke-testlogs-collected/**/test.xml", recursive=True))
+          failed_tests = []
+
+          def has_failures(xml_path: str) -> bool:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            suites = [root] + list(root.findall(".//testsuite"))
+            for suite in suites:
+              failures = int(suite.attrib.get("failures", "0") or "0")
+              errors = int(suite.attrib.get("errors", "0") or "0")
+              if failures + errors > 0:
+                return True
+            return False
+
+          for xml_path in junit_files:
+            try:
+              if has_failures(xml_path):
+                failed_tests.append((os.path.basename(os.path.dirname(xml_path)), os.path.dirname(xml_path)))
+            except Exception:
+              continue
+
+          with open("native-linux-smoke-failures.md", "w", encoding="utf-8") as out:
+            if not failed_tests:
+              out.write("## Native Linux smoke failures\n\nNone. All smoke tests passed.\n")
+            else:
+              out.write("## Native Linux smoke failures\n\n")
+              for test_name, test_dir in failed_tests:
+                log_path = os.path.join(test_dir, "test.log")
+                out.write(f"### `{test_name}`\n\n")
+                if os.path.exists(log_path):
+                  with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read().strip()
+                  if len(content) > 12000:
+                    content = "...truncated to last 12000 chars...\n" + content[-12000:]
+                  out.write("```text\n")
+                  out.write(content + "\n")
+                  out.write("```\n\n")
+                else:
+                  out.write(f"_Missing log file: `{log_path}`_\n\n")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+            out.write(f"has_failures={'true' if failed_tests else 'false'}\n")
+            out.write(f"junit_count={len(junit_files)}\n")
+          PY
+
+          cat native-linux-smoke-failures.md
+
+      - name: Upload smoke artifacts
+        id: upload_smoke_artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-smoke-reports
+          retention-days: 7
+          path: |
+            smoke-testlogs-collected/**/test.xml
+            smoke-testlogs-collected/**/test.log
+            native-linux-smoke-failures.md
+
+      - name: Comment smoke run results on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const marker = '<!-- native-linux-cli-smoke-summary -->'
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`
+            const smokeOutcome = `${{ steps.smoke.outcome }}`
+            const junitCount = `${{ steps.failed_logs.outputs.junit_count }}`
+            const hasFailures = `${{ steps.failed_logs.outputs.has_failures }}`
+            const statusLine = smokeOutcome === 'success'
+              ? 'Test suite passed.'
+              : 'Test suite failed.'
+            const failuresPath = 'native-linux-smoke-failures.md'
+            const failuresBody = fs.existsSync(failuresPath)
+              ? fs.readFileSync(failuresPath, 'utf8')
+              : '## Native Linux smoke failures\n\nNo failure log file was generated.'
+            let body = `${marker}
+            ## Native Linux CLI Smoke
+            
+            ${statusLine}
+            
+            - JUnit files discovered: \`${junitCount || '0'}\`
+            - Artifacts: [native-linux-smoke-reports](${runUrl})
+            - Artifact retention: 7 days
+            `
+            if (hasFailures === 'true') {
+              body += `\n\n${failuresBody}`
+            }
+
+            const maxLen = 60000
+            if (body.length > maxLen) {
+              body = body.slice(0, maxLen) + '\n\n...truncated...'
+            }
+
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              })
+            }
+
+      - name: Fail job if smoke suite failed
+        if: steps.smoke.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "Native Linux smoke suite failed"
+          exit 1
