@@ -63,29 +63,106 @@ jobs:
           check_name: "Native Linux CLI Smoke (Bazel)"
           fail_on_failure: false
 
-      - name: Setup Node.js for HTML report
-        if: always()
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Generate HTML report from JUnit XML
+      - name: Dump failed Bazel test logs
+        id: failed_logs
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          npm install -g junit-viewer
-          junit-viewer --results "bazel-testlogs/**/test.xml" --save "native-linux-smoke-junit.html"
+          python3 <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
 
-      - name: Upload JUnit and HTML artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+          junit_files = sorted(glob.glob("bazel-testlogs/**/test.xml", recursive=True))
+          failed_tests = []
+
+          def has_failures(xml_path: str) -> bool:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            suites = [root] + list(root.findall(".//testsuite"))
+            for suite in suites:
+              failures = int(suite.attrib.get("failures", "0") or "0")
+              errors = int(suite.attrib.get("errors", "0") or "0")
+              if failures + errors > 0:
+                return True
+            return False
+
+          for xml_path in junit_files:
+            try:
+              if has_failures(xml_path):
+                failed_tests.append(os.path.basename(os.path.dirname(xml_path)))
+            except Exception:
+              continue
+
+          with open("native-linux-smoke-failures.md", "w", encoding="utf-8") as out:
+            if not failed_tests:
+              out.write("## Native Linux smoke failures\n\nNone. All smoke tests passed.\n")
+            else:
+              out.write("## Native Linux smoke failures\n\n")
+              for test_name in failed_tests:
+                log_path = f"bazel-testlogs/cli_native/{test_name}/test.log"
+                out.write(f"### `{test_name}`\n\n")
+                if os.path.exists(log_path):
+                  with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read().strip()
+                  if len(content) > 12000:
+                    content = "...truncated to last 12000 chars...\n" + content[-12000:]
+                  out.write("```text\n")
+                  out.write(content + "\n")
+                  out.write("```\n\n")
+                else:
+                  out.write(f"_Missing log file: `{log_path}`_\n\n")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+            out.write(f"has_failures={'true' if failed_tests else 'false'}\n")
+          PY
+
+          cat native-linux-smoke-failures.md
+
+      - name: Comment failed smoke logs on PR
+        if: always() && github.event_name == 'pull_request' && steps.failed_logs.outputs.has_failures == 'true'
+        uses: actions/github-script@v7
         with:
-          name: native-linux-smoke-reports
-          path: |
-            bazel-testlogs/**/test.xml
-            bazel-testlogs/**/test.log
-            native-linux-smoke-junit.html
+          script: |
+            const fs = require('fs')
+            const marker = '<!-- native-linux-cli-smoke-logs -->'
+            const path = 'native-linux-smoke-failures.md'
+            let body = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8')
+              : '## Native Linux smoke failures\n\nNo failure log file was generated.'
+
+            const maxLen = 60000
+            if (body.length > maxLen) {
+              body = body.slice(0, maxLen) + '\n\n...truncated...'
+            }
+            body = `${marker}\n${body}`
+
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              })
+            }
 
       - name: Fail job if smoke suite failed
         if: steps.smoke.outcome == 'failure'
