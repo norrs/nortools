@@ -6,6 +6,16 @@ fail() {
   exit 1
 }
 
+strip_terminal_escapes() {
+  local text="$1"
+  # Remove ANSI CSI/OSC/control escape sequences that can appear in CI logs.
+  if command -v perl >/dev/null 2>&1; then
+    printf "%s" "$text" | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[@-_]//g'
+    return 0
+  fi
+  printf "%s" "$text"
+}
+
 assert_file_exists() {
   local path="$1"
   [[ -f "$path" ]] || fail "file not found: $path"
@@ -60,8 +70,15 @@ assert_json_matches_jq_expr() {
 extract_json_payload() {
   local jq_bin="$1"
   local text="$2"
+  local doc_count
 
   if echo "$text" | "$jq_bin" -e . >/dev/null 2>&1; then
+    doc_count="$(echo "$text" | "$jq_bin" -s 'length' 2>/dev/null || true)"
+    if [[ "$doc_count" =~ ^[0-9]+$ ]] && (( doc_count > 1 )); then
+      # For multi-document streams, assert on the last JSON document.
+      echo "$text" | "$jq_bin" '.[-1]' -s
+      return 0
+    fi
     printf "%s" "$text"
     return 0
   fi

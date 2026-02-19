@@ -74,7 +74,13 @@ fi
 
 assert_non_empty "$output" "tool output ($label)"
 if [[ "$mode" == "json" ]]; then
-  json_payload="$(extract_json_payload "$jq_bin" "$output" || true)"
+  sanitized_output="$(strip_terminal_escapes "$output")"
+  json_payload="$(extract_json_payload "$jq_bin" "$sanitized_output" || true)"
+  if [[ -z "${json_payload//[[:space:]]/}" ]]; then
+    echo "Raw tool output (last 120 lines):" >&2
+    echo "$output" | tail -n 120 >&2
+    fail "json payload ($label) is empty"
+  fi
   assert_non_empty "$json_payload" "json payload ($label)"
   assert_json_valid "$jq_bin" "$json_payload"
   assert_json_non_empty_payload "$jq_bin" "$json_payload"
