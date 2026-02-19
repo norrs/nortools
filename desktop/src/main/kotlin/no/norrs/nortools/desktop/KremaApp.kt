@@ -100,8 +100,12 @@ fun main(args: Array<String>) {
 
 private fun resolveAppVersion(): String {
     val props = loadBuildProperties()
-    val rawVersion = props.firstNonBlank("build.version", "git.describe", "STABLE_GIT_DESCRIBE")
-        ?: System.getenv("STABLE_GIT_DESCRIBE")
+    val rawVersion = props.firstNonBlank(
+        "build.krema.version",
+        "stable.krema.version",
+        "STABLE_KREMA_VERSION",
+    )
+        ?: System.getenv("STABLE_KREMA_VERSION")
         ?: FALLBACK_APP_VERSION
     val normalized = normalizeVersion(rawVersion)
     return normalized ?: FALLBACK_APP_VERSION
@@ -161,7 +165,7 @@ private fun Properties.firstNonBlank(vararg keys: String): String? {
 
 private fun scoreBuildProperties(props: Properties): Int {
     var score = 0
-    if (!props.firstNonBlank("build.version", "git.describe", "STABLE_GIT_DESCRIBE").isNullOrBlank()) score += 300
+    if (!props.firstNonBlank("build.krema.version", "stable.krema.version", "STABLE_KREMA_VERSION").isNullOrBlank()) score += 500
     if (!props.firstNonBlank("git.commit", "STABLE_GIT_COMMIT", "build.changelist").isNullOrBlank()) score += 200
     if (!props.firstNonBlank("build.target", "main.class").isNullOrBlank()) score += 100
     return score

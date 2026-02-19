@@ -116,6 +116,7 @@ class WebApiDeterministicEndpointsTest {
         assertTrue(json.has("rfc"))
         assertTrue(json["build"]["target"].asText().isNotBlank())
         assertTrue(json["build"]["mainClass"].asText().isNotBlank())
+        assertTrue(json["build"]["kremaVersion"].asText().isNotBlank())
         assertTrue(json["build"]["buildTime"].asText().isNotBlank())
         assertTrue(json["build"]["buildTimestamp"].asText().isNotBlank())
     }

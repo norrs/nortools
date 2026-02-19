@@ -33,6 +33,7 @@ git_commit="$(get_value_any STABLE_GIT_COMMIT)"
 git_branch="$(get_value_any STABLE_GIT_BRANCH)"
 git_dirty="$(get_value_any STABLE_GIT_DIRTY)"
 git_describe="$(get_value_any STABLE_GIT_DESCRIBE)"
+krema_version="$(get_value_any STABLE_KREMA_VERSION)"
 scm_revision="$(get_value_any BUILD_SCM_REVISION)"
 scm_branch="$(get_value_any BUILD_SCM_BRANCH)"
 scm_status="$(get_value_any BUILD_SCM_STATUS)"
@@ -41,6 +42,7 @@ git_commit="${git_commit:-unknown}"
 git_branch="${git_branch:-unknown}"
 git_dirty="${git_dirty:-unknown}"
 git_describe="${git_describe:-unknown}"
+krema_version="${krema_version:-unknown}"
 scm_revision="${scm_revision:-unknown}"
 scm_branch="${scm_branch:-unknown}"
 scm_status="${scm_status:-unknown}"
@@ -50,7 +52,9 @@ git.commit=$git_commit
 git.branch=$git_branch
 git.dirty=$git_dirty
 git.describe=$git_describe
+stable.krema.version=$krema_version
 build.version=$git_describe
+build.krema.version=$krema_version
 build.changelist=$scm_revision
 build.scm.branch=$scm_branch
 build.scm.status=$scm_status
@@ -106,11 +110,15 @@ get_value_any() {
 
 build_timestamp="$(get_value_any BUILD_TIMESTAMP)"
 git_describe="$(get_value_any STABLE_GIT_DESCRIBE)"
+krema_version="$(get_value_any STABLE_KREMA_VERSION)"
 if [ -z "${build_timestamp}" ]; then
   build_timestamp="unknown"
 fi
 if [ -z "${git_describe}" ]; then
   git_describe="unknown"
+fi
+if [ -z "${krema_version}" ]; then
+  krema_version="unknown"
 fi
 
 cat > "$out" <<EOF
@@ -118,6 +126,7 @@ build.target=$build_target
 main.class=$main_class
 build.timestamp.as.int=$build_timestamp
 build.version=$git_describe
+build.krema.version=$krema_version
 EOF
 """,
     )

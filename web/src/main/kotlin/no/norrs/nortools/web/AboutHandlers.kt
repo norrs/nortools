@@ -7,6 +7,7 @@ import java.util.Properties
 data class AboutBuildInfo(
     val target: String? = null,
     val mainClass: String? = null,
+    val kremaVersion: String? = null,
     val buildTime: String? = null,
     val buildTimestamp: String? = null,
     val gitCommit: String? = null,
@@ -80,6 +81,9 @@ fun aboutInfo(ctx: Context) {
     val target = normalizeBuildValue(props.getProperty("build.target")) ?: "unknown"
     val mainClass = normalizeBuildValue(props.getProperty("main.class"))
         ?: "unknown"
+    val kremaVersion = normalizeBuildValue(
+        props.firstNonBlank("build.krema.version", "stable.krema.version", "STABLE_KREMA_VERSION"),
+    ) ?: "unknown"
     val buildTimestamp = normalizeBuildValue(
         props.firstNonBlank("build.timestamp", "build.timestamp.as.int"),
     ) ?: "unknown"
@@ -93,6 +97,7 @@ fun aboutInfo(ctx: Context) {
         build = AboutBuildInfo(
             target = target,
             mainClass = mainClass,
+            kremaVersion = kremaVersion,
             buildTime = buildTime,
             buildTimestamp = buildTimestamp,
             gitCommit = gitCommit,
