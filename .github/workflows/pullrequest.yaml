@@ -164,6 +164,17 @@ jobs:
               })
             }
 
+      - name: Upload JUnit and HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-smoke-reports
+          retention-days: 5
+          path: |
+            bazel-testlogs/**/test.xml
+            bazel-testlogs/**/test.log
+            native-linux-smoke-junit.html
+
       - name: Fail job if smoke suite failed
         if: steps.smoke.outcome == 'failure'
         shell: bash
