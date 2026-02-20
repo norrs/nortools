@@ -31,6 +31,16 @@ PY
 }
 
 locate_capture_script() {
+  if [[ -f "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py" ]]; then
+    echo "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py"
+    return 0
+  fi
+  local self_dir
+  self_dir="$(cd "$(dirname "$0")" && pwd)"
+  if [[ -f "${self_dir}/capture_desktop_screenshots.py" ]]; then
+    echo "${self_dir}/capture_desktop_screenshots.py"
+    return 0
+  fi
   if [[ -n "${RUNFILES_DIR:-}" && -f "${RUNFILES_DIR}/_main/scripts/release/capture_desktop_screenshots.py" ]]; then
     echo "${RUNFILES_DIR}/_main/scripts/release/capture_desktop_screenshots.py"
     return 0
@@ -62,6 +72,9 @@ fi
 args=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --)
+      shift
+      ;;
     --tarball)
       [[ $# -ge 2 ]] || die "--tarball requires a value"
       tarball_value="$2"
