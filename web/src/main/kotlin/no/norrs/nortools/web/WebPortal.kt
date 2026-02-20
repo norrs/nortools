@@ -107,6 +107,7 @@ private fun registerJavalinVueRoutes() {
     get("/spf", VueComponent("spf-page"))
     get("/dkim", VueComponent("dkim-page"))
     get("/help/mta-sts-dns", VueComponent("help-mta-sts-dns-page"))
+    get("/help/dns-record-types", VueComponent("help-dns-record-types-page"))
     get("/dmarc", VueComponent("dmarc-page"))
     get("/tcp", VueComponent("tcp-page"))
     get("/http", VueComponent("http-page"))
@@ -147,6 +148,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/spf-page.vue",
         "vue/components/dkim-page.vue",
         "vue/components/help-mta-sts-dns-page.vue",
+        "vue/components/help-dns-record-types-page.vue",
         "vue/components/dmarc-page.vue",
         "vue/components/tcp-page.vue",
         "vue/components/http-page.vue",
