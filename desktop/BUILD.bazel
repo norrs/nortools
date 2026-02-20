@@ -105,19 +105,14 @@ genrule(
         "//:RFC.md",
     ],
     outs = ["docs-resources.jar"],
-    tools = ["@bazel_tools//tools/jdk:jar"],
+    tools = ["@bazel_tools//tools/zip:zipper"],
     cmd = """
         set -euo pipefail
 
         OUT="$(OUTS)"
-        TMP="$$(mktemp -d)"
-        mkdir -p "$$TMP/docs"
-
-        cp "$(location //:inspiration.md)" "$$TMP/docs/inspiration.md"
-        cp "$(location //:RFC.md)" "$$TMP/docs/RFC.md"
-
-        "$(location @bazel_tools//tools/jdk:jar)" cf "$$OUT" -C "$$TMP" docs
-        rm -rf "$$TMP"
+        "$(location @bazel_tools//tools/zip:zipper)" c "$$OUT" \
+          "docs/inspiration.md=$(location //:inspiration.md)" \
+          "docs/RFC.md=$(location //:RFC.md)"
     """,
     message = "Packaging docs into classpath resources JAR",
     tags = ["no-cache", "no-remote"],
