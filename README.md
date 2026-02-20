@@ -3,6 +3,8 @@ My network tools
 
 A comprehensive suite of network and DNS tools inspired by a lot of tools, built in Kotlin with Bazel.
 
+Quick developer setup: see [developer-setup.md](developer-setup.md).
+
 
 How to test the desktop app
 Dev mode: bazelisk run //desktop:desktop -- --dev
