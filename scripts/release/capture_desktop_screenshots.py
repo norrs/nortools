@@ -24,7 +24,7 @@ from pathlib import Path
 
 
 ROUTES = [
-    ("01-home", "NorTools", "home"),
+    ("01-home", None, "home"),
     ("02-dns-lookup", "DNS Lookup", "dns"),
     ("03-http-check", "HTTP Check", "http"),
     ("04-https-ssl", "HTTPS / SSL", "https"),
@@ -358,9 +358,24 @@ def run() -> int:
 
             window_id = find_window_id(args.display)
 
+            def click_with_retry(link_name: str, timeout: float = 20.0) -> None:
+                start = time.monotonic()
+                last_error: Exception | None = None
+                while time.monotonic() - start < timeout:
+                    try:
+                        navigator.click_link(app, link_name)
+                        return
+                    except Exception as exc:
+                        last_error = exc
+                        time.sleep(0.5)
+                if last_error is not None:
+                    raise RuntimeError(f"Failed to click sidebar link '{link_name}' within {timeout}s: {last_error}") from last_error
+                raise RuntimeError(f"Failed to click sidebar link '{link_name}' within {timeout}s")
+
             for filename, link_name, route_key in ROUTES:
-                navigator.click_link(app, link_name)
-                time.sleep(args.click_delay)
+                if link_name:
+                    click_with_retry(link_name)
+                    time.sleep(args.click_delay)
                 perform_route_action(route_key, args.display, window_id)
                 capture_screen(output_dir / f"{filename}.png", args.display, window_id)
 
