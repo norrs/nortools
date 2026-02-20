@@ -31,7 +31,7 @@
 
       <section class="card">
         <h3>RFC</h3>
-        <div class="doc md-doc" v-html="rfcHtml"></div>
+        <div class="doc md-doc" v-html="rfcHtml" @click="handleMarkdownLinkClick"></div>
       </section>
     </div>
   </div>
@@ -56,6 +56,9 @@ app.component("about-page", {
     this.load()
   },
   methods: {
+    hasKremaBridge() {
+      return !!(window.krema && typeof window.krema.invoke === "function")
+    },
     escapeHtml(input) {
       return String(input)
         .replaceAll('&', '&amp;')
@@ -206,6 +209,25 @@ app.component("about-page", {
         parts.push(`<pre><code>${this.escapeHtml(codeLines.join('\n'))}</code></pre>`)
       }
       return parts.join('\n')
+    },
+    async openExternalUrl(url) {
+      if (this.hasKremaBridge()) {
+        await window.krema.invoke("shell:openUrl", { url: String(url) })
+        return
+      }
+      window.open(String(url), "_blank", "noopener,noreferrer")
+    },
+    handleMarkdownLinkClick(event) {
+      const target = event && event.target
+      if (!target || typeof target.closest !== "function") return
+      const anchor = target.closest("a[href]")
+      if (!anchor) return
+      const href = String(anchor.getAttribute("href") || "").trim()
+      if (!href || href === "#") return
+      event.preventDefault()
+      this.openExternalUrl(href).catch(() => {
+        window.open(href, "_blank", "noopener,noreferrer")
+      })
     },
     async load() {
       this.loading = true

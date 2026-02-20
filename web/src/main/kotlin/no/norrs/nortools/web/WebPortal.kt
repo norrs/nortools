@@ -6,6 +6,7 @@ import io.javalin.apibuilder.ApiBuilder.before
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
 import io.javalin.http.staticfiles.Location
+import io.javalin.plugin.bundled.JavalinVuePlugin
 import io.javalin.vue.VueComponent
 import java.io.File
 import java.nio.file.Files
@@ -25,11 +26,15 @@ fun startServer(
             cfg.staticFiles.enableWebjars()
         }
 
-        cfg.vue.vueInstanceNameInJs = "app"
-        cfg.vue.rootDirectory(vueRootDir.absolutePath, Location.EXTERNAL)
+        cfg.registerPlugin(
+            JavalinVuePlugin { vue ->
+                vue.vueInstanceNameInJs = "app"
+                vue.rootDirectory(vueRootDir.absolutePath, Location.EXTERNAL)
+            }
+        )
 
         // DNS tools
-        cfg.router.apiBuilder {
+        cfg.routes.apiBuilder {
             get("/api/dns/{type}/{domain}") { ctx -> dnsLookup(ctx) }
             get("/api/dnssec/{type}/{domain}") { ctx -> dnssecLookup(ctx) }
             get("/api/dnssec-chain/{domain}") { ctx -> dnssecChain(ctx) }
@@ -73,6 +78,8 @@ fun startServer(
             get("/api/spf-generator") { ctx -> spfGenerator(ctx) }
             get("/api/dmarc-generator") { ctx -> dmarcGenerator(ctx) }
 
+            registerJavalinVueRoutes()
+
             before("/api/*") { ctx ->
                 println("API REQ ${ctx.method()} ${ctx.path()} query=${ctx.queryString() ?: ""}")
             }
@@ -81,8 +88,6 @@ fun startServer(
             }
         }
     }
-
-    registerJavalinVueRoutes(app)
 
     app.start(port)
     println("Listening on http://127.0.0.1:${port}/")
@@ -93,33 +98,33 @@ fun main() {
     startServer()
 }
 
-private fun registerJavalinVueRoutes(app: Javalin) {
-    app.get("/", VueComponent("home-page"))
-    app.get("/dns", VueComponent("dns-lookup-page"))
-    app.get("/dnssec", VueComponent("dnssec-lookup-page"))
-    app.get("/dnssec-lookup", VueComponent("dnssec-lookup-page"))
-    app.get("/reverse-dns", VueComponent("reverse-dns-page"))
-    app.get("/spf", VueComponent("spf-page"))
-    app.get("/dkim", VueComponent("dkim-page"))
-    app.get("/help/mta-sts-dns", VueComponent("help-mta-sts-dns-page"))
-    app.get("/dmarc", VueComponent("dmarc-page"))
-    app.get("/tcp", VueComponent("tcp-page"))
-    app.get("/http", VueComponent("http-page"))
-    app.get("/https", VueComponent("https-page"))
-    app.get("/network-interfaces", VueComponent("network-interfaces-page"))
-    app.get("/ping", VueComponent("ping-page"))
-    app.get("/traceroute", VueComponent("traceroute-page"))
-    app.get("/whois", VueComponent("whois-page"))
-    app.get("/blacklist", VueComponent("blacklist-page"))
-    app.get("/whatismyip", VueComponent("whatismyip-page"))
-    app.get("/subnet", VueComponent("subnet-page"))
-    app.get("/password", VueComponent("password-page"))
-    app.get("/email-extract", VueComponent("email-extract-page"))
-    app.get("/spf-generator", VueComponent("spf-generator-page"))
-    app.get("/dmarc-generator", VueComponent("dmarc-generator-page"))
-    app.get("/dns-health", VueComponent("dns-health-page"))
-    app.get("/domain-health", VueComponent("domain-health-page"))
-    app.get("/about", VueComponent("about-page"))
+private fun registerJavalinVueRoutes() {
+    get("/", VueComponent("home-page"))
+    get("/dns", VueComponent("dns-lookup-page"))
+    get("/dnssec", VueComponent("dnssec-lookup-page"))
+    get("/dnssec-lookup", VueComponent("dnssec-lookup-page"))
+    get("/reverse-dns", VueComponent("reverse-dns-page"))
+    get("/spf", VueComponent("spf-page"))
+    get("/dkim", VueComponent("dkim-page"))
+    get("/help/mta-sts-dns", VueComponent("help-mta-sts-dns-page"))
+    get("/dmarc", VueComponent("dmarc-page"))
+    get("/tcp", VueComponent("tcp-page"))
+    get("/http", VueComponent("http-page"))
+    get("/https", VueComponent("https-page"))
+    get("/network-interfaces", VueComponent("network-interfaces-page"))
+    get("/ping", VueComponent("ping-page"))
+    get("/traceroute", VueComponent("traceroute-page"))
+    get("/whois", VueComponent("whois-page"))
+    get("/blacklist", VueComponent("blacklist-page"))
+    get("/whatismyip", VueComponent("whatismyip-page"))
+    get("/subnet", VueComponent("subnet-page"))
+    get("/password", VueComponent("password-page"))
+    get("/email-extract", VueComponent("email-extract-page"))
+    get("/spf-generator", VueComponent("spf-generator-page"))
+    get("/dmarc-generator", VueComponent("dmarc-generator-page"))
+    get("/dns-health", VueComponent("dns-health-page"))
+    get("/domain-health", VueComponent("domain-health-page"))
+    get("/about", VueComponent("about-page"))
 }
 
 private fun findVueRootDir(): File? {
