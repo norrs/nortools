@@ -31,12 +31,15 @@
     <div v-if="result" class="trace-results">
       <div class="tabs">
         <button :class="['tab', { active: activeTab === 'diagram' }]" @click="activeTab = 'diagram'">Hop Diagram</button>
-        <button :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
+        <button v-if="hasGeoData" :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
         <button :class="['tab', { active: activeTab === 'json' }]" @click="activeTab = 'json'">JSON</button>
       </div>
 
       <div v-show="activeTab === 'diagram'" class="tab-panel diagram-panel">
         <div class="hop-summary">{{ result.hopCount }} hops to <strong>{{ result.host }}</strong></div>
+        <div v-if="!hasGeoData && traceComplete" class="geo-unavailable">
+          Geo IP data was not available for this trace. World map is unavailable.
+        </div>
         <div class="hop-list">
           <template v-for="(hop, idx) in result.hops" :key="hop.hop">
             <div v-if="hop.asn && (idx === 0 || hop.asn !== result.hops[idx - 1]?.asn)" class="asn-header">
@@ -81,9 +84,9 @@
         </div>
       </div>
 
-      <div v-show="activeTab === 'map'" class="tab-panel map-panel">
+      <div v-if="hasGeoData" v-show="activeTab === 'map'" class="tab-panel map-panel">
         <div id="trace-map" class="map-container"></div>
-        <div v-if="!result.hops.some((h) => h.lat != null && h.lon != null)" class="map-empty">
+        <div v-if="!hasGeoData" class="map-empty">
           No map coordinates were returned for this trace.
         </div>
       </div>
@@ -229,6 +232,10 @@ app.component("traceroute-page", {
       }
     },
     async showMap() {
+      if (!this.hasGeoData) {
+        this.activeTab = 'diagram'
+        return
+      }
       this.activeTab = 'map'
       if (this.mapInstance) return
       await this.$nextTick()
@@ -274,6 +281,12 @@ app.component("traceroute-page", {
         }
       }
       if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] })
+    },
+  },
+  computed: {
+    hasGeoData() {
+      if (!this.result || !Array.isArray(this.result.hops)) return false
+      return this.result.hops.some((h) => h.lat != null && h.lon != null)
     },
   },
 })
@@ -324,6 +337,7 @@ app.component("traceroute-page", {
 .traceroute-page .hop-summary { font-size: 0.8rem; color: #888; margin-bottom: 12px; }
 .traceroute-page .hop-summary strong { color: #1a1a2e; 
 }
+.traceroute-page .geo-unavailable { margin-bottom: 0.7rem; padding: 0.55rem 0.65rem; border: 1px solid #fde68a; background: #fffbeb; border-radius: 6px; color: #92400e; font-size: 0.82rem; }
 .traceroute-page .hop-list { display: flex; flex-direction: column; gap: 2px; 
 }
 .traceroute-page .asn-header { font-size: 0.7rem; color: #1a73e8; padding: 6px 0 2px; border-top: 1px solid #eee; margin-top: 4px; 
