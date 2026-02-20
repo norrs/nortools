@@ -185,17 +185,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          screenshot_dir="${GITHUB_WORKSPACE}/docs/screenshots"
+          export screenshot_dir
+          mkdir -p "${screenshot_dir}"
           dbus-run-session -- bash -lc '
             xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
               openbox >/tmp/openbox.log 2>&1 &
               export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
               bazelisk run //scripts/release:capture_desktop_screenshots -- \
                 --tarball release/${{ steps.screenshot_meta.outputs.artifact }} \
-                --output-dir docs/screenshots \
+                --output-dir ${screenshot_dir} \
                 --display \${DISPLAY} \
                 --no-xvfb
             "
           '
+          ls -la "${screenshot_dir}"
+          find "${screenshot_dir}" -maxdepth 2 -type f -name '*.png' | sort
 
       - name: Create pull request with refreshed screenshots
         uses: peter-evans/create-pull-request@v7
