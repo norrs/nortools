@@ -5,6 +5,8 @@ import no.norrs.nortools.lib.dns.DnsResolver
 import no.norrs.nortools.lib.network.HttpClient
 import no.norrs.nortools.lib.network.TcpClient
 import org.xbill.DNS.Type
+import java.net.InetAddress
+import java.net.NetworkInterface
 import java.net.URI
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
@@ -15,6 +17,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import javax.naming.ldap.LdapName
 import javax.net.ssl.HttpsURLConnection
 import java.net.http.HttpClient as JHttpClient
@@ -71,6 +75,49 @@ fun httpsCheck(ctx: Context) {
     ctx.jsonResult(response)
 }
 
+fun networkInterfaces(ctx: Context) {
+    val generatedAt = Instant.now().toString()
+    val hostName = runCatching { InetAddress.getLocalHost().hostName }.getOrDefault("unknown")
+    val osName = System.getProperty("os.name").orEmpty()
+    val osVersion = System.getProperty("os.version").orEmpty()
+    val osArch = System.getProperty("os.arch").orEmpty()
+    val platform = detectPlatformName()
+
+    val interfaces = loadInterfaceInventory()
+    val routesResult = loadRouteTable(platform)
+    val dnsResult = loadDnsInfo(platform)
+    val netbiosName = loadNetbiosName(platform, hostName)
+    val dhcpByInterface = loadDhcpStatusByInterface(platform)
+
+    val enriched = interfaces.map { info ->
+        info.copy(
+            dhcp = dhcpByInterface[info.name] ?: dhcpByInterface[info.displayName] ?: "unknown",
+            dnsServers = dnsResult.interfaceDns[info.name]
+                ?: dnsResult.interfaceDns[info.displayName]
+                ?: emptyList(),
+        )
+    }
+
+    val response = LocalNetworkSnapshot(
+        generatedAt = generatedAt,
+        host = HostIdentity(
+            hostname = hostName,
+            netbios = netbiosName,
+            osName = osName,
+            osVersion = osVersion,
+            osArch = osArch,
+            platform = platform,
+        ),
+        interfaces = enriched,
+        routes = routesResult.routes,
+        routingTableRaw = routesResult.raw,
+        defaultDnsServers = dnsResult.defaultDns,
+        interfaceDnsServers = dnsResult.interfaceDns,
+        notes = dnsResult.notes + routesResult.notes,
+    )
+    ctx.jsonResult(response)
+}
+
 private fun fetchCertificateChain(hostname: String, timeoutSeconds: Int): List<CertificateInfo> {
     val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.of("UTC"))
     val uri = URI.create("https://$hostname")
@@ -121,6 +168,324 @@ private fun fetchCertificateChain(hostname: String, timeoutSeconds: Int): List<C
         }
     } finally {
         conn.disconnect()
+    }
+}
+
+internal fun detectPlatformName(): String {
+    val os = System.getProperty("os.name").lowercase(Locale.ROOT)
+    return when {
+        "win" in os -> "windows"
+        "mac" in os || "darwin" in os -> "macos"
+        else -> "linux"
+    }
+}
+
+private fun loadInterfaceInventory(): List<LocalInterfaceInfo> {
+    val all = mutableListOf<LocalInterfaceInfo>()
+    val interfaces = NetworkInterface.getNetworkInterfaces() ?: return all
+    while (interfaces.hasMoreElements()) {
+        val nif = interfaces.nextElement()
+        val addresses = nif.interfaceAddresses.mapNotNull { ia ->
+            val addr = ia.address ?: return@mapNotNull null
+            LocalAddress(
+                ip = addr.hostAddress.substringBefore("%"),
+                family = if (addr.hostAddress.contains(":")) "IPv6" else "IPv4",
+                prefixLength = ia.networkPrefixLength.toInt().takeIf { it >= 0 },
+            )
+        }
+        all.add(
+            LocalInterfaceInfo(
+                name = nif.name.orEmpty(),
+                displayName = nif.displayName ?: nif.name.orEmpty(),
+                up = runCatching { nif.isUp }.getOrDefault(false),
+                loopback = runCatching { nif.isLoopback }.getOrDefault(false),
+                virtual = runCatching { nif.isVirtual }.getOrDefault(false),
+                mtu = runCatching { nif.mtu }.getOrNull(),
+                macAddress = nif.hardwareAddress?.joinToString(":") { b -> "%02X".format(b) },
+                addresses = addresses,
+                dhcp = "unknown",
+                dnsServers = emptyList(),
+            )
+        )
+    }
+    return all.sortedBy { it.name }
+}
+
+private fun loadRouteTable(platform: String): RouteTableResult {
+    val notes = mutableListOf<String>()
+    val cmdCandidates = when (platform) {
+        "windows" -> listOf(
+            listOf("route", "print", "-4"),
+            listOf("route", "print"),
+        )
+        "macos" -> listOf(
+            listOf("netstat", "-rn"),
+            listOf("route", "-n", "get", "default"),
+        )
+        else -> listOf(
+            listOf("ip", "route", "show"),
+            listOf("netstat", "-rn"),
+        )
+    }
+
+    for (cmd in cmdCandidates) {
+        val out = runCommand(cmd) ?: continue
+        val rows = parseRoutes(out)
+        if (rows.isNotEmpty() || out.isNotBlank()) {
+            return RouteTableResult(routes = rows, raw = out, notes = notes)
+        }
+    }
+    notes += "Could not read routing table from platform tools."
+    return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+}
+
+fun parseRoutes(raw: String): List<RouteEntry> {
+    val routes = mutableListOf<RouteEntry>()
+    val lines = raw.lines().map { it.trim() }.filter { it.isNotBlank() }
+    for (line in lines) {
+        if (line.startsWith("Kernel", ignoreCase = true)) continue
+        if (line.startsWith("Destination", ignoreCase = true)) continue
+        if (line.startsWith("Routing", ignoreCase = true)) continue
+        if (line.startsWith("Interface", ignoreCase = true)) continue
+        if (line.startsWith("IPv4 Route", ignoreCase = true)) continue
+        if (line.startsWith("Active Routes", ignoreCase = true)) continue
+        if (line.startsWith("Persistent Routes", ignoreCase = true)) continue
+
+        if (line.startsWith("default ") || line.startsWith("0.0.0.0 ")) {
+            val parts = line.split(Regex("\\s+"))
+            val destination = parts.getOrNull(0) ?: ""
+            val gateway = if (parts.getOrNull(1) == "via") parts.getOrNull(2) else parts.getOrNull(1)
+            val iface = if ("dev" in parts) {
+                parts.getOrNull(parts.indexOf("dev") + 1)
+            } else {
+                parts.findLast {
+                    it.startsWith("eth") || it.startsWith("en") || it.startsWith("wl") ||
+                        it.startsWith("wlan") || it.startsWith("br") || it.startsWith("tun")
+                }
+            }
+            routes += RouteEntry(destination = destination, gateway = gateway, interfaceName = iface, metric = parts.lastOrNull { it.toIntOrNull() != null }?.toIntOrNull(), raw = line)
+            continue
+        }
+
+        val parts = line.split(Regex("\\s+"))
+        if (parts.size >= 4 && parts[0].any { it.isDigit() || it == '.' || it == '/' }) {
+            val destination = parts[0]
+            val gateway = parts.getOrNull(1)
+            val metric = parts.lastOrNull { it.toIntOrNull() != null }?.toIntOrNull()
+            val iface = parts.findLast { it.startsWith("eth") || it.startsWith("en") || it.startsWith("wl") || it.startsWith("wlan") || it.startsWith("br") }
+            routes += RouteEntry(destination = destination, gateway = gateway, interfaceName = iface, metric = metric, raw = line)
+        }
+    }
+    return routes
+}
+
+private fun loadDnsInfo(platform: String): DnsInfoResult {
+    return when (platform) {
+        "windows" -> loadWindowsDnsInfo()
+        "macos" -> loadMacDnsInfo()
+        else -> loadLinuxDnsInfo()
+    }
+}
+
+private fun loadWindowsDnsInfo(): DnsInfoResult {
+    val notes = mutableListOf<String>()
+    val interfaceDns = mutableMapOf<String, List<String>>()
+    val defaultDns = mutableListOf<String>()
+    val output = runCommand(listOf("netsh", "interface", "ip", "show", "dnsservers"))
+        ?: runCommand(listOf("ipconfig", "/all"))
+        ?: ""
+    if (output.isBlank()) {
+        notes += "Could not collect DNS settings from netsh/ipconfig."
+        return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+    }
+
+    var current = ""
+    output.lines().forEach { raw ->
+        val line = raw.trim()
+        if (line.startsWith("Configuration for interface", ignoreCase = true)) {
+            current = line.substringAfter("\"").substringBeforeLast("\"")
+            if (current.isNotBlank() && current !in interfaceDns) interfaceDns[current] = emptyList()
+        } else if (line.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) {
+            if (current.isNotBlank()) {
+                val cur = interfaceDns[current].orEmpty().toMutableList()
+                cur += line
+                interfaceDns[current] = cur
+            }
+            if (line !in defaultDns) defaultDns += line
+        }
+    }
+    if (defaultDns.isEmpty()) {
+        val fromIpconfig = Regex("DNS Servers[ .:]+([0-9.]+)").findAll(output).map { it.groupValues[1] }.toList()
+        defaultDns += fromIpconfig.distinct()
+    }
+    return DnsInfoResult(defaultDns = defaultDns, interfaceDns = interfaceDns, notes = notes)
+}
+
+private fun loadMacDnsInfo(): DnsInfoResult {
+    val notes = mutableListOf<String>()
+    val interfaceDns = mutableMapOf<String, List<String>>()
+    val defaultDns = mutableListOf<String>()
+
+    val servicesOut = runCommand(listOf("networksetup", "-listallnetworkservices")) ?: ""
+    val services = servicesOut.lines().drop(1).map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("*") }
+    if (services.isEmpty()) {
+        notes += "Could not enumerate macOS network services."
+    }
+    for (service in services) {
+        val dnsOut = runCommand(listOf("networksetup", "-getdnsservers", service)) ?: continue
+        val servers = dnsOut.lines().map { it.trim() }
+            .filter { it.isNotBlank() && !it.startsWith("There aren't any DNS Servers", ignoreCase = true) && it[0].isDigit() }
+        if (servers.isNotEmpty()) {
+            interfaceDns[service] = servers
+            for (s in servers) if (s !in defaultDns) defaultDns += s
+        }
+    }
+    if (defaultDns.isEmpty()) {
+        defaultDns += parseResolvConfNameservers()
+    }
+    return DnsInfoResult(defaultDns = defaultDns.distinct(), interfaceDns = interfaceDns, notes = notes)
+}
+
+private fun loadLinuxDnsInfo(): DnsInfoResult {
+    val notes = mutableListOf<String>()
+    val interfaceDns = mutableMapOf<String, List<String>>()
+    val defaultDns = mutableListOf<String>()
+
+    val resolvectl = runCommand(listOf("resolvectl", "status"))
+    if (!resolvectl.isNullOrBlank()) {
+        val (parsedInterfaceDns, parsedDefaultDns) = parseLinuxResolvectlDns(resolvectl)
+        for ((name, servers) in parsedInterfaceDns) {
+            interfaceDns[name] = servers
+        }
+        for (dns in parsedDefaultDns) {
+            if (dns !in defaultDns) defaultDns += dns
+        }
+    }
+
+    if (defaultDns.isEmpty()) {
+        val resolv = parseResolvConfNameservers()
+        defaultDns += resolv
+    }
+
+    if (defaultDns.isEmpty()) {
+        notes += "Could not find DNS servers via resolvectl or /etc/resolv.conf."
+    }
+    return DnsInfoResult(defaultDns = defaultDns.distinct(), interfaceDns = interfaceDns, notes = notes)
+}
+
+private fun parseResolvConfNameservers(): List<String> {
+    val output = runCommand(listOf("cat", "/etc/resolv.conf")) ?: return emptyList()
+    return parseResolvConfNameserversText(output)
+}
+
+fun parseLinuxResolvectlDns(raw: String): Pair<Map<String, List<String>>, List<String>> {
+    val interfaceDns = mutableMapOf<String, List<String>>()
+    val defaultDns = mutableListOf<String>()
+    var currentIf: String? = null
+    for (lineRaw in raw.lines()) {
+        val line = lineRaw.trim()
+        val linkMatch = Regex("^Link \\d+ \\(([^)]+)\\)").find(line)
+        if (linkMatch != null) {
+            currentIf = linkMatch.groupValues[1]
+            continue
+        }
+        if (line.startsWith("DNS Servers:", ignoreCase = true)) {
+            val servers = line.substringAfter(":").trim().split(Regex("\\s+"))
+                .filter { it.matches(Regex("[0-9a-fA-F:.]+")) }
+            if (servers.isNotEmpty()) {
+                if (currentIf != null) interfaceDns[currentIf!!] = servers
+                for (s in servers) if (s !in defaultDns) defaultDns += s
+            }
+        }
+    }
+    return interfaceDns to defaultDns
+}
+
+fun parseResolvConfNameserversText(output: String): List<String> {
+    return output.lines()
+        .map { it.trim() }
+        .filter { it.startsWith("nameserver ") }
+        .mapNotNull { it.substringAfter("nameserver ").trim().takeIf { v -> v.matches(Regex("[0-9a-fA-F:.]+")) } }
+        .distinct()
+}
+
+private fun loadDhcpStatusByInterface(platform: String): Map<String, String> {
+    return when (platform) {
+        "windows" -> loadWindowsDhcpStatus()
+        "macos" -> loadMacDhcpStatus()
+        else -> loadLinuxDhcpStatus()
+    }
+}
+
+private fun loadWindowsDhcpStatus(): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    val output = runCommand(listOf("netsh", "interface", "ip", "show", "config"))
+        ?: runCommand(listOf("ipconfig", "/all"))
+        ?: return result
+    var current = ""
+    output.lines().forEach { raw ->
+        val line = raw.trim()
+        if (line.startsWith("Configuration for interface", ignoreCase = true)) {
+            current = line.substringAfter("\"").substringBeforeLast("\"")
+        } else if (line.startsWith("DHCP enabled:", ignoreCase = true) && current.isNotBlank()) {
+            val enabled = line.substringAfter(":").trim().lowercase(Locale.ROOT).startsWith("yes")
+            result[current] = if (enabled) "enabled" else "disabled"
+        }
+    }
+    return result
+}
+
+private fun loadMacDhcpStatus(): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    val interfaces = NetworkInterface.getNetworkInterfaces()
+    while (interfaces != null && interfaces.hasMoreElements()) {
+        val ifName = interfaces.nextElement().name ?: continue
+        val out = runCommand(listOf("ipconfig", "getpacket", ifName))
+        result[ifName] = if (!out.isNullOrBlank() && "yiaddr" in out) "enabled" else "unknown"
+    }
+    return result
+}
+
+private fun loadLinuxDhcpStatus(): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    val nmcli = runCommand(listOf("nmcli", "-t", "-f", "DEVICE,DHCP4.OPTION", "device", "show"))
+    if (!nmcli.isNullOrBlank()) {
+        for (line in nmcli.lines()) {
+            val parts = line.trim().split(":")
+            if (parts.size >= 2) {
+                val dev = parts[0]
+                val hasDhcp = parts.drop(1).joinToString(":").contains("dhcp", ignoreCase = true)
+                result[dev] = if (hasDhcp) "enabled" else "unknown"
+            }
+        }
+    }
+    return result
+}
+
+private fun loadNetbiosName(platform: String, hostName: String): String? {
+    if (platform == "windows") {
+        val envName = System.getenv("COMPUTERNAME")?.trim().takeIf { !it.isNullOrEmpty() }
+        if (envName != null) return envName
+        val nbt = runCommand(listOf("nbtstat", "-n")) ?: return hostName
+        val line = nbt.lines().firstOrNull { "<00>" in it && "UNIQUE" in it.uppercase(Locale.ROOT) }
+        return line?.trim()?.split(Regex("\\s+"))?.firstOrNull() ?: hostName
+    }
+    return null
+}
+
+private fun runCommand(command: List<String>, timeoutSeconds: Long = 8): String? {
+    return try {
+        val process = ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .start()
+        val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+        if (!completed) {
+            process.destroyForcibly()
+            return null
+        }
+        process.inputStream.bufferedReader().use { it.readText() }.trim()
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -800,7 +1165,7 @@ data class PingStreamSample(
     val message: String,
 )
 
-data class PingProbeResult(
+private data class PingProbeResult(
     val success: Boolean,
     val from: String?,
     val timeMs: Double?,
@@ -858,4 +1223,63 @@ data class TraceVisualResponse(
     val maxHops: Int,
     val hopCount: Int,
     val hops: List<TraceVisualHop>,
+)
+
+data class HostIdentity(
+    val hostname: String,
+    val netbios: String? = null,
+    val osName: String,
+    val osVersion: String,
+    val osArch: String,
+    val platform: String,
+)
+
+data class LocalAddress(
+    val ip: String,
+    val family: String,
+    val prefixLength: Int? = null,
+)
+
+data class LocalInterfaceInfo(
+    val name: String,
+    val displayName: String,
+    val up: Boolean,
+    val loopback: Boolean,
+    val virtual: Boolean,
+    val mtu: Int? = null,
+    val macAddress: String? = null,
+    val addresses: List<LocalAddress>,
+    val dhcp: String,
+    val dnsServers: List<String>,
+)
+
+data class RouteEntry(
+    val destination: String,
+    val gateway: String? = null,
+    val interfaceName: String? = null,
+    val metric: Int? = null,
+    val raw: String,
+)
+
+data class LocalNetworkSnapshot(
+    val generatedAt: String,
+    val host: HostIdentity,
+    val interfaces: List<LocalInterfaceInfo>,
+    val routes: List<RouteEntry>,
+    val routingTableRaw: String? = null,
+    val defaultDnsServers: List<String>,
+    val interfaceDnsServers: Map<String, List<String>>,
+    val notes: List<String>,
+)
+
+private data class DnsInfoResult(
+    val defaultDns: List<String>,
+    val interfaceDns: Map<String, List<String>>,
+    val notes: List<String>,
+)
+
+private data class RouteTableResult(
+    val routes: List<RouteEntry>,
+    val raw: String?,
+    val notes: List<String>,
 )

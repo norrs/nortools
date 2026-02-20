@@ -45,6 +45,7 @@ fun startServer(
             get("/api/tcp/{host}/{port}") { ctx -> tcpCheck(ctx) }
             get("/api/http/{url}") { ctx -> httpCheck(ctx) }
             get("/api/https/{host}") { ctx -> httpsCheck(ctx) }
+            get("/api/network-interfaces") { ctx -> networkInterfaces(ctx) }
             get("/api/ping/{host}") { ctx -> pingCheck(ctx) }
             get("/api/ping-stream/{host}") { ctx -> pingStream(ctx) }
             get("/api/trace/{host}") { ctx -> traceCheck(ctx) }
@@ -105,6 +106,7 @@ private fun registerJavalinVueRoutes(app: Javalin) {
     app.get("/tcp", VueComponent("tcp-page"))
     app.get("/http", VueComponent("http-page"))
     app.get("/https", VueComponent("https-page"))
+    app.get("/network-interfaces", VueComponent("network-interfaces-page"))
     app.get("/ping", VueComponent("ping-page"))
     app.get("/traceroute", VueComponent("traceroute-page"))
     app.get("/whois", VueComponent("whois-page"))
@@ -144,6 +146,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/tcp-page.vue",
         "vue/components/http-page.vue",
         "vue/components/https-page.vue",
+        "vue/components/network-interfaces-page.vue",
         "vue/components/ping-page.vue",
         "vue/components/traceroute-page.vue",
         "vue/components/whois-page.vue",

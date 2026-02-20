@@ -121,6 +121,26 @@ class WebApiDeterministicEndpointsTest {
         assertTrue(json["build"]["buildTimestamp"].asText().isNotBlank())
     }
 
+    @Test
+    fun `network interfaces endpoint returns host and collections`() {
+        val response = get("/api/network-interfaces")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertTrue(json.has("generatedAt"))
+        assertTrue(json.has("host"))
+        assertTrue(json["host"].has("hostname"))
+        assertTrue(json["host"].has("platform"))
+        assertTrue(json.has("interfaces"))
+        assertTrue(json["interfaces"].isArray)
+        assertTrue(json.has("routes"))
+        assertTrue(json["routes"].isArray)
+        assertTrue(json.has("defaultDnsServers"))
+        assertTrue(json["defaultDnsServers"].isArray)
+        assertTrue(json.has("interfaceDnsServers"))
+        assertTrue(json["interfaceDnsServers"].isObject)
+    }
+
     private fun get(path: String): HttpResponse<String> {
         val request = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl$path"))

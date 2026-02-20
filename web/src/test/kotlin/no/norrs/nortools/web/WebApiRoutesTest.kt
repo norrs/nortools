@@ -30,6 +30,7 @@ class WebApiRoutesTest {
             "GET /api/domain-health/{domain}",
             "GET /api/http/{url}",
             "GET /api/https/{host}",
+            "GET /api/network-interfaces",
             "GET /api/password",
             "GET /api/ping-stream/{host}",
             "GET /api/ping/{host}",
