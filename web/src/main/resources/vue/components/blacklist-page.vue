@@ -32,25 +32,22 @@
 
       <div v-show="activeTab === 'report'" class="tab-panel">
         <div class="section">
-          <h3>Listed On</h3>
-          <div v-if="listedResults.length === 0" class="empty">No listings found on checked blocklists.</div>
-          <div v-else class="table-wrap">
+          <h3>Blacklist Results</h3>
+          <div class="table-wrap">
             <table>
-              <thead><tr><th>DNSBL</th><th>Reason</th></tr></thead>
+              <thead><tr><th>DNSBL</th><th>Status</th><th>Reason</th></tr></thead>
               <tbody>
-                <tr v-for="row in listedResults" :key="row.server">
+                <tr v-for="row in orderedResults" :key="row.server">
                   <td><code>{{ row.server }}</code></td>
-                  <td>{{ row.reason || 'Listed (no TXT reason provided)' }}</td>
+                  <td>
+                    <span :class="['status-chip', row.listed ? 'status-listed' : 'status-clean']">
+                      {{ row.listed ? 'Listed' : 'Not listed' }}
+                    </span>
+                  </td>
+                  <td>{{ row.listed ? (row.reason || 'Listed (no TXT reason provided)') : '-' }}</td>
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-
-        <div class="section">
-          <h3>Checked And Clean</h3>
-          <div class="clean-list">
-            <span v-for="row in cleanResults" :key="row.server" class="chip">{{ row.server }}</span>
           </div>
         </div>
       </div>
@@ -85,11 +82,14 @@ app.component("blacklist-page", {
     cliDisabled() {
       return !this.ip
     },
-    listedResults() {
-      return this.result?.results?.filter((r) => r.listed) || []
-    },
-    cleanResults() {
-      return this.result?.results?.filter((r) => !r.listed) || []
+    orderedResults() {
+      const rows = Array.isArray(this.result?.results) ? this.result.results.slice() : []
+      rows.sort((a, b) => {
+        const listedOrder = (a.listed ? 0 : 1) - (b.listed ? 0 : 1)
+        if (listedOrder !== 0) return listedOrder
+        return String(a.server || '').localeCompare(String(b.server || ''))
+      })
+      return rows
     },
     cleanCount() {
       return this.result ? this.result.totalChecked - this.result.listedOn : 0
@@ -187,10 +187,9 @@ app.component("blacklist-page", {
 }
 .blacklist-page th { background: #f8fafc; color: #334155; font-weight: 600; 
 }
-.blacklist-page .clean-list { display: flex; flex-wrap: wrap; gap: 0.4rem; 
-}
-.blacklist-page .chip { border: 1px solid #d1fae5; background: #ecfdf5; color: #065f46; border-radius: 999px; padding: 0.2rem 0.5rem; font-size: 0.76rem; 
-}
+.blacklist-page .status-chip { border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.72rem; border: 1px solid transparent; display: inline-flex; align-items: center; }
+.blacklist-page .status-listed { color: #b91c1c; background: #fee2e2; border-color: #fca5a5; }
+.blacklist-page .status-clean { color: #166534; background: #dcfce7; border-color: #86efac; }
 .blacklist-page .result { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; }
 .blacklist-page .cli-copy { margin-top: 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; width: 100%; }
 .blacklist-page .cli-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 0.5rem; }
