@@ -30,6 +30,33 @@ except Exception:
 PY
 }
 
+ensure_accessibility_environment() {
+  export NO_AT_BRIDGE=0
+  if [[ -n "${GTK_MODULES:-}" ]]; then
+    if [[ ":${GTK_MODULES}:" != *":atk-bridge:"* ]]; then
+      export GTK_MODULES="${GTK_MODULES}:atk-bridge"
+    fi
+  else
+    export GTK_MODULES="gail:atk-bridge"
+  fi
+
+  if command -v gsettings >/dev/null 2>&1; then
+    if gsettings set org.gnome.desktop.interface toolkit-accessibility true >/dev/null 2>&1; then
+      current_setting="$(gsettings get org.gnome.desktop.interface toolkit-accessibility 2>/dev/null || true)"
+      echo "toolkit-accessibility=${current_setting:-unknown}"
+    else
+      echo "WARN: Failed to set toolkit-accessibility via gsettings." >&2
+    fi
+  else
+    echo "WARN: gsettings not found; skipping toolkit-accessibility toggle." >&2
+  fi
+}
+
+run_capture() {
+  ensure_accessibility_environment
+  python3 "$capture_script" "${args[@]}"
+}
+
 locate_capture_script() {
   if [[ -f "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py" ]]; then
     echo "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py"
@@ -111,7 +138,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${CAPTURE_SCREENSHOTS_EXTERNAL_SESSION:-0}" == "1" ]]; then
-  python3 "$capture_script" "${args[@]}"
+  run_capture
 else
-  dbus-run-session -- python3 "$capture_script" "${args[@]}"
+  dbus-run-session -- env CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1 "$0" "${args[@]}"
 fi

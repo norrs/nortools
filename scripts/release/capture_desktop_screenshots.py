@@ -202,8 +202,13 @@ class AtspiNavigator:
                 continue
             yield from self._walk(child)
 
-    def find_app_root(self):
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        return re.sub(r"\s+", " ", name).strip().casefold()
+
+    def _iter_nortools_apps(self):
         desktop = self.Atspi.get_desktop(0)
+        candidates = []
         for child in self._walk(desktop):
             try:
                 role = child.get_role()
@@ -211,46 +216,113 @@ class AtspiNavigator:
             except Exception:
                 continue
             if role == self.Atspi.Role.APPLICATION and "nortools" in name.lower():
-                return child
-        raise RuntimeError("NorTools app not found in AT-SPI desktop tree.")
+                candidates.append(child)
+        return candidates
 
-    def click_link(self, _app, link_name: str) -> bool:
-        app = self.find_app_root()
-        candidates = []
-        for node in self._walk(app):
+    def find_app_root(self):
+        apps = self._iter_nortools_apps()
+        if not apps:
+            raise RuntimeError("NorTools app not found in AT-SPI desktop tree.")
+
+        # Some runtimes expose more than one "nortools" application node.
+        # Prefer the one that actually exposes sidebar links.
+        def app_score(app) -> tuple[int, int]:
+            link_count = 0
+            node_count = 0
+            for node in self._walk(app):
+                node_count += 1
+                try:
+                    if node.get_role() == self.Atspi.Role.LINK:
+                        link_count += 1
+                except Exception:
+                    continue
+            return (link_count, node_count)
+
+        return max(apps, key=app_score)
+
+    def _match_rank(self, candidate_name: str, target_name: str) -> int | None:
+        normalized = self._normalize_name(candidate_name)
+        target = self._normalize_name(target_name)
+        if not normalized:
+            return None
+        if normalized == target:
+            return 0
+        if normalized.startswith(f"{target} "):
+            return 1
+        if f" {target} " in f" {normalized} ":
+            return 2
+        if target in normalized:
+            return 3
+        return None
+
+    def _left_edge(self, node) -> int:
+        try:
+            ext = self.Atspi.Component.get_extents(node, self.Atspi.CoordType.SCREEN)
+            return int(getattr(ext, "x", 10_000))
+        except Exception:
+            return 10_000
+
+    def _do_action(self, node) -> bool:
+        try:
+            actions = int(self.Atspi.Action.get_n_actions(node) or 0)
+        except Exception:
+            return False
+        if actions <= 0:
+            return False
+
+        for i in range(actions):
             try:
-                role = node.get_role()
-                name = str(node.get_name() or "")
+                action_name = str(self.Atspi.Action.get_action_name(node, i) or "").lower()
             except Exception:
                 continue
-            if role == self.Atspi.Role.LINK and name.strip() == link_name:
-                candidates.append(node)
+            if action_name in ("click", "activate", "press", "open", "jump"):
+                try:
+                    return bool(self.Atspi.Action.do_action(node, i))
+                except Exception:
+                    continue
+
+        for i in range(actions):
+            try:
+                if self.Atspi.Action.do_action(node, i):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def click_link(self, _app, link_name: str) -> bool:
+        apps = []
+        if _app is not None:
+            apps.append(_app)
+        for app in self._iter_nortools_apps():
+            if app not in apps:
+                apps.append(app)
+        if not apps:
+            raise RuntimeError("NorTools app not found in AT-SPI desktop tree.")
+
+        role_priority = {
+            self.Atspi.Role.LINK: 0,
+            self.Atspi.Role.PUSH_BUTTON: 1,
+            self.Atspi.Role.MENU_ITEM: 2,
+            self.Atspi.Role.LIST_ITEM: 3,
+        }
+        candidates = []
+        for app in apps:
+            for node in self._walk(app):
+                try:
+                    role = node.get_role()
+                    name = str(node.get_name() or "")
+                except Exception:
+                    continue
+                match_rank = self._match_rank(name, link_name)
+                if match_rank is None:
+                    continue
+                candidates.append((match_rank, role_priority.get(role, 9), self._left_edge(node), node))
+
         if not candidates:
             raise RuntimeError(f"Could not find link in accessibility tree: {link_name}")
 
-        def left_edge(node) -> int:
-            try:
-                ext = self.Atspi.Component.get_extents(node, self.Atspi.CoordType.SCREEN)
-                return int(getattr(ext, "x", 10_000))
-            except Exception:
-                return 10_000
-
-        target = sorted(candidates, key=left_edge)[0]
-
-        # Trigger semantic action first; this works even when sidebar link is scrolled out.
-        actions = int(self.Atspi.Action.get_n_actions(target) or 0)
-        did_action = False
-        for i in range(actions):
-            action_name = str(self.Atspi.Action.get_action_name(target, i) or "").lower()
-            if action_name in ("click", "activate", "press", "open", "jump"):
-                self.Atspi.Action.do_action(target, i)
-                did_action = True
-                break
-        if actions > 0:
-            self.Atspi.Action.do_action(target, 0)
-            did_action = True
-
-        if not did_action:
+        _, _, _, target = sorted(candidates, key=lambda item: (item[0], item[1], item[2]))[0]
+        if not self._do_action(target):
             raise RuntimeError(f"Link found but has no invokable actions: {link_name}")
         return True
 
@@ -365,7 +437,7 @@ def run() -> int:
 
             window_id = find_window_id(args.display)
 
-            def click_with_retry(link_name: str, timeout: float = 20.0) -> None:
+            def click_with_retry(link_name: str, timeout: float = 30.0) -> None:
                 start = time.monotonic()
                 last_error: Exception | None = None
                 while time.monotonic() - start < timeout:
