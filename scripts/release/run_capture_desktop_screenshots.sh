@@ -45,6 +45,17 @@ locate_capture_script() {
     echo "${RUNFILES_DIR}/_main/scripts/release/capture_desktop_screenshots.py"
     return 0
   fi
+  if [[ -n "${RUNFILES_MANIFEST_FILE:-}" && -f "${RUNFILES_MANIFEST_FILE}" ]]; then
+    local manifest_path
+    manifest_path="$(
+      awk '$1=="_main/scripts/release/capture_desktop_screenshots.py"{print $2; exit}' "${RUNFILES_MANIFEST_FILE}" \
+        | tr -d '\r'
+    )"
+    if [[ -n "${manifest_path}" && -f "${manifest_path}" ]]; then
+      echo "${manifest_path}"
+      return 0
+    fi
+  fi
   if [[ -n "${BUILD_WORKSPACE_DIRECTORY:-}" && -f "${BUILD_WORKSPACE_DIRECTORY}/scripts/release/capture_desktop_screenshots.py" ]]; then
     echo "${BUILD_WORKSPACE_DIRECTORY}/scripts/release/capture_desktop_screenshots.py"
     return 0

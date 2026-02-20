@@ -185,7 +185,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bazelisk build //scripts/release:capture_desktop_screenshots
           dbus-run-session -- bash -lc '
             xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
               openbox >/tmp/openbox.log 2>&1 &
@@ -193,7 +192,7 @@ jobs:
               export GTK_MODULES=gail:atk-bridge
               gsettings set org.gnome.desktop.interface toolkit-accessibility true || true
               export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
-              bazel-bin/scripts/release/capture_desktop_screenshots -- \
+              bazelisk run //scripts/release:capture_desktop_screenshots -- \
                 --tarball release/${{ steps.screenshot_meta.outputs.artifact }} \
                 --output-dir docs/screenshots \
                 --display \${DISPLAY} \
