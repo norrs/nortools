@@ -20,7 +20,7 @@
           </div>
           <div class="banner-subtitle">
             {{ chainSummary?.count ?? 0 }} certs in chain
-            <span v-if="chainSummary"> · min {{ chainSummary.minDays }} days remaining</span>
+            <span v-if="chainSummary"> · {{ daysRemainingText(chainSummary.minDays) }} until first expiry</span>
             <span v-if="result.ssl"> · {{ result.ssl.protocol }} / {{ result.ssl.cipherSuite }}</span>
           </div>
           <div v-if="result.certificateError" class="banner-error">Certificate error: {{ result.certificateError }}</div>
@@ -44,6 +44,9 @@
               </div>
               <div class="cert-cn">{{ cert.commonName || '(no CN)' }}</div>
               <div class="cert-issuer">Issuer: {{ cert.issuerCommonName || cert.issuer }}</div>
+              <div class="cert-timeleft" :class="cert.expired ? 'cert-timeleft-expired' : 'cert-timeleft-valid'">
+                {{ daysRemainingText(cert.daysRemaining) }}
+              </div>
               <div class="cert-valid">{{ cert.validFrom }} → {{ cert.validUntil }}</div>
             </div>
             <div v-if="idx < chain.length - 1" class="cert-arrow"><div class="arrow-line"></div><div class="arrow-head">▼</div></div>
@@ -62,7 +65,7 @@
           <div class="detail-row"><span class="label">Subject</span><span class="val">{{ selectedCert.subject }}</span></div>
           <div class="detail-row"><span class="label">Issuer</span><span class="val">{{ selectedCert.issuer }}</span></div>
           <div class="detail-row"><span class="label">Valid</span><span class="val">{{ selectedCert.validFrom }} → {{ selectedCert.validUntil }}</span></div>
-          <div class="detail-row"><span class="label">Days Remaining</span><span class="val">{{ selectedCert.daysRemaining }}</span></div>
+          <div class="detail-row"><span class="label">Days Remaining</span><span class="val">{{ daysRemainingText(selectedCert.daysRemaining) }}</span></div>
           <div class="detail-row"><span class="label">Expired</span><span class="val">{{ selectedCert.expired ? 'Yes' : 'No' }}</span></div>
           <div class="detail-row"><span class="label">SHA-256</span><span class="val mono">{{ selectedCert.sha256Fingerprint }}</span></div>
         </div>
@@ -101,6 +104,13 @@ app.component("https-page", {
       if (idx === 0) return 'Leaf'
       if (idx === total - 1) return cert.selfSigned ? 'Root' : 'Top CA'
       return 'Intermediate'
+    },
+    daysRemainingText(days) {
+      if (days == null) return 'Expiry unknown'
+      if (days < 0) return `Expired ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`
+      if (days === 0) return 'Expires today'
+      if (days === 1) return 'Expires in 1 day'
+      return `Expires in ${days} days`
     },
     statusColor(expired) { return expired ? '#dc2626' : '#16a34a' },
     async check() {
@@ -180,6 +190,9 @@ app.component("https-page", {
 }
 .https-page .cert-issuer { font-size: 0.85rem; color: #4b5563; margin-bottom: 6px; 
 }
+.https-page .cert-timeleft { font-size: 0.81rem; margin-bottom: 6px; font-weight: 600; }
+.https-page .cert-timeleft-valid { color: #166534; }
+.https-page .cert-timeleft-expired { color: #b91c1c; }
 .https-page .cert-valid { font-size: 0.8rem; color: #6b7280; margin-bottom: 8px; 
 }
 .https-page .cert-arrow { display: flex; flex-direction: column; align-items: center; margin: 8px 0; color: #9ca3af; 
