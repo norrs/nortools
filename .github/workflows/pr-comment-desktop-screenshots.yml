@@ -1,0 +1,163 @@
+name: PR Comment Desktop Screenshots
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-comment-screenshots-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  capture-from-pr-comment:
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/capture-desktop-screenshots') &&
+      github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Resolve PR head
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.issue.number
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            })
+            core.setOutput('number', String(pr.number))
+            core.setOutput('head_sha', pr.head.sha)
+            core.setOutput('head_ref', pr.head.ref)
+            core.setOutput('head_repo', pr.head.repo.full_name)
+
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pr.outputs.head_repo }}
+          ref: ${{ steps.pr.outputs.head_sha }}
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Setup GraalVM JDK 25 + native-image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: "true"
+
+      - name: Install Linux native and screenshot dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            zlib1g-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            dbus-x11 \
+            imagemagick \
+            python3-dogtail \
+            python3-gi \
+            xdotool \
+            xvfb
+
+      - name: Preflight screenshot host checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only
+
+      - name: Build native Linux tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk build //desktop:native-linux-x64
+
+      - name: Capture desktop screenshots
+        id: capture
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p pr-screenshots
+          bazelisk run //scripts/release:capture_desktop_screenshots -- \
+            --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz \
+            --output-dir pr-screenshots \
+            --display :99
+          ls -la pr-screenshots
+
+      - name: Upload screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-desktop-screenshots-${{ steps.pr.outputs.number }}
+          retention-days: 7
+          path: |
+            pr-screenshots/*.png
+            pr-screenshots/README.md
+
+      - name: Comment PR with result
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- pr-comment-desktop-screenshots -->'
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`
+            const outcome = `${{ steps.capture.outcome }}`
+            const status = outcome === 'success'
+              ? 'Desktop screenshot capture succeeded.'
+              : 'Desktop screenshot capture failed.'
+            const body = `${marker}
+            ## PR Desktop Screenshots
+            
+            ${status}
+            
+            - Command trigger: \`/capture-desktop-screenshots\`
+            - PR: #${{ steps.pr.outputs.number }}
+            - Commit: \`${{ steps.pr.outputs.head_sha }}\`
+            - Artifacts: [pr-desktop-screenshots-${{ steps.pr.outputs.number }}](${runUrl})
+            - Retention: 7 days
+            `
+
+            const issue_number = Number(`${{ steps.pr.outputs.number }}`)
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              })
+            }
+
+      - name: Fail if capture failed
+        if: steps.capture.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "Desktop screenshot capture failed"
+          exit 1
+
