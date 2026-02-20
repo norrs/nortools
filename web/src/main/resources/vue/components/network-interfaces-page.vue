@@ -47,7 +47,7 @@
                 <td>
                   <code v-if="hasItems(summary.ipv4)">
                     <span v-for="(addr, idx) in summary.ipv4" :key="addrKey(summary, addr, idx)">
-                      <a :href="'#' + interfaceAnchorId(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv4.length - 1">, </span>
+                      <a href="#" class="jump-link" @click.prevent="jumpToInterface(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv4.length - 1">, </span>
                     </span>
                   </code>
                   <code v-else>none</code>
@@ -55,7 +55,7 @@
                 <td>
                   <code v-if="hasItems(summary.ipv6)">
                     <span v-for="(addr, idx) in summary.ipv6" :key="addrKey(summary, addr, idx)">
-                      <a :href="'#' + interfaceAnchorId(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv6.length - 1">, </span>
+                      <a href="#" class="jump-link" @click.prevent="jumpToInterface(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv6.length - 1">, </span>
                     </span>
                   </code>
                   <code v-else>none</code>
@@ -91,7 +91,10 @@
                 <td><code>{{ route.destination || 'n/a' }}</code></td>
                 <td><code>{{ route.gateway || 'n/a' }}</code></td>
                 <td>
-                  <code>{{ route.interfaceName || 'n/a' }}</code>
+                  <code v-if="route.interfaceName && hasInterface(route.interfaceName)">
+                    <a href="#" class="jump-link" @click.prevent="jumpToInterface(route.interfaceName)">{{ route.interfaceName }}</a>
+                  </code>
+                  <code v-else>{{ route.interfaceName || 'n/a' }}</code>
                   <span v-if="routeIsDefault(route)" class="default-badge">Default</span>
                   <span v-if="routeUsesDownInterface(route)" class="down-badge">Interface down</span>
                 </td>
@@ -121,7 +124,7 @@
             v-for="iface in visibleInterfaces"
             :key="iface.name"
             :id="interfaceAnchorId(iface)"
-            :class="['iface', isDefaultInterface(iface) ? 'iface-default' : '', iface.up ? '' : 'iface-down']"
+            :class="['iface', isDefaultInterface(iface) ? 'iface-default' : '', iface.up ? '' : 'iface-down', focusedInterfaceAnchor === interfaceAnchorId(iface) ? 'iface-focus' : '']"
           >
             <div class="iface-head">
               <strong>{{ iface.name }}</strong>
@@ -176,6 +179,7 @@ app.component("network-interfaces-page", {
       error: "",
       data: null,
       showDisabledInterfaces: false,
+      focusedInterfaceAnchor: null,
     }
   },
   computed: {
@@ -252,6 +256,40 @@ app.component("network-interfaces-page", {
       const safe = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
       return "iface-" + (safe || "unknown")
     },
+    hasInterface(name) {
+      const target = String(name || "").trim()
+      if (!target) return false
+      const interfaces = (this.data && Array.isArray(this.data.interfaces)) ? this.data.interfaces : []
+      for (const iface of interfaces) {
+        const ifaceName = String(iface && iface.name ? iface.name : "").trim()
+        const displayName = String(iface && iface.displayName ? iface.displayName : "").trim()
+        if (target === ifaceName || target === displayName) return true
+      }
+      return false
+    },
+    jumpToInterface(ifaceLike) {
+      const interfaces = (this.data && Array.isArray(this.data.interfaces)) ? this.data.interfaces : []
+      const raw = typeof ifaceLike === "string" ? ifaceLike : String((ifaceLike && ifaceLike.name) || (ifaceLike && ifaceLike.displayName) || "")
+      const target = String(raw || "").trim()
+      let selected = ifaceLike
+      if (target && interfaces.length) {
+        selected = interfaces.find((iface) => {
+          const ifaceName = String(iface && iface.name ? iface.name : "").trim()
+          const displayName = String(iface && iface.displayName ? iface.displayName : "").trim()
+          return target === ifaceName || target === displayName
+        }) || ifaceLike
+      }
+
+      const anchor = this.interfaceAnchorId(selected)
+      const el = document.getElementById(anchor)
+      if (!el) return
+      this.focusedInterfaceAnchor = anchor
+      window.location.hash = anchor
+      el.scrollIntoView({ behavior: "smooth", block: "start" })
+      setTimeout(() => {
+        if (this.focusedInterfaceAnchor === anchor) this.focusedInterfaceAnchor = null
+      }, 2200)
+    },
     isDefaultInterface(iface) {
       if (!iface) return false
       const name = String(iface.name || "").trim()
@@ -316,6 +354,7 @@ app.component("network-interfaces-page", {
 .network-interfaces-page .actions { margin-bottom: 0.85rem; }
 .network-interfaces-page button { border: 1px solid #0ea5e9; background: #0ea5e9; color: #fff; border-radius: 6px; padding: 0.42rem 0.7rem; cursor: pointer; }
 .network-interfaces-page a { color: #0369a1; text-decoration: underline; text-underline-offset: 1px; }
+.network-interfaces-page .jump-link { color: #0369a1; text-decoration: underline; text-underline-offset: 1px; }
 .network-interfaces-page .error { color: #d32f2f; }
 .network-interfaces-page .grid { display: grid; gap: 1rem; }
 .network-interfaces-page .card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
@@ -329,6 +368,7 @@ app.component("network-interfaces-page", {
 .network-interfaces-page .toggle { display: inline-flex; align-items: center; gap: 0.4rem; color: #334155; font-size: 0.9rem; }
 .network-interfaces-page .interface-list { display: grid; gap: 0.8rem; }
 .network-interfaces-page .iface { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.7rem; }
+.network-interfaces-page .iface.iface-focus { box-shadow: 0 0 0 2px #38bdf8; border-color: #0ea5e9; }
 .network-interfaces-page .iface.iface-default { border-color: #0ea5e9; background: #f0f9ff; }
 .network-interfaces-page .iface.iface-down { border-color: #ef4444; background: #fff5f5; }
 .network-interfaces-page .iface-head { margin-bottom: 0.35rem; display: flex; gap: 0.45rem; align-items: baseline; flex-wrap: wrap; }
