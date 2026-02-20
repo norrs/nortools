@@ -46,6 +46,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--startup-timeout", type=float, default=90.0, help="Seconds to wait for app startup.")
     parser.add_argument("--click-delay", type=float, default=1.5, help="Seconds to wait after each navigation click.")
+    parser.add_argument(
+        "--no-xvfb",
+        action="store_true",
+        help="Use an existing DISPLAY instead of starting Xvfb.",
+    )
     return parser.parse_args()
 
 
@@ -300,7 +305,7 @@ def run() -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if shutil.which("Xvfb") is None:
+    if not args.no_xvfb and shutil.which("Xvfb") is None:
         raise RuntimeError("Xvfb is required but not found in PATH.")
     if shutil.which("import") is None:
         raise RuntimeError("ImageMagick `import` is required but not found in PATH.")
@@ -315,17 +320,19 @@ def run() -> int:
         env.setdefault("LANG", "C.UTF-8")
         os.environ["DISPLAY"] = args.display
 
-        xvfb = subprocess.Popen(
-            ["Xvfb", args.display, "-screen", "0", args.screen, "-ac"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            preexec_fn=os.setsid,
-        )
+        xvfb: subprocess.Popen[bytes] | None = None
+        if not args.no_xvfb:
+            xvfb = subprocess.Popen(
+                ["Xvfb", args.display, "-screen", "0", args.screen, "-ac"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                preexec_fn=os.setsid,
+            )
+            time.sleep(1.0)
         app_proc: subprocess.Popen[bytes] | None = None
 
         try:
-            time.sleep(1.0)
             app_proc = subprocess.Popen(
                 [str(binary), "--ui"],
                 cwd=binary.parent,
@@ -382,7 +389,8 @@ def run() -> int:
         finally:
             if app_proc is not None:
                 kill_process_tree(app_proc)
-            kill_process_tree(xvfb)
+            if xvfb is not None:
+                kill_process_tree(xvfb)
 
     return 0
 

@@ -86,4 +86,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-dbus-run-session -- python3 "$capture_script" "${args[@]}"
+if [[ "${CAPTURE_SCREENSHOTS_EXTERNAL_SESSION:-0}" == "1" ]]; then
+  python3 "$capture_script" "${args[@]}"
+else
+  dbus-run-session -- python3 "$capture_script" "${args[@]}"
+fi

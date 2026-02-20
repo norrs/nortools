@@ -61,16 +61,20 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            at-spi2-core \
             build-essential \
-            zlib1g-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
             dbus-x11 \
             imagemagick \
+            libatk-bridge2.0-0 \
+            libglib2.0-bin \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            openbox \
             python3-dogtail \
             python3-gi \
             xdotool \
-            xvfb
+            xvfb \
+            zlib1g-dev
 
       - name: Preflight screenshot host checks
         shell: bash
@@ -91,10 +95,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p pr-screenshots
-          bazelisk run //scripts/release:capture_desktop_screenshots -- \
-            --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz \
-            --output-dir pr-screenshots \
-            --display :99
+          bazelisk build //scripts/release:capture_desktop_screenshots
+          dbus-run-session -- bash -lc '
+            xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
+              openbox >/tmp/openbox.log 2>&1 &
+              export NO_AT_BRIDGE=0
+              export GTK_MODULES=gail:atk-bridge
+              gsettings set org.gnome.desktop.interface toolkit-accessibility true || true
+              export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
+              bazel-bin/scripts/release/capture_desktop_screenshots -- \
+                --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz \
+                --output-dir pr-screenshots \
+                --display \${DISPLAY} \
+                --no-xvfb
+            "
+          '
           ls -la pr-screenshots
 
       - name: Upload screenshot artifacts
@@ -160,4 +175,3 @@ jobs:
         run: |
           echo "Desktop screenshot capture failed"
           exit 1
-
