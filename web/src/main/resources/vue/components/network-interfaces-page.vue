@@ -97,10 +97,19 @@
             <div class="kv"><span>DHCP</span><code>{{ iface.dhcp || 'unknown' }}</code></div>
             <div class="kv"><span>DNS</span><code>{{ hasItems(iface.dnsServers) ? iface.dnsServers.join(', ') : 'n/a' }}</code></div>
             <div class="kv">
-              <span>Addresses</span>
-              <code v-if="hasItems(iface.addresses)">
-                <span v-for="(addr, idx) in iface.addresses" :key="addrKey(iface, addr, idx)">
-                  {{ addr.family }} {{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}<span v-if="idx < iface.addresses.length - 1">, </span>
+              <span>IPv4 Addresses</span>
+              <code v-if="hasItems(addressesByFamily(iface, 'IPv4'))">
+                <span v-for="(addr, idx) in addressesByFamily(iface, 'IPv4')" :key="addrKey(iface, addr, idx)">
+                  {{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}<span v-if="idx < addressesByFamily(iface, 'IPv4').length - 1">, </span>
+                </span>
+              </code>
+              <code v-else>none</code>
+            </div>
+            <div class="kv">
+              <span>IPv6 Addresses</span>
+              <code v-if="hasItems(addressesByFamily(iface, 'IPv6'))">
+                <span v-for="(addr, idx) in addressesByFamily(iface, 'IPv6')" :key="addrKey(iface, addr, idx)">
+                  {{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}<span v-if="idx < addressesByFamily(iface, 'IPv6').length - 1">, </span>
                 </span>
               </code>
               <code v-else>none</code>
@@ -201,6 +210,10 @@ app.component("network-interfaces-page", {
     },
     addrKey(iface, addr, idx) {
       return String(iface && iface.name ? iface.name : "") + "-" + String(addr && addr.ip ? addr.ip : "") + "-" + String(idx)
+    },
+    addressesByFamily(iface, family) {
+      const addresses = (iface && Array.isArray(iface.addresses)) ? iface.addresses : []
+      return addresses.filter((addr) => String(addr && addr.family ? addr.family : "") === family)
     },
     formatMtu(value) {
       return value == null ? 'n/a' : String(value)

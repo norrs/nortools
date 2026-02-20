@@ -5,6 +5,14 @@ import no.norrs.nortools.lib.dns.DnsResolver
 import no.norrs.nortools.lib.network.HttpClient
 import no.norrs.nortools.lib.network.TcpClient
 import org.xbill.DNS.Type
+import java.lang.foreign.Arena
+import java.lang.foreign.FunctionDescriptor
+import java.lang.foreign.Linker
+import java.lang.foreign.MemoryLayout
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.MemoryLayout.PathElement
+import java.lang.foreign.SymbolLookup
+import java.lang.foreign.ValueLayout
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.URI
@@ -213,6 +221,19 @@ private fun loadInterfaceInventory(): List<LocalInterfaceInfo> {
 
 private fun loadRouteTable(platform: String): RouteTableResult {
     val notes = mutableListOf<String>()
+    if (platform == "windows") {
+        try {
+            val native = loadWindowsRouteTableFromIpHelper()
+            if (native.routes.isNotEmpty()) {
+                return native
+            }
+            notes += native.notes
+            notes += "Falling back to route.exe output because IP Helper API returned no rows."
+        } catch (t: Throwable) {
+            notes += "Windows IP Helper API disabled after failure: ${t.message ?: t::class.simpleName}."
+        }
+    }
+
     val cmdCandidates = when (platform) {
         "windows" -> listOf(
             listOf("route", "print", "-4"),
@@ -237,6 +258,176 @@ private fun loadRouteTable(platform: String): RouteTableResult {
     }
     notes += "Could not read routing table from platform tools."
     return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+}
+
+private fun loadWindowsRouteTableFromIpHelper(): RouteTableResult {
+    val notes = mutableListOf<String>()
+    val linker = runCatching { Linker.nativeLinker() }
+        .getOrElse {
+            notes += "FFM linker unavailable: ${it.message ?: "native linker load failed"}."
+            return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+        }
+
+    return try {
+        val arena = Arena.ofConfined()
+        try {
+            val lookup = SymbolLookup.libraryLookup("iphlpapi", arena)
+            val symbol = lookup.find("GetIpForwardTable").orElse(null)
+            if (symbol == null) {
+                notes += "GetIpForwardTable symbol not found in iphlpapi."
+                return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+            }
+
+            val getIpForwardTable = linker.downcallHandle(
+                symbol,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT,
+                ),
+            )
+
+            val sizeSeg = arena.allocate(ValueLayout.JAVA_INT)
+            var rc = (getIpForwardTable.invokeWithArguments(MemorySegment.NULL, sizeSeg, 0) as Int)
+            if (rc != WIN_ERROR_INSUFFICIENT_BUFFER && rc != WIN_NO_ERROR) {
+                notes += "GetIpForwardTable sizing call failed with code $rc."
+                return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+            }
+
+            val neededSize = sizeSeg.get(ValueLayout.JAVA_INT, 0)
+            if (neededSize <= 4) {
+                notes += "Windows IP Helper API returned an empty route table."
+                return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+            }
+
+            val buffer = arena.allocate(neededSize.toLong())
+            rc = (getIpForwardTable.invokeWithArguments(buffer, sizeSeg, 0) as Int)
+            if (rc != WIN_NO_ERROR) {
+                notes += "GetIpForwardTable call failed with code $rc."
+                return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+            }
+
+            val count = buffer.get(ValueLayout.JAVA_INT, 0)
+            if (count <= 0) {
+                notes += "Windows IP Helper API returned no route entries."
+                return RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+            }
+
+            val indexToName = windowsInterfaceIndexMap()
+            val rows = mutableListOf<WindowsForwardRow>()
+            for (i in 0 until count) {
+                val rowOffset = WIN_MIB_TABLE_COUNT_SIZE + (i.toLong() * WIN_MIB_IPFORWARDROW_SIZE)
+                val dest = buffer.get(ValueLayout.JAVA_INT, rowOffset + WIN_ROW_DEST_OFFSET)
+                val mask = buffer.get(ValueLayout.JAVA_INT, rowOffset + WIN_ROW_MASK_OFFSET)
+                val nextHop = buffer.get(ValueLayout.JAVA_INT, rowOffset + WIN_ROW_NEXT_HOP_OFFSET)
+                val ifIndex = buffer.get(ValueLayout.JAVA_INT, rowOffset + WIN_ROW_IF_INDEX_OFFSET)
+                val metric1 = buffer.get(ValueLayout.JAVA_INT, rowOffset + WIN_ROW_METRIC1_OFFSET)
+                rows += WindowsForwardRow(
+                    destination = dest,
+                    mask = mask,
+                    nextHop = nextHop,
+                    ifIndex = ifIndex,
+                    metric1 = metric1,
+                )
+            }
+
+            val routes = mapWindowsForwardRows(rows, indexToName)
+            val raw = buildString {
+                appendLine("Windows IP Helper API (GetIpForwardTable via FFM)")
+                routes.forEach { appendLine(it.raw) }
+            }.trimEnd()
+            RouteTableResult(routes = routes, raw = raw, notes = notes)
+        } finally {
+            arena.close()
+        }
+    } catch (e: Throwable) {
+        notes += "Windows IP Helper API route query failed: ${e.message ?: e::class.simpleName}."
+        RouteTableResult(routes = emptyList(), raw = null, notes = notes)
+    }
+}
+
+internal fun mapWindowsForwardRows(
+    rows: List<WindowsForwardRow>,
+    indexToName: Map<Int, String>,
+): List<RouteEntry> {
+    return rows.map { row ->
+        val destinationIp = windowsDwordToIpv4(row.destination)
+        val prefixLength = windowsMaskToPrefixLength(row.mask)
+        val destination = if (destinationIp == "0.0.0.0" && prefixLength == 0) {
+            "default"
+        } else {
+            "$destinationIp/$prefixLength"
+        }
+
+        val nextHopIp = windowsDwordToIpv4(row.nextHop)
+        val gateway = nextHopIp.takeUnless { it == "0.0.0.0" }
+        val interfaceName = indexToName[row.ifIndex] ?: "ifIndex:${row.ifIndex}"
+        val metric = row.metric1.takeIf { it in 1 until Int.MAX_VALUE }
+        val raw = "dest=$destinationIp mask=${windowsDwordToIpv4(row.mask)} nextHop=$nextHopIp ifIndex=${row.ifIndex} metric=${row.metric1}"
+
+        RouteEntry(
+            destination = destination,
+            gateway = gateway,
+            interfaceName = interfaceName,
+            metric = metric,
+            raw = raw,
+        )
+    }.sortedWith(
+        compareBy<RouteEntry>(
+            { if (it.destination == "default") 0 else 1 },
+            { it.destination },
+            { it.metric ?: Int.MAX_VALUE },
+        ),
+    )
+}
+
+private fun windowsInterfaceIndexMap(): Map<Int, String> {
+    val byIndex = mutableMapOf<Int, String>()
+    val interfaces = NetworkInterface.getNetworkInterfaces() ?: return byIndex
+    while (interfaces.hasMoreElements()) {
+        val iface = interfaces.nextElement()
+        val index = iface.index
+        if (index <= 0) continue
+        val preferredName = iface.name?.takeIf { it.isNotBlank() }
+            ?: iface.displayName?.takeIf { it.isNotBlank() }
+            ?: continue
+        byIndex[index] = preferredName
+    }
+    return byIndex
+}
+
+internal fun windowsDwordToIpv4(value: Int): String {
+    val b0 = value and 0xFF
+    val b1 = (value ushr 8) and 0xFF
+    val b2 = (value ushr 16) and 0xFF
+    val b3 = (value ushr 24) and 0xFF
+    return "$b0.$b1.$b2.$b3"
+}
+
+internal fun windowsMaskToPrefixLength(mask: Int): Int {
+    var prefix = 0
+    var seenZero = false
+    val octets = intArrayOf(
+        mask and 0xFF,
+        (mask ushr 8) and 0xFF,
+        (mask ushr 16) and 0xFF,
+        (mask ushr 24) and 0xFF,
+    )
+    for (octet in octets) {
+        for (bit in 7 downTo 0) {
+            val isOne = ((octet ushr bit) and 1) == 1
+            if (isOne && seenZero) {
+                return Integer.bitCount(mask)
+            }
+            if (isOne) {
+                prefix += 1
+            } else {
+                seenZero = true
+            }
+        }
+    }
+    return prefix
 }
 
 fun parseRoutes(raw: String): List<RouteEntry> {
@@ -291,34 +482,186 @@ private fun loadWindowsDnsInfo(): DnsInfoResult {
     val notes = mutableListOf<String>()
     val interfaceDns = mutableMapOf<String, List<String>>()
     val defaultDns = mutableListOf<String>()
+    val native = loadWindowsDnsInfoFromIpHelper()
+    notes += native.notes
+    for ((name, servers) in native.interfaceDns) {
+        interfaceDns[name] = servers
+    }
+    defaultDns += native.defaultDns
+    if (defaultDns.isNotEmpty()) {
+        return DnsInfoResult(defaultDns = defaultDns.distinct(), interfaceDns = interfaceDns, notes = notes)
+    }
+
     val output = runCommand(listOf("netsh", "interface", "ip", "show", "dnsservers"))
         ?: runCommand(listOf("ipconfig", "/all"))
         ?: ""
     if (output.isBlank()) {
-        notes += "Could not collect DNS settings from netsh/ipconfig."
+        notes += "Could not collect DNS settings from PowerShell/netsh/ipconfig."
         return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
     }
 
-    var current = ""
+    var currentNetsh = ""
+    var currentIpconfig = ""
+    var ipconfigDnsBlock = false
     output.lines().forEach { raw ->
         val line = raw.trim()
         if (line.startsWith("Configuration for interface", ignoreCase = true)) {
-            current = line.substringAfter("\"").substringBeforeLast("\"")
-            if (current.isNotBlank() && current !in interfaceDns) interfaceDns[current] = emptyList()
-        } else if (line.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) {
-            if (current.isNotBlank()) {
-                val cur = interfaceDns[current].orEmpty().toMutableList()
-                cur += line
-                interfaceDns[current] = cur
+            currentNetsh = line.substringAfter("\"").substringBeforeLast("\"")
+            if (currentNetsh.isNotBlank() && currentNetsh !in interfaceDns) interfaceDns[currentNetsh] = emptyList()
+        }
+
+        val ipconfigHeader = Regex("^(?:[^:]*adapter\\s+)?([^:]+):$", RegexOption.IGNORE_CASE).find(line)
+        if (ipconfigHeader != null && !line.contains("Configuration for interface", ignoreCase = true)) {
+            currentIpconfig = ipconfigHeader.groupValues[1].trim()
+            ipconfigDnsBlock = false
+        }
+
+        val colonIdx = raw.indexOf(':')
+        if (colonIdx >= 0) {
+            val key = raw.substring(0, colonIdx).trim().lowercase(Locale.ROOT)
+            val value = raw.substring(colonIdx + 1)
+            if (key.contains("dns") && key.contains("server")) {
+                ipconfigDnsBlock = true
+                val ips = extractIpLiterals(value)
+                addDnsEntries(interfaceDns, defaultDns, currentNetsh.ifBlank { currentIpconfig }, ips)
+                return@forEach
             }
-            if (line !in defaultDns) defaultDns += line
+            if (ipconfigDnsBlock && key.isNotBlank() && !key.contains("dns")) {
+                ipconfigDnsBlock = false
+            }
+        } else if (ipconfigDnsBlock) {
+            val ips = extractIpLiterals(raw)
+            if (ips.isNotEmpty()) {
+                addDnsEntries(interfaceDns, defaultDns, currentNetsh.ifBlank { currentIpconfig }, ips)
+            } else if (line.isBlank()) {
+                ipconfigDnsBlock = false
+            }
+        }
+
+        val lineIps = extractIpLiterals(line)
+        if (lineIps.isNotEmpty() && currentNetsh.isNotBlank()) {
+            addDnsEntries(interfaceDns, defaultDns, currentNetsh, lineIps)
         }
     }
+
     if (defaultDns.isEmpty()) {
-        val fromIpconfig = Regex("DNS Servers[ .:]+([0-9.]+)").findAll(output).map { it.groupValues[1] }.toList()
-        defaultDns += fromIpconfig.distinct()
+        defaultDns += DnsResolver.parseWindowsIpconfigDnsServers(output)
     }
-    return DnsInfoResult(defaultDns = defaultDns, interfaceDns = interfaceDns, notes = notes)
+    return DnsInfoResult(defaultDns = defaultDns.distinct(), interfaceDns = interfaceDns, notes = notes)
+}
+
+private fun loadWindowsDnsInfoFromIpHelper(): DnsInfoResult {
+    val notes = mutableListOf<String>()
+    val interfaceDns = mutableMapOf<String, List<String>>()
+    val defaultDns = mutableListOf<String>()
+
+    val linker = runCatching { Linker.nativeLinker() }
+        .getOrElse {
+            notes += "FFM linker unavailable for DNS: ${it.message ?: "native linker load failed"}."
+            return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+        }
+
+    try {
+        val arena = Arena.ofConfined()
+        try {
+            val lookup = SymbolLookup.libraryLookup("iphlpapi", arena)
+            val symbol = lookup.find("GetAdaptersAddresses").orElse(null)
+            if (symbol == null) {
+                notes += "GetAdaptersAddresses symbol not found in iphlpapi."
+                return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+            }
+
+            val getAdaptersAddresses = linker.downcallHandle(
+                symbol,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS,
+                ),
+            )
+
+            val sizeSeg = arena.allocate(ValueLayout.JAVA_INT)
+            var rc = (getAdaptersAddresses.invokeWithArguments(
+                WIN_AF_UNSPEC,
+                WIN_GAA_FLAG_INCLUDE_PREFIX,
+                MemorySegment.NULL,
+                MemorySegment.NULL,
+                sizeSeg,
+            ) as Int)
+
+            if (rc != WIN_ERROR_BUFFER_OVERFLOW && rc != WIN_NO_ERROR) {
+                notes += "GetAdaptersAddresses sizing call failed with code $rc."
+                return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+            }
+
+            val neededSize = sizeSeg.get(ValueLayout.JAVA_INT, 0)
+            if (neededSize <= 0) {
+                notes += "GetAdaptersAddresses returned empty size."
+                return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+            }
+
+            val buffer = arena.allocate(neededSize.toLong())
+            rc = (getAdaptersAddresses.invokeWithArguments(
+                WIN_AF_UNSPEC,
+                WIN_GAA_FLAG_INCLUDE_PREFIX,
+                MemorySegment.NULL,
+                buffer,
+                sizeSeg,
+            ) as Int)
+            if (rc != WIN_NO_ERROR) {
+                notes += "GetAdaptersAddresses call failed with code $rc."
+                return DnsInfoResult(defaultDns = emptyList(), interfaceDns = emptyMap(), notes = notes)
+            }
+
+            val seen = mutableSetOf<Long>()
+            var current = buffer
+            while (current != MemorySegment.NULL) {
+                val currentAddr = current.address()
+                if (!seen.add(currentAddr)) break
+
+                val header = current.reinterpret(WIN_IP_ADAPTER_ADDRESSES_MIN_SIZE)
+                val length = header.get(ValueLayout.JAVA_INT, WIN_ADAPTER_LENGTH_OFFSET).toLong()
+                if (length < WIN_IP_ADAPTER_ADDRESSES_MIN_SIZE) break
+                val adapter = current.reinterpret(length)
+
+                val ifIndex = adapter.get(ValueLayout.JAVA_INT, WIN_ADAPTER_IFINDEX_OFFSET)
+                val friendlyPtr = adapter.get(ValueLayout.ADDRESS, WIN_ADAPTER_FRIENDLY_NAME_PTR_OFFSET)
+                val adapterName = readWindowsWideString(friendlyPtr)?.takeIf { it.isNotBlank() } ?: "ifIndex:$ifIndex"
+
+                val dnsValues = mutableListOf<String>()
+                var dnsNode = adapter.get(ValueLayout.ADDRESS, WIN_ADAPTER_FIRST_DNS_PTR_OFFSET)
+                val dnsSeen = mutableSetOf<Long>()
+                while (dnsNode != MemorySegment.NULL) {
+                    val dnsAddr = dnsNode.address()
+                    if (!dnsSeen.add(dnsAddr)) break
+
+                    val dnsEntry = dnsNode.reinterpret(WIN_DNS_SERVER_ADDRESS_LAYOUT.byteSize())
+                    val sockaddrPtr = dnsEntry.get(ValueLayout.ADDRESS, WIN_DNS_ENTRY_SOCKADDR_PTR_OFFSET)
+                    val sockaddrLen = dnsEntry.get(ValueLayout.JAVA_INT, WIN_DNS_ENTRY_SOCKADDR_LEN_OFFSET)
+                    val ip = parseWindowsSockaddrIp(sockaddrPtr, sockaddrLen)
+                    if (ip != null && ip !in dnsValues) dnsValues += ip
+
+                    dnsNode = dnsEntry.get(ValueLayout.ADDRESS, WIN_DNS_ENTRY_NEXT_PTR_OFFSET)
+                }
+
+                if (dnsValues.isNotEmpty()) {
+                    interfaceDns[adapterName] = dnsValues
+                    for (dns in dnsValues) if (dns !in defaultDns) defaultDns += dns
+                }
+
+                current = adapter.get(ValueLayout.ADDRESS, WIN_ADAPTER_NEXT_PTR_OFFSET)
+            }
+        } finally {
+            arena.close()
+        }
+    } catch (t: Throwable) {
+        notes += "GetAdaptersAddresses DNS query failed: ${t.message ?: t::class.simpleName}."
+    }
+
+    return DnsInfoResult(defaultDns = defaultDns.distinct(), interfaceDns = interfaceDns, notes = notes)
 }
 
 private fun loadMacDnsInfo(): DnsInfoResult {
@@ -487,6 +830,72 @@ private fun runCommand(command: List<String>, timeoutSeconds: Long = 8): String?
     } catch (_: Exception) {
         null
     }
+}
+
+private fun addDnsEntries(
+    interfaceDns: MutableMap<String, List<String>>,
+    defaultDns: MutableList<String>,
+    interfaceName: String,
+    ips: List<String>,
+) {
+    if (ips.isEmpty()) return
+    if (interfaceName.isNotBlank()) {
+        val existing = interfaceDns[interfaceName].orEmpty().toMutableList()
+        for (ip in ips) if (ip !in existing) existing += ip
+        interfaceDns[interfaceName] = existing
+    }
+    for (ip in ips) if (ip !in defaultDns) defaultDns += ip
+}
+
+private fun extractIpLiterals(text: String): List<String> {
+    return text.split(Regex("\\s+"))
+        .map { it.trim().trim(',', ';', '"', '\'', '[', ']', '(', ')') }
+        .map { it.substringBefore("%") }
+        .filter { isIpLiteral(it) }
+}
+
+private fun isIpLiteral(token: String): Boolean {
+    if (token.isBlank()) return false
+    val ipv4 = Regex("^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$")
+    if (ipv4.matches(token)) return true
+    return token.contains(":") && token.matches(Regex("^[0-9A-Fa-f:]+$"))
+}
+
+private fun parseWindowsSockaddrIp(sockaddrPtr: MemorySegment, sockaddrLen: Int): String? {
+    if (sockaddrPtr == MemorySegment.NULL || sockaddrLen < 2) return null
+    val sockaddr = sockaddrPtr.reinterpret(sockaddrLen.toLong())
+    val family = sockaddr.get(ValueLayout.JAVA_SHORT, 0).toInt() and 0xFFFF
+    return when (family) {
+        WIN_AF_INET -> {
+            if (sockaddrLen < 8) return null
+            val bytes = ByteArray(4)
+            for (i in bytes.indices) {
+                bytes[i] = sockaddr.get(ValueLayout.JAVA_BYTE, 4L + i.toLong())
+            }
+            runCatching { InetAddress.getByAddress(bytes).hostAddress.substringBefore("%") }.getOrNull()
+        }
+        WIN_AF_INET6 -> {
+            if (sockaddrLen < 24) return null
+            val bytes = ByteArray(16)
+            for (i in bytes.indices) {
+                bytes[i] = sockaddr.get(ValueLayout.JAVA_BYTE, 8L + i.toLong())
+            }
+            runCatching { InetAddress.getByAddress(bytes).hostAddress.substringBefore("%") }.getOrNull()
+        }
+        else -> null
+    }
+}
+
+private fun readWindowsWideString(ptr: MemorySegment, maxChars: Int = 512): String? {
+    if (ptr == MemorySegment.NULL) return null
+    val seg = ptr.reinterpret((maxChars * 2).toLong())
+    val sb = StringBuilder()
+    for (i in 0 until maxChars) {
+        val ch = seg.get(ValueLayout.JAVA_SHORT, (i * 2).toLong()).toInt() and 0xFFFF
+        if (ch == 0) break
+        sb.append(ch.toChar())
+    }
+    return sb.toString()
 }
 
 private fun dnAttribute(dn: String, attribute: String): String? {
@@ -1283,3 +1692,75 @@ private data class RouteTableResult(
     val raw: String?,
     val notes: List<String>,
 )
+
+internal data class WindowsForwardRow(
+    val destination: Int,
+    val mask: Int,
+    val nextHop: Int,
+    val ifIndex: Int,
+    val metric1: Int,
+)
+
+private const val WIN_NO_ERROR = 0
+private const val WIN_ERROR_INSUFFICIENT_BUFFER = 122
+private const val WIN_ERROR_BUFFER_OVERFLOW = 111
+private const val WIN_AF_UNSPEC = 0
+private const val WIN_AF_INET = 2
+private const val WIN_AF_INET6 = 23
+private const val WIN_GAA_FLAG_INCLUDE_PREFIX = 0x0010
+
+private const val WIN_MIB_TABLE_COUNT_SIZE = 4L
+private const val WIN_MIB_IPFORWARDROW_SIZE = 56L
+private const val WIN_ROW_DEST_OFFSET = 0L
+private const val WIN_ROW_MASK_OFFSET = 4L
+private const val WIN_ROW_NEXT_HOP_OFFSET = 12L
+private const val WIN_ROW_IF_INDEX_OFFSET = 16L
+private const val WIN_ROW_METRIC1_OFFSET = 36L
+
+private val WIN_IP_ADAPTER_ADDRESSES_LAYOUT: MemoryLayout = MemoryLayout.structLayout(
+    ValueLayout.JAVA_LONG.withName("Alignment"),
+    ValueLayout.ADDRESS.withName("Next"),
+    ValueLayout.ADDRESS.withName("AdapterName"),
+    ValueLayout.ADDRESS.withName("FirstUnicastAddress"),
+    ValueLayout.ADDRESS.withName("FirstAnycastAddress"),
+    ValueLayout.ADDRESS.withName("FirstMulticastAddress"),
+    ValueLayout.ADDRESS.withName("FirstDnsServerAddress"),
+    ValueLayout.ADDRESS.withName("DnsSuffix"),
+    ValueLayout.ADDRESS.withName("Description"),
+    ValueLayout.ADDRESS.withName("FriendlyName"),
+    MemoryLayout.sequenceLayout(8, ValueLayout.JAVA_BYTE).withName("PhysicalAddress"),
+    ValueLayout.JAVA_INT.withName("PhysicalAddressLength"),
+    ValueLayout.JAVA_INT.withName("Flags"),
+    ValueLayout.JAVA_INT.withName("Mtu"),
+    ValueLayout.JAVA_INT.withName("IfType"),
+    ValueLayout.JAVA_INT.withName("OperStatus"),
+    ValueLayout.JAVA_INT.withName("Ipv6IfIndex"),
+    MemoryLayout.sequenceLayout(16, ValueLayout.JAVA_INT).withName("ZoneIndices"),
+    ValueLayout.ADDRESS.withName("FirstPrefix"),
+)
+
+private val WIN_DNS_SERVER_ADDRESS_LAYOUT: MemoryLayout = MemoryLayout.structLayout(
+    ValueLayout.JAVA_LONG.withName("Alignment"),
+    ValueLayout.ADDRESS.withName("Next"),
+    ValueLayout.ADDRESS.withName("lpSockaddr"),
+    ValueLayout.JAVA_INT.withName("iSockaddrLength"),
+)
+
+private val WIN_ADAPTER_LENGTH_OFFSET =
+    WIN_IP_ADAPTER_ADDRESSES_LAYOUT.byteOffset(PathElement.groupElement("Alignment"))
+private val WIN_ADAPTER_IFINDEX_OFFSET = WIN_ADAPTER_LENGTH_OFFSET + 4L
+private val WIN_ADAPTER_NEXT_PTR_OFFSET =
+    WIN_IP_ADAPTER_ADDRESSES_LAYOUT.byteOffset(PathElement.groupElement("Next"))
+private val WIN_ADAPTER_FIRST_DNS_PTR_OFFSET =
+    WIN_IP_ADAPTER_ADDRESSES_LAYOUT.byteOffset(PathElement.groupElement("FirstDnsServerAddress"))
+private val WIN_ADAPTER_FRIENDLY_NAME_PTR_OFFSET =
+    WIN_IP_ADAPTER_ADDRESSES_LAYOUT.byteOffset(PathElement.groupElement("FriendlyName"))
+private val WIN_IP_ADAPTER_ADDRESSES_MIN_SIZE =
+    WIN_IP_ADAPTER_ADDRESSES_LAYOUT.byteSize()
+
+private val WIN_DNS_ENTRY_NEXT_PTR_OFFSET =
+    WIN_DNS_SERVER_ADDRESS_LAYOUT.byteOffset(PathElement.groupElement("Next"))
+private val WIN_DNS_ENTRY_SOCKADDR_PTR_OFFSET =
+    WIN_DNS_SERVER_ADDRESS_LAYOUT.byteOffset(PathElement.groupElement("lpSockaddr"))
+private val WIN_DNS_ENTRY_SOCKADDR_LEN_OFFSET =
+    WIN_DNS_SERVER_ADDRESS_LAYOUT.byteOffset(PathElement.groupElement("iSockaddrLength"))
