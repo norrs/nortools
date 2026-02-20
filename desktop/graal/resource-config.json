@@ -6,6 +6,7 @@
       {"pattern": "docs/.*"},
       {"pattern": "native/.*"},
       {"pattern": "META-INF/resources/webjars/.*"},
+      {"pattern": "org/eclipse/jetty/server/.*"},
       {"pattern": "META-INF/services/.*"},
       {"pattern": "krema-errors.js"},
       {"pattern": "build-data.properties"}
