@@ -58,6 +58,9 @@ app.component("whois-page", {
     return { query: "", result: null, error: "", loading: false, activeTab: "overview" }
   },
   computed: {
+    hasParsedFields() {
+      return this.summaryFields.length > 0 || this.otherFields.length > 0
+    },
     summaryFields() {
       if (!this.result) return []
       const keys = ['Domain Name', 'Registrar', 'Creation Date', 'Updated Date', 'Registry Expiry Date', 'Registrant Organization', 'Registrant Country', 'NetName', 'OrgName', 'CIDR', 'NetRange', 'DNSSEC']
@@ -80,6 +83,7 @@ app.component("whois-page", {
         const res = await fetch(`/api/whois/${encodeURIComponent(this.query)}`)
         if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`)
         this.result = await res.json()
+        this.activeTab = this.hasParsedFields ? 'overview' : 'raw'
       } catch (e) {
         this.error = e instanceof Error ? e.message : 'An error occurred'
       } finally {
