@@ -170,6 +170,7 @@ filegroup(
 #   bazelisk build //desktop:native-macos-arm64    # on macOS ARM64
 #   bazelisk build //desktop:native-windows-x64    # on Windows x86_64
 #   bazelisk run   //desktop:run-native-linux-x64  # build and run Linux native binary
+#   bazelisk run   //desktop:run-native-macos-arm64  # build and run macOS ARM64 native binary
 # =============================================================================
 
 genrule(
@@ -515,6 +516,14 @@ sh_binary(
         srcs = ["run_native_linux_x64.sh"],
         data = [":native-linux-x64"],
         args = ["$(location :native-linux-x64)"],
+)
+
+# Convenience runner: builds //desktop:native-macos-arm64, extracts, and runs it
+sh_binary(
+   name = "run-native-macos-arm64",
+        srcs = ["run_native_macos_arm64.sh"],
+        data = [":native-macos-arm64"],
+        args = ["$(location :native-macos-arm64)"],
 )
 
 # Convenience runner: builds //desktop:native-windows-x64, extracts, and runs it
