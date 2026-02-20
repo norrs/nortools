@@ -31,6 +31,16 @@ Release notes folder:
 
 - See `release-notes/README.md` for expected naming and content.
 
+Desktop screenshot refresh after release:
+
+- `release-desktop-all.yml` now runs screenshot refresh after the Linux native release step.
+  - It downloads `nortools-linux-amd64-<tag>.tar.gz`, runs Bazel screenshot automation, and opens a PR with updated `docs/screenshots/*`.
+- You can still run `.github/workflows/release-desktop-screenshots.yml` manually with a release tag (example: `v0.2.0`).
+- Local Bazel entrypoint with preflight host dependency checks:
+  - `mise x -- bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only`
+  - `mise x -- bazelisk build //desktop:native-linux-x64`
+  - `mise x -- bazelisk run //scripts/release:capture_desktop_screenshots -- --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz --output-dir docs/screenshots --display :99`
+
 Optional signing secrets (recommended):
 
 - `KREMA_UPDATER_PRIVATE_KEY_B64`: base64 PKCS#8 Ed25519 private key used to sign artifacts.

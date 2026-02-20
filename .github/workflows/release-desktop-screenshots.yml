@@ -1,0 +1,97 @@
+name: Refresh Desktop Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to capture from (example: v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  capture-desktop-screenshots:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Install screenshot automation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            dbus-x11 \
+            imagemagick \
+            python3-dogtail \
+            python3-gi \
+            xdotool \
+            xvfb
+
+      - name: Resolve release tag and artifact name
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag }}"
+          if [[ -z "${tag}" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "artifact=nortools-linux-amd64-${tag}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Preflight screenshot host checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only
+
+      - name: Download Linux release artifact
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          asset_name="${{ steps.meta.outputs.artifact }}"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.meta.outputs.tag }}/${asset_name}"
+          curl -fL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "$url" \
+            -o "release/${asset_name}"
+          ls -lh "release/${asset_name}"
+
+      - name: Capture screenshots via Bazel wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          bazelisk run //scripts/release:capture_desktop_screenshots -- \
+            --tarball "release/${{ steps.meta.outputs.artifact }}" \
+            --output-dir docs/screenshots \
+            --display :99
+
+      - name: Create pull request with refreshed screenshots
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/release-screenshots-${{ steps.meta.outputs.tag }}
+          delete-branch: true
+          commit-message: "docs: refresh desktop screenshots for ${{ steps.meta.outputs.tag }}"
+          title: "docs: refresh desktop screenshots for ${{ steps.meta.outputs.tag }}"
+          body: |
+            Automated desktop screenshot refresh for release `${{ steps.meta.outputs.tag }}`.
+
+            Generated with:
+            - `bazelisk run //scripts/release:capture_desktop_screenshots`
+            - Xvfb + Dogtail/AT-SPI + xdotool + ImageMagick
+          add-paths: |
+            docs/screenshots/**

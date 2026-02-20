@@ -1,0 +1,7 @@
+sh_binary(
+    name = "capture_desktop_screenshots",
+    srcs = ["run_capture_desktop_screenshots.sh"],
+    data = ["capture_desktop_screenshots.py"],
+    visibility = ["//visibility:public"],
+)
+
