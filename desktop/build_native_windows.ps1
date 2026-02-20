@@ -42,9 +42,14 @@ if (-not $nativeImage) {
     if ($userHome) {
         $miseRoot = Join-Path $userHome ".local\share\mise\installs\java"
         if (Test-Path $miseRoot) {
-            $cands = Get-ChildItem -Path (Join-Path $miseRoot "oracle-graalvm-*\bin\native-image.cmd") -ErrorAction SilentlyContinue
-            if (-not $cands) {
-                $cands = Get-ChildItem -Path (Join-Path $miseRoot "oracle-graalvm-*\bin\native-image.exe") -ErrorAction SilentlyContinue
+            $patterns = @("graalvm-community-*")
+            $cands = $null
+            foreach ($pattern in $patterns) {
+                $cands = Get-ChildItem -Path (Join-Path $miseRoot "$pattern\bin\native-image.cmd") -ErrorAction SilentlyContinue
+                if (-not $cands) {
+                    $cands = Get-ChildItem -Path (Join-Path $miseRoot "$pattern\bin\native-image.exe") -ErrorAction SilentlyContinue
+                }
+                if ($cands) { break }
             }
             if ($cands) { $nativeImage = $cands[-1].FullName }
         }
@@ -61,7 +66,7 @@ if (-not $nativeImage) {
     }
 }
 if (-not $nativeImage) {
-    throw "native-image not found. Install GraalVM (e.g. mise install java oracle-graalvm-25.0.1) or set GRAALVM_HOME."
+    throw "native-image not found. Install GraalVM (e.g. mise install java graalvm-community-25.0.2) or set GRAALVM_HOME."
 }
 
 # Prefer explicitly loading VS 2022 x64 build env so native-image does not auto-select unsupported VS major versions.

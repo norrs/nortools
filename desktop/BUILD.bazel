@@ -152,7 +152,7 @@ filegroup(
 #
 # Prerequisites:
 #   - GraalVM JDK 25 with native-image installed via mise:
-#       mise install java oracle-graalvm-25.0.1
+#       mise install java graalvm-community-25.0.2
 #   - Alternatively: set GRAALVM_HOME or have native-image on PATH
 #   - Linux: gcc, zlib-dev
 #   - macOS: Xcode command line tools
@@ -161,7 +161,8 @@ filegroup(
 # native-image lookup order:
 #   1. $GRAALVM_HOME/bin/native-image
 #   2. native-image on PATH
-#   3. mise install path: ~/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image
+#   3. mise install paths:
+#      ~/.local/share/mise/installs/java/graalvm-community-*/bin/native-image
 #
 # Usage:
 #   bazelisk build //desktop:native-linux-x64      # on Linux x86_64
@@ -192,14 +193,16 @@ genrule(
         else
             # Search mise install paths for GraalVM
             NATIVE_IMAGE=""
-            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
-                if [ -x "$$candidate" ]; then
-                    NATIVE_IMAGE="$$candidate"
-                fi
+            for pattern in graalvm-community-*; do
+                for candidate in $$HOME/.local/share/mise/installs/java/$$pattern/bin/native-image; do
+                    if [ -x "$$candidate" ]; then
+                        NATIVE_IMAGE="$$candidate"
+                    fi
+                done
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
-                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Install GraalVM via mise: mise install java graalvm-community-25.0.2" >&2
                 echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
                 exit 1
             fi
@@ -279,10 +282,12 @@ genrule(
             NATIVE_IMAGE=$$(command -v native-image)
         else
             NATIVE_IMAGE=""
-            for candidate in $${HOME}/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
-                if [ -x "$$candidate" ]; then
-                    NATIVE_IMAGE="$$candidate"
-                fi
+            for pattern in graalvm-community-*; do
+                for candidate in $${HOME}/.local/share/mise/installs/java/$$pattern/bin/native-image; do
+                    if [ -x "$$candidate" ]; then
+                        NATIVE_IMAGE="$$candidate"
+                    fi
+                done
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
@@ -356,10 +361,12 @@ genrule(
             NATIVE_IMAGE=$$(command -v native-image)
         else
             NATIVE_IMAGE=""
-            for candidate in $${HOME}/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
-                if [ -x "$$candidate" ]; then
-                    NATIVE_IMAGE="$$candidate"
-                fi
+            for pattern in graalvm-community-*; do
+                for candidate in $${HOME}/.local/share/mise/installs/java/$$pattern/bin/native-image; do
+                    if [ -x "$$candidate" ]; then
+                        NATIVE_IMAGE="$$candidate"
+                    fi
+                done
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
@@ -435,14 +442,16 @@ genrule(
         else
             # Search mise install paths for GraalVM
             NATIVE_IMAGE=""
-            for candidate in $$HOME/.local/share/mise/installs/java/oracle-graalvm-*/bin/native-image; do
-                if [ -x "$$candidate" ]; then
-                    NATIVE_IMAGE="$$candidate"
-                fi
+            for pattern in graalvm-community-*; do
+                for candidate in $$HOME/.local/share/mise/installs/java/$$pattern/bin/native-image; do
+                    if [ -x "$$candidate" ]; then
+                        NATIVE_IMAGE="$$candidate"
+                    fi
+                done
             done
             if [ -z "$$NATIVE_IMAGE" ]; then
                 echo "ERROR: native-image not found." >&2
-                echo "Install GraalVM via mise: mise install java oracle-graalvm-25.0.1" >&2
+                echo "Install GraalVM via mise: mise install java graalvm-community-25.0.2" >&2
                 echo "Or set GRAALVM_HOME or add native-image to PATH." >&2
                 exit 1
             fi
