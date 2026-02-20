@@ -252,10 +252,9 @@ class AtspiNavigator:
 
 def create_navigator():
     try:
-        import dogtail  # noqa: F401
-        return DogtailNavigator()
-    except Exception:
         return AtspiNavigator()
+    except Exception:
+        return DogtailNavigator()
 
 
 def perform_route_action(route_key: str, display: str, window_id: str) -> None:

@@ -22,11 +22,11 @@ PY
 check_python_navigator() {
   python3 - <<'PY' >/dev/null 2>&1
 try:
-    import dogtail  # noqa: F401
-except Exception:
     import gi
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi  # noqa: F401
+except Exception:
+    import dogtail  # noqa: F401
 PY
 }
 
