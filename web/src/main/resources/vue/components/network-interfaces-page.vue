@@ -22,17 +22,49 @@
       </section>
 
       <section class="card">
-        <h3>DNS</h3>
+        <h3>IP & DNS</h3>
         <div class="kv">
           <span>Default DNS</span>
           <code>{{ hasItems(data.defaultDnsServers) ? data.defaultDnsServers.join(', ') : 'unknown' }}</code>
         </div>
-        <div v-if="hasItems(dnsInterfaceEntries)" class="list-block">
-          <div v-for="entry in dnsInterfaceEntries" :key="entry.name" class="kv">
-            <span>{{ entry.name }}</span>
-            <code>{{ entry.servers.length ? entry.servers.join(', ') : 'none' }}</code>
-          </div>
+        <div v-if="hasItems(addressedInterfaceSummaries)" class="routes-table-wrap list-block">
+          <table class="routes-table">
+            <thead>
+              <tr>
+                <th>Interface</th>
+                <th>DNS</th>
+                <th>IPv4</th>
+                <th>IPv6</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="summary in addressedInterfaceSummaries" :key="summary.name" :class="[summary.isDefault ? 'route-default' : '']">
+                <td>
+                  <code>{{ summary.name || 'n/a' }}</code>
+                  <span v-if="summary.isDefault" class="default-badge">Default</span>
+                </td>
+                <td><code>{{ hasItems(summary.dnsServers) ? summary.dnsServers.join(', ') : 'n/a' }}</code></td>
+                <td>
+                  <code v-if="hasItems(summary.ipv4)">
+                    <span v-for="(addr, idx) in summary.ipv4" :key="addrKey(summary, addr, idx)">
+                      <a :href="'#' + interfaceAnchorId(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv4.length - 1">, </span>
+                    </span>
+                  </code>
+                  <code v-else>none</code>
+                </td>
+                <td>
+                  <code v-if="hasItems(summary.ipv6)">
+                    <span v-for="(addr, idx) in summary.ipv6" :key="addrKey(summary, addr, idx)">
+                      <a :href="'#' + interfaceAnchorId(summary)">{{ addr.ip }}{{ formatPrefix(addr.prefixLength) }}</a><span v-if="idx < summary.ipv6.length - 1">, </span>
+                    </span>
+                  </code>
+                  <code v-else>none</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+        <div v-else class="muted list-block">No interfaces with IP addresses found.</div>
       </section>
 
       <section class="card">
@@ -76,12 +108,19 @@
       </section>
 
       <section class="card">
-        <h3>Interfaces ({{ hasItems(sortedInterfaces) ? sortedInterfaces.length : 0 }})</h3>
-        <div v-if="!hasItems(sortedInterfaces)" class="muted">No interfaces reported.</div>
+        <div class="interfaces-head">
+          <h3>Interfaces ({{ hasItems(visibleInterfaces) ? visibleInterfaces.length : 0 }})</h3>
+          <label class="toggle">
+            <input type="checkbox" v-model="showDisabledInterfaces" />
+            <span>Show disabled interfaces</span>
+          </label>
+        </div>
+        <div v-if="!hasItems(visibleInterfaces)" class="muted">No interfaces reported.</div>
         <div v-else class="interface-list">
           <div
-            v-for="iface in sortedInterfaces"
+            v-for="iface in visibleInterfaces"
             :key="iface.name"
+            :id="interfaceAnchorId(iface)"
             :class="['iface', isDefaultInterface(iface) ? 'iface-default' : '', iface.up ? '' : 'iface-down']"
           >
             <div class="iface-head">
@@ -136,6 +175,7 @@ app.component("network-interfaces-page", {
       loading: false,
       error: "",
       data: null,
+      showDisabledInterfaces: false,
     }
   },
   computed: {
@@ -163,14 +203,36 @@ app.component("network-interfaces-page", {
       })
       return interfaces
     },
-    dnsInterfaceEntries() {
-      const map = (this.data && this.data.interfaceDnsServers) ? this.data.interfaceDnsServers : {}
-      return Object.entries(map)
-        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-        .map((entry) => ({
-          name: String(entry[0]),
-          servers: Array.isArray(entry[1]) ? entry[1] : [],
-        }))
+    visibleInterfaces() {
+      if (this.showDisabledInterfaces) return this.sortedInterfaces
+      return this.sortedInterfaces.filter((iface) => Boolean(iface && iface.up))
+    },
+    addressedInterfaceSummaries() {
+      const interfaces = (this.data && Array.isArray(this.data.interfaces)) ? this.data.interfaces : []
+      const rows = []
+      for (const iface of interfaces) {
+        if (!iface) continue
+        if (!iface.up) continue
+        const ipv4 = this.addressesByFamily(iface, 'IPv4')
+        const ipv6 = this.addressesByFamily(iface, 'IPv6')
+        if (!ipv4.length && !ipv6.length) continue
+        const dnsServers = Array.isArray(iface.dnsServers) ? iface.dnsServers : []
+        rows.push({
+          name: String(iface.name || ''),
+          displayName: String(iface.displayName || ''),
+          up: Boolean(iface.up),
+          isDefault: this.isDefaultInterface(iface),
+          dnsServers,
+          ipv4,
+          ipv6,
+        })
+      }
+      rows.sort((a, b) => {
+        const defaultOrder = (a.isDefault ? 0 : 1) - (b.isDefault ? 0 : 1)
+        if (defaultOrder !== 0) return defaultOrder
+        return String(a.name).localeCompare(String(b.name))
+      })
+      return rows
     },
   },
   mounted() {
@@ -182,6 +244,13 @@ app.component("network-interfaces-page", {
     },
     routeKey(route, idx) {
       return String(idx) + "-" + String(route.destination || "") + "-" + String(route.gateway || "")
+    },
+    interfaceAnchorId(iface) {
+      const name = String(iface && iface.name ? iface.name : "").trim()
+      const displayName = String(iface && iface.displayName ? iface.displayName : "").trim()
+      const raw = name || displayName || "iface"
+      const safe = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
+      return "iface-" + (safe || "unknown")
     },
     isDefaultInterface(iface) {
       if (!iface) return false
@@ -246,6 +315,7 @@ app.component("network-interfaces-page", {
 .network-interfaces-page .desc { color: #666; font-size: 0.92rem; margin-bottom: 0.8rem; }
 .network-interfaces-page .actions { margin-bottom: 0.85rem; }
 .network-interfaces-page button { border: 1px solid #0ea5e9; background: #0ea5e9; color: #fff; border-radius: 6px; padding: 0.42rem 0.7rem; cursor: pointer; }
+.network-interfaces-page a { color: #0369a1; text-decoration: underline; text-underline-offset: 1px; }
 .network-interfaces-page .error { color: #d32f2f; }
 .network-interfaces-page .grid { display: grid; gap: 1rem; }
 .network-interfaces-page .card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
@@ -254,6 +324,9 @@ app.component("network-interfaces-page", {
 .network-interfaces-page code { background: #f8fafc; border-radius: 4px; padding: 0.08rem 0.3rem; }
 .network-interfaces-page .list-block { margin-top: 0.4rem; }
 .network-interfaces-page .muted { color: #64748b; }
+.network-interfaces-page .interfaces-head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.network-interfaces-page .interfaces-head h3 { margin: 0; }
+.network-interfaces-page .toggle { display: inline-flex; align-items: center; gap: 0.4rem; color: #334155; font-size: 0.9rem; }
 .network-interfaces-page .interface-list { display: grid; gap: 0.8rem; }
 .network-interfaces-page .iface { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.7rem; }
 .network-interfaces-page .iface.iface-default { border-color: #0ea5e9; background: #f0f9ff; }
