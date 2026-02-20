@@ -6,9 +6,8 @@ import io.javalin.apibuilder.ApiBuilder.before
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
 import io.javalin.http.staticfiles.Location
+import io.javalin.plugin.bundled.JavalinVuePlugin
 import io.javalin.vue.VueComponent
-import io.javalin.vue.JavalinVueConfig
-import io.javalin.config.Key
 import java.io.File
 import java.nio.file.Files
 
@@ -27,15 +26,12 @@ fun startServer(
             cfg.staticFiles.enableWebjars()
         }
 
-        val vueConfig = JavalinVueConfig().apply {
-            vueInstanceNameInJs = "app"
-            rootDirectory(vueRootDir.absolutePath, Location.EXTERNAL)
-        }
-        val vueConfigKeyField = JavalinVueConfig::class.java.getDeclaredField("VueConfigKey")
-        vueConfigKeyField.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val vueConfigKey = vueConfigKeyField.get(null) as Key<JavalinVueConfig>
-        cfg.appData(vueConfigKey, vueConfig)
+        cfg.registerPlugin(
+            JavalinVuePlugin { vue ->
+                vue.vueInstanceNameInJs = "app"
+                vue.rootDirectory(vueRootDir.absolutePath, Location.EXTERNAL)
+            }
+        )
 
         // DNS tools
         cfg.routes.apiBuilder {
