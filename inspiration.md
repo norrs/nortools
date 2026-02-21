@@ -11,3 +11,4 @@ NorTools is inspired by and gives thanks to the following services and projects:
 - MXToolbox: https://mxtoolbox.com/
 
 We appreciate the maintainers and contributors behind these tools and open standards.
+All projects and services listed above are cited for inspiration and attribution only; none are otherwise involved with, affiliated with, sponsoring, or endorsing NorTools or its usage.

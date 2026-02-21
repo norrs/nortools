@@ -373,3 +373,8 @@ nortools/
     ├── util/             # Utility tools
     └── composite/        # Composite report tools
 ```
+
+## License
+
+This project is licensed under the Apache License 2.0. See `LICENSE`.
+Routinator is licensed separately by NLnet Labs: https://github.com/NLnetLabs/routinator/blob/main/LICENSE
