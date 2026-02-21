@@ -141,6 +141,56 @@ class WebApiDeterministicEndpointsTest {
         assertTrue(json["interfaceDnsServers"].isObject)
     }
 
+    @Test
+    fun `rpki route endpoint accepts manual asn and prefix`() {
+        val response = get("/api/rpki-route/1.1.1.0%2F24?asn=AS13335")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("manual", json["inputType"].asText())
+        assertEquals("AS13335", json["asn"].asText())
+        assertEquals("1.1.1.0/24", json["prefix"].asText())
+        assertTrue(json.has("validationState"))
+        assertTrue(json.has("validationSource"))
+    }
+
+    @Test
+    fun `rpki route endpoint accepts manual ipv6 and asn`() {
+        val response = get("/api/rpki-route/2001%3Adb8%3A%3A%2F32?asn=AS64496")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("manual", json["inputType"].asText())
+        assertEquals("AS64496", json["asn"].asText())
+        assertTrue(json["prefix"].asText().endsWith("/32"))
+        assertTrue(json.has("validationState"))
+        assertTrue(json.has("validationSource"))
+    }
+
+    @Test
+    fun `rpki route endpoint normalizes manual ipv6 prefix host bits`() {
+        val response = get("/api/rpki-route/2001%3A67c%3A550%3A%3A1%2F48?asn=AS202068")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("manual", json["inputType"].asText())
+        assertTrue(json["prefix"].asText().endsWith("/48"))
+        assertTrue(json["prefix"].asText() != "2001:67c:550::1/48")
+        assertTrue(json.has("validationState"))
+    }
+
+    @Test
+    fun `rpki route endpoint accepts auto ipv6 input`() {
+        val response = get("/api/rpki-route/2606%3A4700%3A4700%3A%3A1111")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("ip", json["inputType"].asText())
+        assertEquals("2606:4700:4700::1111", json["ip"].asText())
+        assertTrue(json.has("validationState"))
+        assertTrue(json.has("validationSource"))
+    }
+
     private fun get(path: String): HttpResponse<String> {
         val request = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl$path"))

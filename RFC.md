@@ -80,7 +80,7 @@ All DNSSEC tools share the core DNSSEC RFCs:
 |------|-------------|--------------------------|
 | **whois** | WHOIS domain lookup | [RFC 3912](https://datatracker.ietf.org/doc/html/rfc3912) — WHOIS Protocol Specification |
 | **arin** | ARIN IP/network lookup via RDAP | [RFC 7480](https://datatracker.ietf.org/doc/html/rfc7480) — HTTP Usage in RDAP, [RFC 7481](https://datatracker.ietf.org/doc/html/rfc7481) — Security Services for RDAP, [RFC 7482](https://datatracker.ietf.org/doc/html/rfc7482) — RDAP Query Format, [RFC 7483](https://datatracker.ietf.org/doc/html/rfc7483) — JSON Responses for RDAP, [RFC 7484](https://datatracker.ietf.org/doc/html/rfc7484) — RDAP Bootstrap Service |
-| **asn** | ASN lookup (Team Cymru DNS + RDAP) | [RFC 6483](https://datatracker.ietf.org/doc/html/rfc6483) — Validation of Route Origination Using RPKI, [RFC 7480–7484](https://datatracker.ietf.org/doc/html/rfc7480) — RDAP |
+| **asn** | ASN lookup (Team Cymru DNS + RDAP + optional Routinator RPKI validation) | [RFC 6483](https://datatracker.ietf.org/doc/html/rfc6483) — Validation of Route Origination Using RPKI, [RFC 7480–7484](https://datatracker.ietf.org/doc/html/rfc7480) — RDAP |
 
 ---
 
@@ -183,4 +183,3 @@ The web portal's DNS Health Check performs ~49–54 checks across 9 categories. 
 | RFC 9110 | HTTP Semantics | http |
 | RFC 9112 | HTTP/1.1 | http |
 | BIMI Spec | Brand Indicators for Message Identification | bimi, compliance |
-

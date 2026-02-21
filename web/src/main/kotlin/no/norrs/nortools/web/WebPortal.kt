@@ -59,6 +59,7 @@ fun startServer(
 
             // WHOIS tools
             get("/api/whois/{query}") { ctx -> whoisLookup(ctx) }
+            get("/api/rpki-route/{ip}") { ctx -> rpkiRouteValidation(ctx) }
 
             // Utility tools
             get("/api/whatismyip") { ctx -> whatIsMyIp(ctx) }
@@ -107,6 +108,11 @@ private fun registerJavalinVueRoutes() {
     get("/spf", VueComponent("spf-page"))
     get("/dkim", VueComponent("dkim-page"))
     get("/help/mta-sts-dns", VueComponent("help-mta-sts-dns-page"))
+    get("/help/mail-starttls", VueComponent("help-mail-starttls-page"))
+    get("/help/mail-tls", VueComponent("help-mail-tls-page"))
+    get("/help/mail-certificate", VueComponent("help-mail-certificate-page"))
+    get("/help/mail-caa", VueComponent("help-mail-caa-page"))
+    get("/help/mail-dane", VueComponent("help-mail-dane-page"))
     get("/help/dns-record-types", VueComponent("help-dns-record-types-page"))
     get("/dmarc", VueComponent("dmarc-page"))
     get("/tcp", VueComponent("tcp-page"))
@@ -116,6 +122,7 @@ private fun registerJavalinVueRoutes() {
     get("/ping", VueComponent("ping-page"))
     get("/traceroute", VueComponent("traceroute-page"))
     get("/whois", VueComponent("whois-page"))
+    get("/rpki-route", VueComponent("rpki-route-page"))
     get("/blacklist", VueComponent("blacklist-page"))
     get("/whatismyip", VueComponent("whatismyip-page"))
     get("/subnet", VueComponent("subnet-page"))
@@ -148,6 +155,11 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/spf-page.vue",
         "vue/components/dkim-page.vue",
         "vue/components/help-mta-sts-dns-page.vue",
+        "vue/components/help-mail-starttls-page.vue",
+        "vue/components/help-mail-tls-page.vue",
+        "vue/components/help-mail-certificate-page.vue",
+        "vue/components/help-mail-caa-page.vue",
+        "vue/components/help-mail-dane-page.vue",
         "vue/components/help-dns-record-types-page.vue",
         "vue/components/dmarc-page.vue",
         "vue/components/tcp-page.vue",
@@ -157,6 +169,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/ping-page.vue",
         "vue/components/traceroute-page.vue",
         "vue/components/whois-page.vue",
+        "vue/components/rpki-route-page.vue",
         "vue/components/blacklist-page.vue",
         "vue/components/whatismyip-page.vue",
         "vue/components/subnet-page.vue",

@@ -34,6 +34,7 @@ class WebApiRoutesTest {
             "GET /api/password",
             "GET /api/ping-stream/{host}",
             "GET /api/ping/{host}",
+            "GET /api/rpki-route/{ip}",
             "GET /api/reverse/{ip}",
             "GET /api/spf-generator",
             "GET /api/spf/{domain}",

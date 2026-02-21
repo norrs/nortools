@@ -247,6 +247,10 @@ bazelisk run //tools/whois/arin -- 8.8.8.8
 # ASN Lookup — Autonomous System Number information
 bazelisk run //tools/whois/asn -- AS13335
 bazelisk run //tools/whois/asn -- 1.1.1.1
+# Optional: use explicit Routinator binary for RPKI route origin validation
+bazelisk run //tools/whois/asn -- --routinator-bin /usr/local/bin/routinator 1.1.1.1
+# Optional: skip route origin validation if you only want Team Cymru/RDAP output
+bazelisk run //tools/whois/asn -- --skip-route-validation 1.1.1.1
 ```
 
 ### Blocklist & Security Tools

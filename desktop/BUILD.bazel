@@ -175,12 +175,15 @@ genrule(
         ":desktop_jar_deploy.jar",
         ":graal_configs",
     ],
+    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-linux-x64.tar.gz"],
     cmd = """
         set -e
         HOME=$${HOME:-$$(eval echo ~)}
         DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
         OUTPUT=$$(realpath $(OUTS))
+        EXECROOT=$$PWD
+        ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         # Find native-image: GRAALVM_HOME > PATH > mise install paths
         if [ -n "$${GRAALVM_HOME:-}" ] && [ -x "$$GRAALVM_HOME/bin/native-image" ]; then
@@ -234,11 +237,19 @@ genrule(
         if [ -f native/linux/x86_64/libwebview.so ]; then
             cp native/linux/x86_64/libwebview.so ./
         fi
+        if [ ! -f "$$ROUTINATOR_BIN" ]; then
+            echo "ERROR: routinator binary missing at $$ROUTINATOR_BIN" >&2
+            exit 1
+        fi
+        cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
+        chmod +x "$$WORKDIR/routinator"
         rm -rf native config
 
         # Package into tar.gz
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools libwebview.so 2>/dev/null || \
-        tar czf "$$OUTPUT" -C "$$WORKDIR" nortools
+        FILES="nortools"
+        if [ -f "$$WORKDIR/libwebview.so" ]; then FILES="$$FILES libwebview.so"; fi
+        if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
+        tar czf "$$OUTPUT" -C "$$WORKDIR" $$FILES
         rm -rf "$$WORKDIR"
     """,
     message = "Building native Linux x86_64 binary with GraalVM native-image",
@@ -262,6 +273,7 @@ genrule(
         ":desktop_jar_deploy.jar",
         ":graal_configs",
     ],
+    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-macos-x64.tar.gz"],
     cmd = """
         set -euo pipefail
@@ -269,6 +281,8 @@ genrule(
         HOME=$${HOME:-$$(eval echo ~)}
 
         DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
+        EXECROOT=$$PWD
+        ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         OUT="$$PWD/$(OUTS)"
         mkdir -p "$$(dirname "$$OUT")"
@@ -319,10 +333,18 @@ genrule(
         if [ -f native/macos/x86_64/libwebview.dylib ]; then
             cp native/macos/x86_64/libwebview.dylib ./
         fi
+        if [ ! -f "$$ROUTINATOR_BIN" ]; then
+            echo "ERROR: routinator binary missing at $$ROUTINATOR_BIN" >&2
+            exit 1
+        fi
+        cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
+        chmod +x "$$WORKDIR/routinator"
         rm -rf native config
 
-        tar czf "$$OUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
-            tar czf "$$OUT" -C "$$WORKDIR" nortools
+        FILES="nortools"
+        if [ -f "$$WORKDIR/libwebview.dylib" ]; then FILES="$$FILES libwebview.dylib"; fi
+        if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
+        tar czf "$$OUT" -C "$$WORKDIR" $$FILES
 
         rm -rf "$$WORKDIR"
     """,
@@ -341,6 +363,7 @@ genrule(
         ":desktop_jar_deploy.jar",
         ":graal_configs",
     ],
+    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-macos-arm64.tar.gz"],
     cmd = """
         set -euo pipefail
@@ -348,6 +371,8 @@ genrule(
         HOME=$${HOME:-$$(eval echo ~)}
 
         DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
+        EXECROOT=$$PWD
+        ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         OUT="$$PWD/$(OUTS)"
         mkdir -p "$$(dirname "$$OUT")"
@@ -400,10 +425,18 @@ genrule(
         if [ -f native/macos/aarch64/libwebview.dylib ]; then
             cp native/macos/aarch64/libwebview.dylib ./
         fi
+        if [ ! -f "$$ROUTINATOR_BIN" ]; then
+            echo "ERROR: routinator binary missing at $$ROUTINATOR_BIN" >&2
+            exit 1
+        fi
+        cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
+        chmod +x "$$WORKDIR/routinator"
         rm -rf native config
 
-        tar czf "$$OUT" -C "$$WORKDIR" nortools libwebview.dylib 2>/dev/null || \
-            tar czf "$$OUT" -C "$$WORKDIR" nortools
+        FILES="nortools"
+        if [ -f "$$WORKDIR/libwebview.dylib" ]; then FILES="$$FILES libwebview.dylib"; fi
+        if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
+        tar czf "$$OUT" -C "$$WORKDIR" $$FILES
 
         rm -rf "$$WORKDIR"
     """,
@@ -424,6 +457,7 @@ genrule(
         "build_native_windows.ps1",
         ":windows_gui_launcher",
     ],
+    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-windows-x64.zip"],
     cmd = """
         set -e
@@ -495,7 +529,7 @@ genrule(
         rm -rf "$$WORKDIR"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)"
     """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [
