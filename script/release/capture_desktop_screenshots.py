@@ -24,7 +24,7 @@ from pathlib import Path
 
 
 ROUTES = [
-    ("01-home", None, "home"),
+    ("01-home", ("Home", "NorTools"), "home"),
     ("02-dns-lookup", "DNS Lookup", "dns"),
     ("03-http-check", "HTTP Check", "http"),
     ("04-https-ssl", "HTTPS / SSL", "https"),
@@ -176,6 +176,59 @@ def capture_screen(output_path: Path, display: str, window_id: str) -> None:
     )
 
 
+def analyze_screenshot(output_path: Path) -> tuple[int, float]:
+    result = subprocess.run(
+        ["identify", "-colorspace", "gray", "-format", "%k %[fx:mean]", str(output_path)],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    raw = result.stdout.strip()
+    parts = raw.split()
+    if len(parts) < 2:
+        raise RuntimeError(f"Unexpected screenshot analysis output for {output_path}: {raw!r}")
+    return int(parts[0]), float(parts[1])
+
+
+def capture_screen_with_retry(
+    output_path: Path,
+    display: str,
+    window_id: str,
+    *,
+    max_attempts: int = 8,
+    retry_delay: float = 1.0,
+    min_luma: float = 0.05,
+    min_colors: int = 12,
+) -> None:
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+
+    temp_output = output_path.with_suffix(".tmp.png")
+    last_stats: tuple[int, float] | None = None
+    try:
+        for attempt in range(1, max_attempts + 1):
+            capture_screen(temp_output, display, window_id)
+            colors, mean_luma = analyze_screenshot(temp_output)
+            last_stats = (colors, mean_luma)
+            near_black = mean_luma < min_luma and colors <= min_colors
+            if not near_black:
+                temp_output.replace(output_path)
+                return
+            if attempt < max_attempts:
+                time.sleep(retry_delay)
+        temp_output.replace(output_path)
+        if last_stats is not None:
+            colors, mean_luma = last_stats
+            raise RuntimeError(
+                "Captured screenshot remained near-black after retries: "
+                f"{output_path.name} colors={colors} mean_luma={mean_luma:.4f}"
+            )
+        raise RuntimeError(f"Captured screenshot remained near-black after retries: {output_path.name}")
+    finally:
+        if temp_output.exists():
+            temp_output.unlink(missing_ok=True)
+
+
 def get_active_window_id(display: str) -> str | None:
     result = run_cmd(["xdotool", "getactivewindow"], display=display, check=False)
     if result.returncode != 0:
@@ -284,7 +337,12 @@ class AtspiNavigator:
         return candidates
 
     def _route_score(self, app) -> int:
-        wanted_names = [self._normalize_name(name) for _, name, _ in ROUTES if name]
+        wanted_names: list[str] = []
+        for _, route_name, _ in ROUTES:
+            if isinstance(route_name, tuple):
+                wanted_names.extend(self._normalize_name(name) for name in route_name if name)
+            elif route_name:
+                wanted_names.append(self._normalize_name(route_name))
         score = 0
         for node in self._walk(app):
             try:
@@ -598,13 +656,30 @@ def run() -> int:
                 raise RuntimeError(f"Failed to click sidebar link '{link_name}' within {timeout}s")
 
             for filename, link_name, route_key in ROUTES:
-                if link_name:
+                if isinstance(link_name, tuple):
+                    clicked = False
+                    last_error: Exception | None = None
+                    for candidate in link_name:
+                        try:
+                            click_with_retry(candidate, timeout=8.0 if route_key == "home" else 30.0)
+                            clicked = True
+                            break
+                        except Exception as exc:
+                            last_error = exc
+                    if not clicked and route_key != "home":
+                        if last_error is not None:
+                            raise RuntimeError(
+                                f"Failed to click any sidebar link for route '{route_key}': {link_name}"
+                            ) from last_error
+                        raise RuntimeError(f"Failed to click any sidebar link for route '{route_key}': {link_name}")
+                    time.sleep(args.click_delay)
+                elif link_name:
                     click_with_retry(link_name)
                     time.sleep(args.click_delay)
                 if not window_is_usable(args.display, window_id, min_width=300, min_height=200):
                     window_id = resolve_main_window_id(timeout=15.0)
                 perform_route_action(route_key, args.display, window_id)
-                capture_screen(output_dir / f"{filename}.png", args.display, window_id)
+                capture_screen_with_retry(output_dir / f"{filename}.png", args.display, window_id)
 
         finally:
             if app_proc is not None:
