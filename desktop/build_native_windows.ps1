@@ -5,7 +5,8 @@ param(
     [string]$Output,
     [Parameter(Mandatory = $true)]
     [string]$GraalConfigs,
-    [string]$GuiLauncher = ""
+    [string]$GuiLauncher = "",
+    [string]$RoutinatorBinary = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -181,6 +182,12 @@ if ($GuiLauncher -and (Test-Path $GuiLauncher)) {
     $launcherDest = Join-Path $workdir "nortools-gui.exe"
     Copy-Item -Path $GuiLauncher -Destination $launcherDest -Force
     $zipInputs += $launcherDest
+}
+
+if ($RoutinatorBinary -and (Test-Path $RoutinatorBinary)) {
+    $routinatorDest = Join-Path $workdir "routinator.exe"
+    Copy-Item -Path $RoutinatorBinary -Destination $routinatorDest -Force
+    $zipInputs += $routinatorDest
 }
 
 if (Test-Path $outputPath) { Remove-Item $outputPath -Force }

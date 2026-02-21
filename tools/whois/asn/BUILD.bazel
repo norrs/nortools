@@ -1,8 +1,14 @@
-load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary", "kt_jvm_test")
+
+exports_files([
+    "build_latest_routinator.ps1",
+    "build_latest_routinator.sh",
+])
 
 kt_jvm_binary(
     name = "asn",
     srcs = glob(["src/main/kotlin/**/*.kt"]),
+    resources = glob(["src/main/resources/**"]),
     main_class = "no.norrs.nortools.tools.whois.asn.AsnLookupKt",
     visibility = ["//visibility:public"],
     deps = [
@@ -12,5 +18,47 @@ kt_jvm_binary(
         "//lib/output",
         "@maven//:com_github_ajalt_clikt_clikt_jvm",
         "@maven//:com_google_code_gson_gson",
+    ],
+)
+
+genrule(
+    name = "routinator_latest_host_binary",
+    srcs = [
+        "build_latest_routinator.ps1",
+        "build_latest_routinator.sh",
+    ],
+    outs = ["routinator-host-bin"],
+    cmd = """
+        set -euo pipefail
+        bash "$(location build_latest_routinator.sh)" "$(OUTS)"
+    """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_routinator.ps1)" -Output "$(OUTS)"
+    """,
+    local = True,
+    message = "Building latest Routinator host binary",
+    tags = [
+        "no-remote",
+        "requires-rust",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+kt_jvm_test(
+    name = "asn_test",
+    srcs = glob(["src/test/kotlin/**/*.kt"]),
+    args = [
+        "--select-class=no.norrs.nortools.tools.whois.asn.RoutinatorRouteValidatorTest",
+        "--disable-banner",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "no.norrs.nortools.tools.whois.asn.RoutinatorRouteValidatorTest",
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+    deps = [
+        ":asn",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
     ],
 )

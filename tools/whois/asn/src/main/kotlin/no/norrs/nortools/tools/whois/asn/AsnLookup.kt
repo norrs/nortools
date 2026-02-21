@@ -2,6 +2,8 @@ package no.norrs.nortools.tools.whois.asn
 
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.option
 import com.google.gson.JsonParser
 import no.norrs.nortools.lib.cli.BaseCommand
 import no.norrs.nortools.lib.network.HttpClient
@@ -20,6 +22,18 @@ class AsnLookupCommand : BaseCommand(
     helpText = "Look up Autonomous System Number (ASN) information",
 ) {
     private val query by argument(help = "ASN number (e.g., AS13335) or IP address")
+    private val skipRouteValidation by option(
+        "--skip-route-validation",
+        help = "Skip RPKI route origin validation (Routinator)",
+    ).flag(default = false)
+    private val routinatorBin by option(
+        "--routinator-bin",
+        help = "Explicit path to Routinator binary (otherwise uses env, embedded binary, or PATH)",
+    )
+
+    private val routeValidator by lazy {
+        RoutinatorRouteValidator(explicitBinary = routinatorBin)
+    }
 
     override fun run() {
         val formatter = createFormatter()
@@ -66,6 +80,8 @@ class AsnLookupCommand : BaseCommand(
             // RDAP lookup is optional
         }
 
+        details["Route Validation"] = "Not applicable (requires IP/prefix input)"
+
         echo(formatter.formatDetail(details))
     }
 
@@ -85,8 +101,10 @@ class AsnLookupCommand : BaseCommand(
                 // Format: ASN | IP/Prefix | CC | Registry | Allocated
                 val parts = txt.split("|").map { it.trim() }
                 if (parts.size >= 5) {
-                    details["ASN"] = "AS${parts[0]}"
-                    details["Prefix"] = parts[1]
+                    val asn = parts[0]
+                    val prefix = parts[1]
+                    details["ASN"] = "AS$asn"
+                    details["Prefix"] = prefix
                     details["Country"] = parts[2]
                     details["Registry"] = parts[3]
                     details["Allocated"] = parts[4]
@@ -100,6 +118,16 @@ class AsnLookupCommand : BaseCommand(
                         if (asnParts.size >= 5) {
                             details["AS Name"] = asnParts[4]
                         }
+                    }
+
+                    if (skipRouteValidation) {
+                        details["Route Validation"] = "SKIPPED"
+                    } else {
+                        val validation = routeValidator.validate(prefix = prefix, asn = asn)
+                        details["Route Validation"] = validation.state
+                        details["Route Validation Source"] = validation.source
+                        validation.reason?.let { details["Route Validation Reason"] = it }
+                        validation.details?.let { details["Route Validation Details"] = it }
                     }
                     break // Use first result
                 }
