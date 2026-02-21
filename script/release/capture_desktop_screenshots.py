@@ -24,7 +24,7 @@ from pathlib import Path
 
 
 ROUTES = [
-    ("01-home", "NorTools", "home"),
+    ("01-home", None, "home"),
     ("02-dns-lookup", "DNS Lookup", "dns"),
     ("03-http-check", "HTTP Check", "http"),
     ("04-https-ssl", "HTTPS / SSL", "https"),
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
         default="1920x1080x24",
         help="Xvfb screen geometry (default: 1920x1080x24).",
     )
-    parser.add_argument("--startup-timeout", type=float, default=90.0, help="Seconds to wait for app startup.")
+    parser.add_argument("--startup-timeout", type=float, default=180.0, help="Seconds to wait for app startup.")
     parser.add_argument("--click-delay", type=float, default=1.5, help="Seconds to wait after each navigation click.")
     parser.add_argument(
         "--no-xvfb",
@@ -109,7 +109,14 @@ def _pick_best_window(display: str, candidates: list[str]) -> str:
     return best_id
 
 
-def find_window_id(display: str, app_pid: int | None = None) -> str:
+def list_visible_window_ids(display: str) -> list[str]:
+    result = run_cmd(["xdotool", "search", "--onlyvisible", "--name", ".*"], display=display, check=False)
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def find_window_id(display: str, app_pid: int | None = None, ignore_ids: set[str] | None = None) -> str:
     search_cmds: list[list[str]] = []
     if app_pid is not None:
         search_cmds.append(["xdotool", "search", "--onlyvisible", "--pid", str(app_pid)])
@@ -120,6 +127,7 @@ def find_window_id(display: str, app_pid: int | None = None) -> str:
             ["xdotool", "search", "--onlyvisible", "--class", "[Nn]or[Tt]ools"],
             ["xdotool", "search", "--name", "[Nn]or[Tt]ools"],
             ["xdotool", "search", "--name", "nortools"],
+            ["xdotool", "search", "--onlyvisible", "--name", ".*"],
         ]
     )
 
@@ -135,6 +143,9 @@ def find_window_id(display: str, app_pid: int | None = None) -> str:
                 continue
             seen.add(window_id)
             candidates.append(window_id)
+
+    if ignore_ids:
+        candidates = [window_id for window_id in candidates if window_id not in ignore_ids]
 
     if not candidates:
         raise RuntimeError(f"Could not find NorTools window on display {display}.")
@@ -464,6 +475,8 @@ def run() -> int:
             )
             time.sleep(1.0)
         app_proc: subprocess.Popen[bytes] | None = None
+        wait_for(lambda: len(list_visible_window_ids(args.display)) > 0, timeout=5.0, interval=0.25)
+        baseline_window_ids = set(list_visible_window_ids(args.display))
 
         try:
             app_proc = subprocess.Popen(
@@ -482,7 +495,11 @@ def run() -> int:
                 if app_proc and app_proc.poll() is not None:
                     return True
                 try:
-                    window_ref["window_id"] = find_window_id(args.display, app_proc.pid if app_proc else None)
+                    window_ref["window_id"] = find_window_id(
+                        args.display,
+                        app_proc.pid if app_proc else None,
+                        ignore_ids=baseline_window_ids,
+                    )
                 except Exception:
                     pass
                 try:
@@ -492,12 +509,21 @@ def run() -> int:
                     return window_ref["window_id"] is not None
 
             if not wait_for(app_ready, timeout=args.startup_timeout):
-                raise RuntimeError("Timed out waiting for NorTools accessibility tree.")
+                visible_windows = list_visible_window_ids(args.display)
+                raise RuntimeError(
+                    "Timed out waiting for NorTools accessibility tree. "
+                    f"display={args.display} pid={app_proc.pid if app_proc else 'n/a'} "
+                    f"visible_window_count={len(visible_windows)}"
+                )
             if app_proc.poll() is not None:
                 output = app_proc.stdout.read().decode("utf-8", errors="replace") if app_proc.stdout else ""
                 raise RuntimeError(f"NorTools exited before screenshots could be captured.\n{output}")
 
-            window_id = window_ref["window_id"] or find_window_id(args.display, app_proc.pid if app_proc else None)
+            window_id = window_ref["window_id"] or find_window_id(
+                args.display,
+                app_proc.pid if app_proc else None,
+                ignore_ids=baseline_window_ids,
+            )
 
             def click_with_retry(link_name: str, timeout: float = 30.0) -> None:
                 start = time.monotonic()
