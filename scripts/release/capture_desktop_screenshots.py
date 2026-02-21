@@ -24,7 +24,7 @@ from pathlib import Path
 
 
 ROUTES = [
-    ("01-home", None, "home"),
+    ("01-home", "NorTools", "home"),
     ("02-dns-lookup", "DNS Lookup", "dns"),
     ("03-http-check", "HTTP Check", "http"),
     ("04-https-ssl", "HTTPS / SSL", "https"),
