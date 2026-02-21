@@ -95,18 +95,24 @@ def run_cmd(cmd: list[str], display: str, check: bool = True) -> subprocess.Comp
 
 
 def _pick_best_window(display: str, candidates: list[str]) -> str:
-    best_id = candidates[0]
-    best_area = -1
+    infos: list[tuple[int, str]] = []
+    large_infos: list[tuple[int, str]] = []
     for candidate in candidates:
         try:
             geo = get_window_geometry(display, candidate)
-            area = int(geo.get("WIDTH", 0)) * int(geo.get("HEIGHT", 0))
-            if area > best_area:
-                best_area = area
-                best_id = candidate
+            width = int(geo.get("WIDTH", 0))
+            height = int(geo.get("HEIGHT", 0))
+            area = width * height
+            infos.append((area, candidate))
+            if width >= 600 and height >= 400:
+                large_infos.append((area, candidate))
         except Exception:
             continue
-    return best_id
+    if large_infos:
+        return max(large_infos, key=lambda item: item[0])[1]
+    if infos:
+        return max(infos, key=lambda item: item[0])[1]
+    return candidates[0]
 
 
 def list_visible_window_ids(display: str) -> list[str]:
@@ -127,6 +133,7 @@ def find_window_id(display: str, app_pid: int | None = None, ignore_ids: set[str
             ["xdotool", "search", "--onlyvisible", "--class", "[Nn]or[Tt]ools"],
             ["xdotool", "search", "--name", "[Nn]or[Tt]ools"],
             ["xdotool", "search", "--name", "nortools"],
+            ["xdotool", "search", "--onlyvisible", "--class", ".*"],
             ["xdotool", "search", "--onlyvisible", "--name", ".*"],
         ]
     )
@@ -160,6 +167,8 @@ def capture_screen(output_path: Path, display: str, window_id: str) -> None:
     h = max(1, int(geo.get("HEIGHT", 800)))
     x = int(geo.get("X", 0))
     y = int(geo.get("Y", 0))
+    if w < 300 or h < 200:
+        raise RuntimeError(f"Selected NorTools window is too small for capture: {w}x{h} (id={window_id})")
     crop = f"{w}x{h}+{x}+{y}"
     subprocess.run(
         ["import", "-display", display, "-window", "root", "-crop", crop, "+repage", str(output_path)],
