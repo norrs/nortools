@@ -106,7 +106,7 @@ fun aboutInfo(ctx: Context) {
             gitDirty = gitDirty,
         ),
         credits = """
-            NorTools is built with Kotlin, Javalin, Vue, dnsjava, and GraalVM Native Image.
+            NorTools is built with Kotlin, Javalin, Vue, dnsjava, GraalVM Native Image, and Routinator (NLnet Labs).
             Thanks to the maintainers and contributors of these open-source projects.
         """.trimIndent(),
         inspiration = readTextResource("docs/inspiration.md"),

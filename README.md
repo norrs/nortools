@@ -2,6 +2,7 @@ My network tools
 =======
 
 A comprehensive suite of network and DNS tools inspired by a lot of tools, built in Kotlin with Bazel.
+Most implementations in this repository were done with assistance from various AI coding agents.
 
 Quick developer setup: see [developer-setup.md](developer-setup.md).
 
@@ -35,9 +36,11 @@ Quick developer setup: see [developer-setup.md](developer-setup.md).
 </table>
 
 
-How to test the desktop app
-Dev mode: bazelisk run //desktop:desktop -- --dev
-Production mode: bazelisk run //desktop:desktop
+## How to test the desktop app
+
+* Dev mode: `bazelisk run //desktop:desktop -- --dev`
+
+* Production mode: `bazelisk run //desktop:desktop`
 
 ## Desktop Auto-Update Release Flow
 
@@ -99,8 +102,9 @@ Generated `krema.toml` build artifact:
 
 ## Prerequisites
 
+- [mise](https://mise.jdx.dev/) (tool/version manager)
 - [Bazelisk](https://github.com/bazelbuild/bazelisk) (or Bazel 8.5.1+)
-- Java 17+
+- Java 25+ (GraalVM Community via `mise`, for `native-image`)
 
 ## Build
 
@@ -247,6 +251,10 @@ bazelisk run //tools/whois/arin -- 8.8.8.8
 # ASN Lookup — Autonomous System Number information
 bazelisk run //tools/whois/asn -- AS13335
 bazelisk run //tools/whois/asn -- 1.1.1.1
+# Optional: use explicit Routinator binary for RPKI route origin validation
+bazelisk run //tools/whois/asn -- --routinator-bin /usr/local/bin/routinator 1.1.1.1
+# Optional: skip route origin validation if you only want Team Cymru/RDAP output
+bazelisk run //tools/whois/asn -- --skip-route-validation 1.1.1.1
 ```
 
 ### Blocklist & Security Tools
@@ -340,18 +348,28 @@ bazelisk run //tools/dns/txt -- --json --server 8.8.8.8 --timeout 15 example.com
 ```
 nortools/
 ├── MODULE.bazel          # Bazel module configuration
+├── mise.toml             # Toolchain setup (GraalVM via mise)
+├── web/                  # Javalin web API + Vue frontend
+│   ├── src/main/kotlin/no/norrs/nortools/web/
+│   └── src/main/resources/vue/
+├── desktop/              # Desktop app packaging + native-image build targets
+├── script/release/       # Release automation scripts (including Routinator install helper)
+├── docs/                 # Docs and generated screenshots
 ├── lib/
 │   ├── cli/              # CLI framework (BaseCommand with common flags)
 │   ├── dns/              # DNS resolver library (dnsjava wrapper)
 │   ├── network/          # HTTP/TCP client utilities
 │   └── output/           # Table/JSON output formatting
 └── tools/
-    ├── dns/              # Core DNS lookup tools (9)
-    ├── dnssec/           # DNSSEC tools (5)
-    ├── email/            # Email authentication & infrastructure (10)
-    ├── network/          # Network connectivity tools (5)
-    ├── whois/            # WHOIS/registration tools (3)
-    ├── blocklist/        # Blocklist & security tools (5)
-    ├── util/             # Utility tools (6)
-    └── composite/        # Composite report tools (6)
+    ├── dns/              # Core DNS lookup tools
+    ├── dnssec/           # DNSSEC tools
+    ├── email/            # Email authentication & infrastructure
+    ├── network/          # Network connectivity tools
+    ├── whois/            # WHOIS/registration tools (includes ASN + Routinator integration)
+    │   └── asn/
+    │       ├── src/main/resources/native/routinator/  # Bundled Routinator binary layout
+    │       └── src/main/kotlin/.../RoutinatorRouteValidator.kt
+    ├── blocklist/        # Blocklist & security tools
+    ├── util/             # Utility tools
+    └── composite/        # Composite report tools
 ```
