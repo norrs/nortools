@@ -94,14 +94,7 @@ def run_cmd(cmd: list[str], display: str, check: bool = True) -> subprocess.Comp
     return subprocess.run(cmd, env=env, text=True, capture_output=True, check=check)
 
 
-def find_window_id(display: str) -> str:
-    result = run_cmd(["xdotool", "search", "--name", "nortools"], display=display, check=False)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise RuntimeError(f"Could not find nortools window on display {display}.")
-    candidates = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    if len(candidates) == 1:
-        return candidates[0]
-
+def _pick_best_window(display: str, candidates: list[str]) -> str:
     best_id = candidates[0]
     best_area = -1
     for candidate in candidates:
@@ -114,6 +107,40 @@ def find_window_id(display: str) -> str:
         except Exception:
             continue
     return best_id
+
+
+def find_window_id(display: str, app_pid: int | None = None) -> str:
+    search_cmds: list[list[str]] = []
+    if app_pid is not None:
+        search_cmds.append(["xdotool", "search", "--onlyvisible", "--pid", str(app_pid)])
+        search_cmds.append(["xdotool", "search", "--pid", str(app_pid)])
+    search_cmds.extend(
+        [
+            ["xdotool", "search", "--onlyvisible", "--name", "[Nn]or[Tt]ools"],
+            ["xdotool", "search", "--onlyvisible", "--class", "[Nn]or[Tt]ools"],
+            ["xdotool", "search", "--name", "[Nn]or[Tt]ools"],
+            ["xdotool", "search", "--name", "nortools"],
+        ]
+    )
+
+    seen = set()
+    candidates: list[str] = []
+    for cmd in search_cmds:
+        result = run_cmd(cmd, display=display, check=False)
+        if result.returncode != 0:
+            continue
+        for line in result.stdout.splitlines():
+            window_id = line.strip()
+            if not window_id or window_id in seen:
+                continue
+            seen.add(window_id)
+            candidates.append(window_id)
+
+    if not candidates:
+        raise RuntimeError(f"Could not find NorTools window on display {display}.")
+    if len(candidates) == 1:
+        return candidates[0]
+    return _pick_best_window(display, candidates)
 
 
 def capture_screen(output_path: Path, display: str, window_id: str) -> None:
@@ -207,20 +234,54 @@ class AtspiNavigator:
         return re.sub(r"\s+", " ", name).strip().casefold()
 
     def _iter_nortools_apps(self):
+        return [app for app in self._iter_applications() if "nortools" in str(app.get_name() or "").lower()]
+
+    def _iter_applications(self):
         desktop = self.Atspi.get_desktop(0)
         candidates = []
         for child in self._walk(desktop):
             try:
-                role = child.get_role()
-                name = str(child.get_name() or "")
+                if child.get_role() == self.Atspi.Role.APPLICATION:
+                    candidates.append(child)
             except Exception:
                 continue
-            if role == self.Atspi.Role.APPLICATION and "nortools" in name.lower():
-                candidates.append(child)
         return candidates
 
+    def _route_score(self, app) -> int:
+        wanted_names = [self._normalize_name(name) for _, name, _ in ROUTES if name]
+        score = 0
+        for node in self._walk(app):
+            try:
+                name = self._normalize_name(str(node.get_name() or ""))
+            except Exception:
+                continue
+            if not name:
+                continue
+            for wanted in wanted_names:
+                if wanted and wanted in name:
+                    score += 1
+                    break
+        return score
+
+    def _iter_candidate_apps(self):
+        nortools_apps = self._iter_nortools_apps()
+        if nortools_apps:
+            return nortools_apps
+        apps = []
+        for app in self._iter_applications():
+            try:
+                score = self._route_score(app)
+            except Exception:
+                continue
+            if score > 0:
+                apps.append((score, app))
+        if not apps:
+            return []
+        apps.sort(key=lambda item: item[0], reverse=True)
+        return [app for _, app in apps]
+
     def find_app_root(self):
-        apps = self._iter_nortools_apps()
+        apps = self._iter_candidate_apps()
         if not apps:
             raise RuntimeError("NorTools app not found in AT-SPI desktop tree.")
 
@@ -293,7 +354,7 @@ class AtspiNavigator:
         apps = []
         if _app is not None:
             apps.append(_app)
-        for app in self._iter_nortools_apps():
+        for app in self._iter_candidate_apps():
             if app not in apps:
                 apps.append(app)
         if not apps:
@@ -415,15 +476,20 @@ def run() -> int:
             )
 
             app_ref = {"app": None}
+            window_ref = {"window_id": None}
 
             def app_ready() -> bool:
                 if app_proc and app_proc.poll() is not None:
                     return True
                 try:
+                    window_ref["window_id"] = find_window_id(args.display, app_proc.pid if app_proc else None)
+                except Exception:
+                    pass
+                try:
                     app_ref["app"] = navigator.find_app_root()
                     return True
                 except Exception:
-                    return False
+                    return window_ref["window_id"] is not None
 
             if not wait_for(app_ready, timeout=args.startup_timeout):
                 raise RuntimeError("Timed out waiting for NorTools accessibility tree.")
@@ -431,18 +497,19 @@ def run() -> int:
                 output = app_proc.stdout.read().decode("utf-8", errors="replace") if app_proc.stdout else ""
                 raise RuntimeError(f"NorTools exited before screenshots could be captured.\n{output}")
 
-            app = app_ref["app"]
-            if app is None:
-                raise RuntimeError("NorTools app handle missing after startup.")
-
-            window_id = find_window_id(args.display)
+            window_id = window_ref["window_id"] or find_window_id(args.display, app_proc.pid if app_proc else None)
 
             def click_with_retry(link_name: str, timeout: float = 30.0) -> None:
                 start = time.monotonic()
                 last_error: Exception | None = None
                 while time.monotonic() - start < timeout:
                     try:
-                        navigator.click_link(app, link_name)
+                        if app_ref["app"] is None:
+                            try:
+                                app_ref["app"] = navigator.find_app_root()
+                            except Exception:
+                                pass
+                        navigator.click_link(app_ref["app"], link_name)
                         return
                     except Exception as exc:
                         last_error = exc
