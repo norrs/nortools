@@ -128,6 +128,67 @@ app.component("domain-health-page", {
     },
     remediationForCheck(check, status, detail) {
       if (status === 'PASS') return null
+      if (check === 'Mail / STARTTLS Available') {
+        return {
+          text: 'Enable STARTTLS on every public MX host and confirm each server returns a successful STARTTLS response.',
+          helpPath: '/help/mail-starttls',
+          helpLabel: 'Mail STARTTLS Help',
+        }
+      }
+      if ([
+        'Mail / TLS Version',
+        'Mail / Ciphers (Algorithm Selections)',
+        'Mail / Cipher Order',
+        'Mail / Key Exchange Parameters',
+        'Mail / Hash Function For Key Exchange',
+        'Mail / TLS Compression',
+        'Mail / Secure Renegotiation',
+        'Mail / Client-Initiated Renegotiation',
+        'Mail / 0-RTT',
+      ].includes(check)) {
+        return {
+          text: 'Harden SMTP TLS: keep modern versions/ciphers, prefer ephemeral key exchange, and disable legacy TLS behaviors.',
+          helpPath: '/help/mail-tls',
+          helpLabel: 'Mail TLS Help',
+        }
+      }
+      if ([
+        'Mail / Trust Chain Of Certificate',
+        'Mail / Public Key Of Certificate',
+        'Mail / Signature Of Certificate',
+        'Mail / Domain Name On Certificate',
+      ].includes(check)) {
+        return {
+          text: 'Install a trusted certificate chain on each MX host with strong key/signature settings and correct SAN/CN names.',
+          helpPath: '/help/mail-certificate',
+          helpLabel: 'Mail Certificate Help',
+        }
+      }
+      if (check === 'Mail / CAA For Mail Server') {
+        return {
+          text: 'Publish CAA records on each MX hostname to restrict which CAs can issue mail server certificates.',
+          helpPath: '/help/mail-caa',
+          helpLabel: 'Mail CAA Help',
+        }
+      }
+      if ([
+        'Mail / DANE Existence',
+        'Mail / DANE Validity',
+        'Mail / DANE Rollover Scheme',
+      ].includes(check)) {
+        return {
+          text: 'Publish DNSSEC-signed TLSA records per MX host and use a rollover-safe multi-record strategy.',
+          helpPath: '/help/mail-dane',
+          helpLabel: 'Mail DANE Help',
+        }
+      }
+      if (String(check || '').startsWith('Mail / RPKI')) {
+        return {
+          text: 'Ensure your host/network provider publishes ROAs for MX prefixes and validates announced routes to prevent hijacks.',
+          helpPath: '/rpki-route',
+          helpLabel: 'Open RPKI Validator',
+        }
+      }
       if (check === 'Mail / MTA-STS DNS') {
         return {
           text: 'Publish `_mta-sts.<domain> TXT "v=STSv1; id=..."` to enable MTA-STS.',

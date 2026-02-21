@@ -52,6 +52,7 @@ app.component("home-page", {
           name: "WHOIS",
           tools: [
             { name: "WHOIS Lookup", path: "/whois", icon: "📋", description: "Domain or IP registration info" },
+            { name: "RPKI Route Validation", path: "/rpki-route", icon: "🛣️", description: "Validate route origin with Routinator" },
           ],
         },
         {
@@ -87,6 +88,11 @@ app.component("home-page", {
           name: "Help",
           tools: [
             { name: "MTA-STS DNS Help", path: "/help/mta-sts-dns", description: "How to configure _mta-sts TXT record and policy file" },
+            { name: "Mail STARTTLS Help", path: "/help/mail-starttls", description: "Enable STARTTLS safely on inbound MX servers" },
+            { name: "Mail TLS Help", path: "/help/mail-tls", description: "Tune TLS versions, ciphers, renegotiation, and related settings" },
+            { name: "Mail Certificate Help", path: "/help/mail-certificate", description: "Fix trust chain, key, signature, and hostname issues" },
+            { name: "Mail CAA Help", path: "/help/mail-caa", description: "Publish CAA records for MX hostnames" },
+            { name: "Mail DANE Help", path: "/help/mail-dane", description: "Publish and validate DNSSEC-backed SMTP TLSA records" },
           ],
         },
         {
