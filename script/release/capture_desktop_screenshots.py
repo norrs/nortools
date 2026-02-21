@@ -176,6 +176,14 @@ def capture_screen(output_path: Path, display: str, window_id: str) -> None:
     )
 
 
+def get_active_window_id(display: str) -> str | None:
+    result = run_cmd(["xdotool", "getactivewindow"], display=display, check=False)
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
 def get_window_geometry(display: str, window_id: str) -> dict[str, int]:
     result = run_cmd(["xdotool", "getwindowgeometry", "--shell", window_id], display=display)
     values: dict[str, int] = {}
@@ -186,6 +194,14 @@ def get_window_geometry(display: str, window_id: str) -> dict[str, int]:
         if re.fullmatch(r"-?\d+", value.strip()):
             values[key.strip()] = int(value.strip())
     return values
+
+
+def window_is_usable(display: str, window_id: str, min_width: int = 600, min_height: int = 400) -> bool:
+    try:
+        geo = get_window_geometry(display, window_id)
+    except Exception:
+        return False
+    return int(geo.get("WIDTH", 0)) >= min_width and int(geo.get("HEIGHT", 0)) >= min_height
 
 
 def xdotool_click(display: str, window_id: str, rel_x: int, rel_y: int) -> None:
@@ -528,11 +544,39 @@ def run() -> int:
                 output = app_proc.stdout.read().decode("utf-8", errors="replace") if app_proc.stdout else ""
                 raise RuntimeError(f"NorTools exited before screenshots could be captured.\n{output}")
 
-            window_id = window_ref["window_id"] or find_window_id(
-                args.display,
-                app_proc.pid if app_proc else None,
-                ignore_ids=baseline_window_ids,
-            )
+            def resolve_main_window_id(timeout: float = 45.0) -> str:
+                start = time.monotonic()
+                last_error: Exception | None = None
+                while time.monotonic() - start < timeout:
+                    candidates: list[str] = []
+                    if window_ref["window_id"]:
+                        candidates.append(window_ref["window_id"])
+                    active = get_active_window_id(args.display)
+                    if active:
+                        candidates.append(active)
+                    try:
+                        candidates.append(
+                            find_window_id(
+                                args.display,
+                                app_proc.pid if app_proc else None,
+                                ignore_ids=baseline_window_ids,
+                            )
+                        )
+                    except Exception as exc:
+                        last_error = exc
+
+                    for candidate in candidates:
+                        if candidate and window_is_usable(args.display, candidate):
+                            window_ref["window_id"] = candidate
+                            return candidate
+
+                    time.sleep(0.5)
+
+                if last_error is not None:
+                    raise RuntimeError(f"Timed out waiting for usable NorTools window: {last_error}") from last_error
+                raise RuntimeError("Timed out waiting for usable NorTools window.")
+
+            window_id = resolve_main_window_id()
 
             def click_with_retry(link_name: str, timeout: float = 30.0) -> None:
                 start = time.monotonic()
@@ -557,6 +601,8 @@ def run() -> int:
                 if link_name:
                     click_with_retry(link_name)
                     time.sleep(args.click_delay)
+                if not window_is_usable(args.display, window_id, min_width=300, min_height=200):
+                    window_id = resolve_main_window_id(timeout=15.0)
                 perform_route_action(route_key, args.display, window_id)
                 capture_screen(output_dir / f"{filename}.png", args.display, window_id)
 
