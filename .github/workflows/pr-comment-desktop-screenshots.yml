@@ -50,9 +50,9 @@ jobs:
           set -euo pipefail
           git fetch --depth=1 origin "${{ github.event.repository.default_branch }}"
           git checkout "origin/${{ github.event.repository.default_branch }}" -- \
-            scripts/release/BUILD.bazel \
-            scripts/release/capture_desktop_screenshots.py \
-            scripts/release/run_capture_desktop_screenshots.sh
+            script/release/BUILD.bazel \
+            script/release/capture_desktop_screenshots.py \
+            script/release/run_capture_desktop_screenshots.sh
 
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only
+          bazelisk run //script/release:capture_desktop_screenshots -- --check-only
 
       - name: Build native Linux tarball
         shell: bash
@@ -111,7 +111,7 @@ jobs:
             xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
               openbox >/tmp/openbox.log 2>&1 &
               export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
-              bazelisk run //scripts/release:capture_desktop_screenshots -- \
+              bazelisk run //script/release:capture_desktop_screenshots -- \
                 --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz \
                 --output-dir ${screenshot_dir} \
                 --display \${DISPLAY} \

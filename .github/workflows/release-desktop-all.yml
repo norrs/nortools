@@ -163,7 +163,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only
+          bazelisk run //script/release:capture_desktop_screenshots -- --check-only
 
       - name: Download Linux release artifact
         shell: bash
@@ -192,7 +192,7 @@ jobs:
             xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
               openbox >/tmp/openbox.log 2>&1 &
               export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
-              bazelisk run //scripts/release:capture_desktop_screenshots -- \
+              bazelisk run //script/release:capture_desktop_screenshots -- \
                 --tarball release/${{ steps.screenshot_meta.outputs.artifact }} \
                 --output-dir ${screenshot_dir} \
                 --display \${DISPLAY} \
@@ -213,7 +213,7 @@ jobs:
             Automated desktop screenshot refresh for release `${{ steps.screenshot_meta.outputs.tag }}`.
 
             Generated with:
-            - `bazelisk run //scripts/release:capture_desktop_screenshots`
+            - `bazelisk run //script/release:capture_desktop_screenshots`
             - Xvfb + Dogtail/AT-SPI + xdotool + ImageMagick
           add-paths: |
             docs/screenshots/**
@@ -255,7 +255,7 @@ jobs:
           KREMA_UPDATER_PUBLIC_KEY_B64: ${{ secrets.KREMA_UPDATER_PUBLIC_KEY_B64 }}
         run: |
           set -euo pipefail
-          ./scripts/release/generate_krema_update_manifests.sh "${{ needs.resolve-tag.outputs.tag }}" release
+          ./script/release/generate_krema_update_manifests.sh "${{ needs.resolve-tag.outputs.tag }}" release
 
       - name: Publish updater manifest assets
         uses: softprops/action-gh-release@v2

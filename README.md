@@ -37,9 +37,9 @@ Desktop screenshot refresh after release:
   - It downloads `nortools-linux-amd64-<tag>.tar.gz`, runs Bazel screenshot automation, and opens a PR with updated `docs/screenshots/*`.
 - You can still run `.github/workflows/release-desktop-screenshots.yml` manually with a release tag (example: `v0.2.0`).
 - Local Bazel entrypoint with preflight host dependency checks:
-  - `mise x -- bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only`
+  - `mise x -- bazelisk run //script/release:capture_desktop_screenshots -- --check-only`
   - `mise x -- bazelisk build //desktop:native-linux-x64`
-  - `mise x -- bazelisk run //scripts/release:capture_desktop_screenshots -- --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz --output-dir docs/screenshots --display :99`
+  - `mise x -- bazelisk run //script/release:capture_desktop_screenshots -- --tarball bazel-bin/desktop/nortools-linux-x64.tar.gz --output-dir docs/screenshots --display :99`
 - PR comment trigger (owner only):
   - On a PR, comment: `/capture-desktop-screenshots`
   - Workflow `.github/workflows/pr-comment-desktop-screenshots.yml` builds Linux native from the PR head commit, captures screenshots, uploads artifacts, and comments the result on the PR.

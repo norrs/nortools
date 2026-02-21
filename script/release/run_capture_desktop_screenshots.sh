@@ -58,8 +58,8 @@ run_capture() {
 }
 
 locate_capture_script() {
-  if [[ -f "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py" ]]; then
-    echo "$0.runfiles/_main/scripts/release/capture_desktop_screenshots.py"
+  if [[ -f "$0.runfiles/_main/script/release/capture_desktop_screenshots.py" ]]; then
+    echo "$0.runfiles/_main/script/release/capture_desktop_screenshots.py"
     return 0
   fi
   local self_dir
@@ -68,14 +68,14 @@ locate_capture_script() {
     echo "${self_dir}/capture_desktop_screenshots.py"
     return 0
   fi
-  if [[ -n "${RUNFILES_DIR:-}" && -f "${RUNFILES_DIR}/_main/scripts/release/capture_desktop_screenshots.py" ]]; then
-    echo "${RUNFILES_DIR}/_main/scripts/release/capture_desktop_screenshots.py"
+  if [[ -n "${RUNFILES_DIR:-}" && -f "${RUNFILES_DIR}/_main/script/release/capture_desktop_screenshots.py" ]]; then
+    echo "${RUNFILES_DIR}/_main/script/release/capture_desktop_screenshots.py"
     return 0
   fi
   if [[ -n "${RUNFILES_MANIFEST_FILE:-}" && -f "${RUNFILES_MANIFEST_FILE}" ]]; then
     local manifest_path
     manifest_path="$(
-      awk '$1=="_main/scripts/release/capture_desktop_screenshots.py"{print $2; exit}' "${RUNFILES_MANIFEST_FILE}" \
+      awk '$1=="_main/script/release/capture_desktop_screenshots.py"{print $2; exit}' "${RUNFILES_MANIFEST_FILE}" \
         | tr -d '\r'
     )"
     if [[ -n "${manifest_path}" && -f "${manifest_path}" ]]; then
@@ -83,8 +83,8 @@ locate_capture_script() {
       return 0
     fi
   fi
-  if [[ -n "${BUILD_WORKSPACE_DIRECTORY:-}" && -f "${BUILD_WORKSPACE_DIRECTORY}/scripts/release/capture_desktop_screenshots.py" ]]; then
-    echo "${BUILD_WORKSPACE_DIRECTORY}/scripts/release/capture_desktop_screenshots.py"
+  if [[ -n "${BUILD_WORKSPACE_DIRECTORY:-}" && -f "${BUILD_WORKSPACE_DIRECTORY}/script/release/capture_desktop_screenshots.py" ]]; then
+    echo "${BUILD_WORKSPACE_DIRECTORY}/script/release/capture_desktop_screenshots.py"
     return 0
   fi
   die "Could not locate capture_desktop_screenshots.py in runfiles or workspace."

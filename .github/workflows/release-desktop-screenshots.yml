@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bazelisk run //scripts/release:capture_desktop_screenshots -- --check-only
+          bazelisk run //script/release:capture_desktop_screenshots -- --check-only
 
       - name: Download Linux release artifact
         shell: bash
@@ -86,7 +86,7 @@ jobs:
             xvfb-run -a -s "-screen 0 1920x1080x24" bash -lc "
               openbox >/tmp/openbox.log 2>&1 &
               export CAPTURE_SCREENSHOTS_EXTERNAL_SESSION=1
-              bazelisk run //scripts/release:capture_desktop_screenshots -- \
+              bazelisk run //script/release:capture_desktop_screenshots -- \
                 --tarball release/${{ steps.meta.outputs.artifact }} \
                 --output-dir ${screenshot_dir} \
                 --display \${DISPLAY} \
@@ -107,7 +107,7 @@ jobs:
             Automated desktop screenshot refresh for release `${{ steps.meta.outputs.tag }}`.
 
             Generated with:
-            - `bazelisk run //scripts/release:capture_desktop_screenshots`
+            - `bazelisk run //script/release:capture_desktop_screenshots`
             - Xvfb + Dogtail/AT-SPI + xdotool + ImageMagick
           add-paths: |
             docs/screenshots/**
