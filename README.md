@@ -5,6 +5,35 @@ A comprehensive suite of network and DNS tools inspired by a lot of tools, built
 
 Quick developer setup: see [developer-setup.md](developer-setup.md).
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><strong>Home</strong></td>
+    <td><strong>DNS Lookup</strong></td>
+    <td><strong>HTTP Check</strong></td>
+    <td><strong>HTTPS / SSL</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/01-home.png" alt="Home" width="220" /></td>
+    <td><img src="docs/screenshots/02-dns-lookup.png" alt="DNS Lookup" width="220" /></td>
+    <td><img src="docs/screenshots/03-http-check.png" alt="HTTP Check" width="220" /></td>
+    <td><img src="docs/screenshots/04-https-ssl.png" alt="HTTPS / SSL" width="220" /></td>
+  </tr>
+  <tr>
+    <td><strong>Subnet Calculator</strong></td>
+    <td><strong>Password Generator</strong></td>
+    <td><strong>About</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/05-subnet-calculator.png" alt="Subnet Calculator" width="220" /></td>
+    <td><img src="docs/screenshots/06-password-generator.png" alt="Password Generator" width="220" /></td>
+    <td><img src="docs/screenshots/07-about.png" alt="About" width="220" /></td>
+    <td></td>
+  </tr>
+</table>
+
 
 How to test the desktop app
 Dev mode: bazelisk run //desktop:desktop -- --dev
