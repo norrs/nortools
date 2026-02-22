@@ -192,7 +192,8 @@ private fun buildUpdaterConfig(devMode: Boolean): Map<String, Any> {
         "endpoints" to listOf(resolvedEndpoint),
         "pubkey" to PINNED_UPDATER_PUBLIC_KEY_B64,
         "timeout" to 30,
-        "checkOnStartup" to true,
+        // Explicitly checked from the web UI on the home screen only.
+        "checkOnStartup" to false,
     )
 }
 

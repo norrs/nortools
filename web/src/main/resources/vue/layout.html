@@ -9,6 +9,7 @@
     const app = Vue.createApp({
       data() {
         return {
+          isMainScreen: false,
           updater: {
             supported: false,
             checking: false,
@@ -31,11 +32,17 @@
         }
       },
       mounted() {
+        this.isMainScreen = this.isMainScreenRoute()
+        if (!this.isMainScreen) return
         this.loadCurrentVersion()
         this.detectRestartSupport()
         this.initUpdater()
       },
       methods: {
+        isMainScreenRoute() {
+          const path = String(window.location.pathname || "").trim()
+          return path === "/" || path === ""
+        },
         hasKremaUpdater() {
           return !!(window.krema && typeof window.krema.invoke === "function" && typeof window.krema.on === "function")
         },
@@ -541,7 +548,7 @@
 
       <main class="main-content">
         <section
-          v-if="updater.supported"
+          v-if="isMainScreen && updater.supported"
           class="updater-banner"
         >
           <div class="updater-title">
