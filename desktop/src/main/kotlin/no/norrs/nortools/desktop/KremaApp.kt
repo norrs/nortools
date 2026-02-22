@@ -182,13 +182,40 @@ private fun buildUpdaterConfig(devMode: Boolean): Map<String, Any> {
         System.getenv("NORTOOLS_UPDATER_ENDPOINT")
             ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_UPDATER_ENDPOINT
+    val resolvedEndpoint = resolveUpdaterEndpoint(endpoint)
+    if (resolvedEndpoint == null) {
+        println("[NorTools] Updater disabled: unsupported platform for updater target resolution")
+        return emptyMap()
+    }
 
     return mapOf(
-        "endpoints" to listOf(endpoint),
+        "endpoints" to listOf(resolvedEndpoint),
         "pubkey" to PINNED_UPDATER_PUBLIC_KEY_B64,
         "timeout" to 30,
         "checkOnStartup" to true,
     )
+}
+
+private fun resolveUpdaterEndpoint(endpoint: String): String? {
+    if (!endpoint.contains("{{target}}")) return endpoint
+    val target = updaterTargetForCurrentPlatform() ?: return null
+    return endpoint.replace("{{target}}", target)
+}
+
+private fun updaterTargetForCurrentPlatform(): String? {
+    val os = System.getProperty("os.name").lowercase()
+    val archRaw = System.getProperty("os.arch").lowercase()
+    val arch = when (archRaw) {
+        "x86_64", "amd64", "x64" -> "x86_64"
+        "aarch64", "arm64" -> "aarch64"
+        else -> return null
+    }
+    return when {
+        os.contains("win") -> "windows-$arch"
+        os.contains("mac") || os.contains("darwin") -> "darwin-$arch"
+        os.contains("linux") -> "linux-$arch"
+        else -> null
+    }
 }
 
 private fun runCliIfRequested(args: Array<String>): Boolean {

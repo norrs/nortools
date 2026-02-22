@@ -7,8 +7,16 @@ if [[ -z "$OUT_PATH" ]]; then
   exit 2
 fi
 
+if command -v routinator >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$OUT_PATH")"
+  cp "$(command -v routinator)" "$OUT_PATH"
+  chmod +x "$OUT_PATH"
+  echo "Using existing Routinator -> $OUT_PATH"
+  exit 0
+fi
+
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "cargo is required to build Routinator" >&2
+  echo "cargo is required when routinator is not already installed" >&2
   exit 1
 fi
 if ! command -v curl >/dev/null 2>&1; then

@@ -45,6 +45,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: "true"
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Routinator binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install --locked routinator
+
       - name: Build native macOS ARM64 archive
         shell: bash
         run: |
