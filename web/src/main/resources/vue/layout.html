@@ -99,6 +99,9 @@
             this.updater.error = message
           })
 
+          // Startup updater events may fire before listeners are registered in the web UI.
+          // Force an explicit check so update actions become visible reliably.
+          await this.checkForUpdates()
         },
         async loadCurrentVersion() {
           try {
@@ -538,7 +541,7 @@
 
       <main class="main-content">
         <section
-          v-if="updater.supported && (updater.available || updater.checking || updater.downloading || updater.ready || updater.installing || updater.installed || updater.error || updater.status)"
+          v-if="updater.supported"
           class="updater-banner"
         >
           <div class="updater-title">
