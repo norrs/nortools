@@ -964,8 +964,9 @@ private fun sha256Fingerprint(cert: X509Certificate): String {
 fun pingCheck(ctx: Context) {
     val host = ctx.pathParam("host")
     val count = ctx.queryParam("count")?.toIntOrNull() ?: 4
+    val pingPlatform = detectPingPlatform()
     try {
-        val command = listOf("ping", "-c", "$count", "-W", "5", host)
+        val command = buildPingCheckCommand(host, count, timeoutSeconds = 5, platform = pingPlatform)
         val process = ProcessBuilder(command).redirectErrorStream(true).start()
         val lines = process.inputStream.bufferedReader().readLines()
         val exitCode = process.waitFor()
@@ -1008,7 +1009,7 @@ fun pingStream(ctx: Context) {
     val count = if (continuous) null else (ctx.queryParam("count")?.toIntOrNull() ?: 4).coerceIn(1, 200)
     val timeoutSeconds = (ctx.queryParam("timeout")?.toIntOrNull() ?: 5).coerceIn(1, 30)
     val intervalMs = 1000L
-    val isWindows = isWindowsHost()
+    val pingPlatform = detectPingPlatform()
 
     ctx.res().status = 200
     ctx.res().characterEncoding = "UTF-8"
@@ -1042,7 +1043,7 @@ fun pingStream(ctx: Context) {
         )
 
         while (continuous || sent < (count ?: 0)) {
-            val probe = runSinglePingProbe(host, timeoutSeconds, isWindows)
+            val probe = runSinglePingProbe(host, timeoutSeconds, pingPlatform)
             sent += 1
             if (probe.success) {
                 received += 1
@@ -1129,17 +1130,16 @@ fun pingStream(ctx: Context) {
     }
 }
 
-private fun runSinglePingProbe(host: String, timeoutSeconds: Int, isWindows: Boolean): PingProbeResult {
-    val command = if (isWindows) {
-        listOf("ping", "-n", "1", "-w", "${timeoutSeconds * 1000}", host)
-    } else {
-        listOf("ping", "-n", "-c", "1", "-W", "$timeoutSeconds", host)
+private fun runSinglePingProbe(host: String, timeoutSeconds: Int, platform: String): PingProbeResult {
+    val command = when (platform) {
+        "windows" -> listOf("ping", "-n", "1", "-w", "${timeoutSeconds * 1000}", host)
+        else -> buildPingProbeCommand(host, timeoutSeconds, platform)
     }
     val process = ProcessBuilder(command).redirectErrorStream(true).start()
     val lines = process.inputStream.bufferedReader().readLines()
     process.waitFor()
 
-    val regex = if (isWindows) {
+    val regex = if (platform == "windows") {
         ".*Reply from ([^:]+):.*time[=<]([0-9.]+)ms.*".toRegex(RegexOption.IGNORE_CASE)
     } else {
         ".*from ([^: ]+):.*time[=<]?([0-9.]+)\\s*ms.*".toRegex(RegexOption.IGNORE_CASE)
@@ -1162,6 +1162,35 @@ private fun runSinglePingProbe(host: String, timeoutSeconds: Int, isWindows: Boo
 }
 
 private fun formatMs(value: Double): String = "${"%.1f".format(value)}ms"
+
+private fun detectPingPlatform(): String {
+    val os = System.getProperty("os.name").lowercase(Locale.ROOT)
+    return when {
+        os.contains("win") -> "windows"
+        os.contains("mac") || os.contains("darwin") -> "macos"
+        else -> "linux"
+    }
+}
+
+private fun buildPingCheckCommand(
+    host: String,
+    count: Int,
+    timeoutSeconds: Int,
+    platform: String,
+): List<String> {
+    return when (platform) {
+        "windows" -> listOf("ping", "-n", "$count", "-w", "${timeoutSeconds * 1000}", host)
+        "macos" -> listOf("ping", "-n", "-c", "$count", "-W", "${timeoutSeconds * 1000}", host)
+        else -> listOf("ping", "-n", "-c", "$count", "-W", "$timeoutSeconds", host)
+    }
+}
+
+private fun buildPingProbeCommand(host: String, timeoutSeconds: Int, platform: String): List<String> {
+    return when (platform) {
+        "macos" -> listOf("ping", "-n", "-c", "1", "-W", "${timeoutSeconds * 1000}", host)
+        else -> listOf("ping", "-n", "-c", "1", "-W", "$timeoutSeconds", host)
+    }
+}
 
 fun traceCheck(ctx: Context) {
     val host = ctx.pathParam("host")

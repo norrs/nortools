@@ -570,6 +570,20 @@ sh_binary(
         ],
 )
 
+# Convenience GUI runner: builds //desktop:native-windows-x64, extracts, and launches nortools-gui.exe
+sh_binary(
+   name = "run-native-windows-x64-gui",
+        srcs = ["run_native_windows_x64.sh"],
+        data = [
+            ":native-windows-x64",
+            "run_native_windows_x64_gui.ps1",
+        ],
+        args = [
+            "$(location :native-windows-x64)",
+            "$(location run_native_windows_x64_gui.ps1)",
+        ],
+)
+
 # Manual smoke test: builds the native linux tarball, runs the binary, and asserts /api/dns/A/nrk.no responds.
 # Run it locally on Linux with:
 #   bazelisk test //desktop:native-linux-api-smoke --test_arg="$(bazelisk cquery --output=files //desktop:native-linux-x64)"

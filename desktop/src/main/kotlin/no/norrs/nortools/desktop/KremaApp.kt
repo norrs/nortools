@@ -78,12 +78,13 @@ fun main(args: Array<String>) {
     val server = startServer(port = 0)
     val serverUrl = "http://localhost:${server.port()}"
     println("[NorTools] Embedded server running at $serverUrl")
-    val appVersion = resolveAppVersion()
-    println("[NorTools] Version resolved to $appVersion")
+    val buildInfo = resolveBuildInfo()
+    println("[NorTools] Version resolved to ${buildInfo.version}")
+    logBuildInfo(buildInfo)
 
     val app = Krema.app()
         .title("NorTools")
-        .version(appVersion)
+        .version(buildInfo.version)
         .identifier("no.norrs.nortools")
         .size(1200, 800)
         .minSize(900, 600)
@@ -98,7 +99,15 @@ fun main(args: Array<String>) {
     server.stop()
 }
 
-private fun resolveAppVersion(): String {
+private data class BuildInfo(
+    val version: String,
+    val rawVersion: String?,
+    val tag: String?,
+    val commit: String?,
+    val target: String?,
+)
+
+private fun resolveBuildInfo(): BuildInfo {
     val props = loadBuildProperties()
     val rawVersion = props.firstNonBlank(
         "build.krema.version",
@@ -106,9 +115,21 @@ private fun resolveAppVersion(): String {
         "STABLE_KREMA_VERSION",
     )
         ?: System.getenv("STABLE_KREMA_VERSION")
-        ?: FALLBACK_APP_VERSION
-    val normalized = normalizeVersion(rawVersion)
-    return normalized ?: FALLBACK_APP_VERSION
+    val normalized = normalizeVersion(rawVersion) ?: FALLBACK_APP_VERSION
+    return BuildInfo(
+        version = normalized,
+        rawVersion = rawVersion,
+        tag = props.firstNonBlank("build.tag", "STABLE_GIT_TAG", "git.tag"),
+        commit = props.firstNonBlank("git.commit", "STABLE_GIT_COMMIT", "build.changelist"),
+        target = updaterTargetForCurrentPlatform(),
+    )
+}
+
+private fun logBuildInfo(buildInfo: BuildInfo) {
+    println(
+        "[NorTools] Build info: version=${buildInfo.version}, rawVersion=${buildInfo.rawVersion ?: "n/a"}, " +
+            "tag=${buildInfo.tag ?: "n/a"}, commit=${buildInfo.commit ?: "n/a"}, target=${buildInfo.target ?: "n/a"}"
+    )
 }
 
 private fun normalizeVersion(value: String?): String? {
@@ -187,12 +208,15 @@ private fun buildUpdaterConfig(devMode: Boolean): Map<String, Any> {
         println("[NorTools] Updater disabled: unsupported platform for updater target resolution")
         return emptyMap()
     }
+    println(
+        "[NorTools] Updater configured: endpoint=$resolvedEndpoint, target=${updaterTargetForCurrentPlatform() ?: "n/a"}"
+    )
 
     return mapOf(
         "endpoints" to listOf(resolvedEndpoint),
         "pubkey" to PINNED_UPDATER_PUBLIC_KEY_B64,
         "timeout" to 30,
-        // Explicitly checked from the web UI on the home screen only.
+        // Explicitly checked from the web UI.
         "checkOnStartup" to false,
     )
 }

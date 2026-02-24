@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.parameters.types.int
 import no.norrs.nortools.lib.cli.BaseCommand
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.Locale
 
 /**
  * Ping tool — sends ICMP echo requests to a host using the system ping command.
@@ -27,11 +28,12 @@ class PingCommand : BaseCommand(
     override fun run() {
         val formatter = createFormatter()
 
-        val isLinux = System.getProperty("os.name").lowercase().contains("linux")
-        val command = if (isLinux) {
-            listOf("ping", "-c", "$count", "-W", "$timeoutSeconds", host)
-        } else {
-            listOf("ping", "-c", "$count", "-t", "$timeoutSeconds", host)
+        val osName = System.getProperty("os.name").lowercase(Locale.ROOT)
+        val command = when {
+            osName.contains("win") -> listOf("ping", "-n", "$count", "-w", "${timeoutSeconds * 1000}", host)
+            osName.contains("mac") || osName.contains("darwin") ->
+                listOf("ping", "-n", "-c", "$count", "-W", "${timeoutSeconds * 1000}", host)
+            else -> listOf("ping", "-n", "-c", "$count", "-W", "$timeoutSeconds", host)
         }
 
         try {

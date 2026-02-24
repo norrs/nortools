@@ -25,6 +25,17 @@ class ReflectConfigArchTest {
         )
     }
 
+    @Test
+    fun `required non-web serializer classes are listed in graal reflect config`() {
+        val actual = reflectConfigClassNames().toSet()
+        val missing = requiredNonWebSerializerClasses().filterNot { it in actual }
+        assertEquals(
+            emptyList<String>(),
+            missing,
+            "Reflect config is missing required non-web serializer classes.",
+        )
+    }
+
     private fun reflectConfigClassNames(): List<String> {
         val text = readReflectConfigText()
         val regex = "\\\"name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"".toRegex()
@@ -60,6 +71,12 @@ class ReflectConfigArchTest {
         }
         return classNames
     }
+
+    private fun requiredNonWebSerializerClasses(): List<String> =
+        listOf(
+            "build.krema.core.plugin.builtin.UpdaterPlugin\$CheckResult",
+            "build.krema.core.plugin.builtin.UpdaterPlugin\$DownloadResult",
+        )
 
     private fun webSourceFiles(): List<Path> {
         val testSrcDir = System.getenv("TEST_SRCDIR")

@@ -53,6 +53,7 @@ kt_jvm_test(
         "--select-class=no.norrs.nortools.web.ReflectConfigArchTest",
         "--select-class=no.norrs.nortools.web.WebApiRoutesTest",
         "--select-class=no.norrs.nortools.web.WebApiDeterministicEndpointsTest",
+        "--select-class=no.norrs.nortools.web.UpdaterSerializationTest",
         "--disable-banner",
     ],
     main_class = "org.junit.platform.console.ConsoleLauncher",
@@ -64,7 +65,64 @@ kt_jvm_test(
     ],
     deps = [
         ":web_lib",
+        "@maven//:build_krema_krema_core",
         "@maven//:com_tngtech_archunit_archunit_junit5",
         "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+kt_jvm_library(
+    name = "web_arch_test_lib",
+    srcs = ["src/test/kotlin/no/norrs/nortools/web/ReflectConfigArchTest.kt"],
+    deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+java_test(
+    name = "web_arch_test",
+    srcs = [],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "org.junit.platform.console.ConsoleLauncher",
+    args = [
+        "--select-class=no.norrs.nortools.web.ReflectConfigArchTest",
+        "--disable-banner",
+    ],
+    data = glob(["src/main/kotlin/no/norrs/nortools/web/*.kt"]) + [
+        "//desktop:graal/reflect-config.json",
+    ],
+    runtime_deps = [
+        ":web_arch_test_lib",
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+)
+
+kt_jvm_library(
+    name = "web_updater_serialization_test_lib",
+    srcs = ["src/test/kotlin/no/norrs/nortools/web/UpdaterSerializationTest.kt"],
+    deps = [
+        "@maven//:build_krema_krema_core",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+java_test(
+    name = "web_updater_serialization_test",
+    srcs = [],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "org.junit.platform.console.ConsoleLauncher",
+    args = [
+        "--select-class=no.norrs.nortools.web.UpdaterSerializationTest",
+        "--disable-banner",
+    ],
+    data = [
+        "//desktop:graal/reflect-config.json",
+    ],
+    runtime_deps = [
+        ":web_updater_serialization_test_lib",
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
     ],
 )

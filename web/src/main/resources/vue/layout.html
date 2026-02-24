@@ -44,7 +44,22 @@
           return path === "/" || path === ""
         },
         hasKremaUpdater() {
-          return !!(window.krema && typeof window.krema.invoke === "function" && typeof window.krema.on === "function")
+          return !!(window.krema && typeof window.krema.invoke === "function")
+        },
+        hasKremaEventBridge() {
+          return !!(window.krema && typeof window.krema.on === "function")
+        },
+        shouldShowUpdaterBanner() {
+          if (!this.isMainScreen || !this.updater.supported) return false
+          return Boolean(
+            this.updater.checking ||
+            this.updater.downloading ||
+            this.updater.installing ||
+            this.updater.available ||
+            this.updater.ready ||
+            this.updater.installed ||
+            this.updater.error
+          )
         },
         formatBytes(bytes) {
           const n = Number(bytes)
@@ -62,49 +77,51 @@
           if (!this.hasKremaUpdater()) return
           this.updater.supported = true
 
-          window.krema.on("updater:update-available", (payload) => {
-            this.updater.installed = false
-            this.updater.available = true
-            this.updater.ready = false
-            this.updater.error = ""
-            this.updater.version = String(payload?.version || "")
-            this.updater.notes = String(payload?.notes || "")
-            this.updater.date = String(payload?.date || "")
-            this.updater.mandatory = Boolean(payload?.mandatory)
-            this.updater.size = Number(payload?.size || 0)
-            this.updater.status = "A newer version is available."
-          })
+          if (this.hasKremaEventBridge()) {
+            window.krema.on("updater:update-available", (payload) => {
+              this.updater.installed = false
+              this.updater.available = true
+              this.updater.ready = false
+              this.updater.error = ""
+              this.updater.version = String(payload?.version || "")
+              this.updater.notes = String(payload?.notes || "")
+              this.updater.date = String(payload?.date || "")
+              this.updater.mandatory = Boolean(payload?.mandatory)
+              this.updater.size = Number(payload?.size || 0)
+              this.updater.status = "A newer version is available."
+            })
 
-          window.krema.on("updater:download-progress", (payload) => {
-            this.updater.downloading = true
-            const progress = Number(payload?.progress || 0)
-            this.updater.downloadProgress = Math.max(0, Math.min(1, progress))
-          })
+            window.krema.on("updater:download-progress", (payload) => {
+              this.updater.downloading = true
+              const progress = Number(payload?.progress || 0)
+              this.updater.downloadProgress = Math.max(0, Math.min(1, progress))
+            })
 
-          window.krema.on("updater:update-ready", () => {
-            this.updater.downloading = false
-            this.updater.downloadProgress = 1
-            this.updater.ready = true
-            this.updater.error = ""
-            this.updater.status = "Update downloaded. Ready to install."
-          })
+            window.krema.on("updater:update-ready", () => {
+              this.updater.downloading = false
+              this.updater.downloadProgress = 1
+              this.updater.ready = true
+              this.updater.error = ""
+              this.updater.status = "Update downloaded. Ready to install."
+            })
 
-          window.krema.on("updater:error", (payload) => {
-            this.updater.downloading = false
-            this.updater.installing = false
-            this.updater.checking = false
-            const message = String(payload?.message || "Updater error")
-            // Do not let late/background updater errors overwrite a successful state.
-            if (this.updater.ready || this.updater.installed) {
-              this.updater.status = `Updater warning: ${message}`
-              return
-            }
-            if (this.updater.available && !this.updater.downloading && !this.updater.installing) {
-              this.updater.status = `Updater warning: ${message}`
-              return
-            }
-            this.updater.error = message
-          })
+            window.krema.on("updater:error", (payload) => {
+              this.updater.downloading = false
+              this.updater.installing = false
+              this.updater.checking = false
+              const message = String(payload?.message || "Updater error")
+              // Do not let late/background updater errors overwrite a successful state.
+              if (this.updater.ready || this.updater.installed) {
+                this.updater.status = `Updater warning: ${message}`
+                return
+              }
+              if (this.updater.available && !this.updater.downloading && !this.updater.installing) {
+                this.updater.status = `Updater warning: ${message}`
+                return
+              }
+              this.updater.error = message
+            })
+          }
 
           // Startup updater events may fire before listeners are registered in the web UI.
           // Force an explicit check so update actions become visible reliably.
@@ -144,7 +161,8 @@
           this.updater.status = "Checking for updates..."
           try {
             const result = await window.krema.invoke("updater:check")
-            if (result && result.updateAvailable) {
+            const hasUpdate = Boolean(result && (result.updateAvailable ?? result.available))
+            if (hasUpdate) {
               this.updater.installed = false
               this.updater.available = true
               this.updater.ready = false
@@ -156,11 +174,17 @@
               this.updater.error = ""
               this.updater.status = "A newer version is available."
             } else {
+              this.updater.available = false
               this.updater.status = "No updates available."
             }
           } catch (e) {
             if (!this.updater.available) {
-              this.updater.error = e instanceof Error ? e.message : "Failed to check for updates"
+              const message = e instanceof Error
+                ? e.message
+                : (typeof e === "string" && e.trim().length ? e : JSON.stringify(e ?? "Failed to check for updates"))
+              this.updater.error = message
+              this.updater.status = "Update check failed."
+              try { console.error("updater:check failed", e) } catch (_ignored) {}
             }
           } finally {
             this.updater.checking = false
@@ -547,10 +571,7 @@
       </nav>
 
       <main class="main-content">
-        <section
-          v-if="isMainScreen && updater.supported"
-          class="updater-banner"
-        >
+        <section v-if="shouldShowUpdaterBanner()" class="updater-banner">
           <div class="updater-title">
             <template v-if="updater.installed">Update Installed</template>
             <template v-else-if="updater.ready">Update Ready</template>
