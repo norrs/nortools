@@ -8,6 +8,7 @@ cc_binary(
         "user32.lib",
         "shell32.lib",
     ],
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
 
@@ -259,6 +260,7 @@ genrule(
         "no-remote",
         "requires-native-image",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 alias(
@@ -355,6 +357,7 @@ genrule(
         "no-remote",
         "requires-native-image",
     ],
+    target_compatible_with = ["@platforms//os:macos"],
 )
 
 genrule(
@@ -447,6 +450,7 @@ genrule(
         "no-remote",
         "requires-native-image",
     ],
+    target_compatible_with = ["@platforms//os:macos"],
 )
 
 genrule(
@@ -538,6 +542,7 @@ genrule(
         "no-remote",
         "requires-native-image",
     ],
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 # Convenience runner: builds //desktop:native-linux-x64, extracts, and runs it
@@ -546,6 +551,7 @@ sh_binary(
         srcs = ["run_native_linux_x64.sh"],
         data = [":native-linux-x64"],
         args = ["$(location :native-linux-x64)"],
+        target_compatible_with = ["@platforms//os:linux"],
 )
 
 # Convenience runner: builds //desktop:native-macos-arm64, extracts, and runs it
@@ -554,6 +560,7 @@ sh_binary(
         srcs = ["run_native_macos_arm64.sh"],
         data = [":native-macos-arm64"],
         args = ["$(location :native-macos-arm64)"],
+        target_compatible_with = ["@platforms//os:macos"],
 )
 
 # Convenience runner: builds //desktop:native-windows-x64, extracts, and runs it
@@ -568,6 +575,7 @@ sh_binary(
             "$(location :native-windows-x64)",
             "$(location run_native_windows_x64.ps1)",
         ],
+        target_compatible_with = ["@platforms//os:windows"],
 )
 
 # Convenience GUI runner: builds //desktop:native-windows-x64, extracts, and launches nortools-gui.exe
@@ -582,6 +590,7 @@ sh_binary(
             "$(location :native-windows-x64)",
             "$(location run_native_windows_x64_gui.ps1)",
         ],
+        target_compatible_with = ["@platforms//os:windows"],
 )
 
 # Manual smoke test: builds the native linux tarball, runs the binary, and asserts /api/dns/A/nrk.no responds.
@@ -601,4 +610,5 @@ sh_test(
         "no-remote",         # do not attempt remote execution
         "requires-native-image",  # environment must have GraalVM native-image to build the tarball
     ],
+    target_compatible_with = ["@platforms//os:linux"],
 )

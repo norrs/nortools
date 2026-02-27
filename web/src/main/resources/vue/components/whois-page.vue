@@ -38,6 +38,11 @@
             </div>
           </div>
         </details>
+
+        <div v-if="footerDisclaimer || footerTermsUrl" class="whois-footer-notice">
+          <div v-if="footerDisclaimer" class="footer-disclaimer">{{ footerDisclaimer }}</div>
+          <a v-if="footerTermsUrl" :href="footerTermsUrl" @click.prevent="onTermsLinkClick" class="footer-terms-link">Terms & Conditions</a>
+        </div>
       </div>
 
       <div v-show="activeTab === 'raw'" class="tab-panel">
@@ -55,39 +60,78 @@
 app.component("whois-page", {
   template: "#whois-page",
   data() {
-    return { query: "", result: null, error: "", loading: false, activeTab: "overview" }
+    return { query: "", result: null, error: "", loading: false, activeTab: "overview", requestSeq: 0 }
   },
   computed: {
     hasParsedFields() {
       return this.summaryFields.length > 0 || this.otherFields.length > 0
     },
     summaryFields() {
-      if (!this.result) return []
+      const fields = this.result?.fields
+      if (!fields || typeof fields !== 'object') return []
       const keys = ['Domain Name', 'Registrar', 'Creation Date', 'Updated Date', 'Registry Expiry Date', 'Registrant Organization', 'Registrant Country', 'NetName', 'OrgName', 'CIDR', 'NetRange', 'DNSSEC']
-      return keys.filter((k) => this.result?.fields?.[k]).map((k) => ({ key: k, value: this.result.fields[k] }))
+      return keys.filter((k) => fields[k]).map((k) => ({ key: k, value: fields[k] }))
     },
     otherFields() {
-      if (!this.result) return []
+      const fields = this.result?.fields
+      if (!fields || typeof fields !== 'object') return []
       const used = new Set(this.summaryFields.map((f) => f.key))
-      return Object.entries(this.result.fields).filter(([k]) => !used.has(k)).map(([key, value]) => ({ key, value }))
+      used.add('Disclaimer')
+      used.add('Terms URL')
+      return Object.entries(fields).filter(([k]) => !used.has(k)).map(([key, value]) => ({ key, value }))
+    },
+    footerDisclaimer() {
+      return this.result?.fields?.['Disclaimer'] || ''
+    },
+    footerTermsUrl() {
+      return this.result?.fields?.['Terms URL'] || ''
     },
   },
   methods: {
+    hasKremaBridge() {
+      return !!(window.krema && typeof window.krema.invoke === "function")
+    },
+    async openExternalUrl(url) {
+      if (this.hasKremaBridge()) {
+        await window.krema.invoke("shell:openUrl", { url: String(url) })
+        return
+      }
+      window.open(String(url), "_blank", "noopener,noreferrer")
+    },
+    onTermsLinkClick() {
+      if (!this.footerTermsUrl) return
+      this.openExternalUrl(this.footerTermsUrl).catch(() => {
+        window.open(String(this.footerTermsUrl), "_blank", "noopener,noreferrer")
+      })
+    },
     async lookup() {
       if (!this.query) return
+      const requestId = ++this.requestSeq
       this.loading = true
       this.error = ''
       this.result = null
       this.activeTab = 'overview'
       try {
         const res = await fetch(`/api/whois/${encodeURIComponent(this.query)}`)
+        if (requestId !== this.requestSeq) return
+        const payload = await res.json()
         if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`)
-        this.result = await res.json()
+        if (payload && typeof payload === 'object' && payload.error) throw new Error(String(payload.error))
+        const fields = payload?.fields && typeof payload.fields === 'object' ? payload.fields : {}
+        this.result = {
+          query: payload?.query || this.query,
+          server: payload?.server || '',
+          fields,
+          raw: typeof payload?.raw === 'string' ? payload.raw : '',
+          servers: Array.isArray(payload?.servers) ? payload.servers : [],
+        }
         this.activeTab = this.hasParsedFields ? 'overview' : 'raw'
       } catch (e) {
+        if (requestId !== this.requestSeq) return
+        this.result = null
         this.error = e instanceof Error ? e.message : 'An error occurred'
       } finally {
-        this.loading = false
+        if (requestId === this.requestSeq) this.loading = false
       }
     },
   },
@@ -149,6 +193,14 @@ app.component("whois-page", {
 .whois-page .other-key { color: #64748b; font-size: 0.8rem; 
 }
 .whois-page .other-val { color: #111827; font-size: 0.82rem; word-break: break-word; 
+}
+.whois-page .whois-footer-notice { margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid #e5e7eb; font-size: 0.8rem; color: #475569; 
+}
+.whois-page .footer-disclaimer { line-height: 1.45; margin-bottom: 0.45rem; 
+}
+.whois-page .footer-terms-link { color: #0f172a; text-decoration: underline; font-size: 0.8rem; 
+}
+.whois-page .footer-terms-link:hover { color: #1e293b; 
 }
 .whois-page .empty { color: #64748b; font-size: 0.85rem; 
 }

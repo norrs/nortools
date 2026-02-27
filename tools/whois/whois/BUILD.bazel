@@ -8,6 +8,7 @@ kt_jvm_binary(
     deps = [
         "//lib/cli",
         "//lib/output",
+        "//tools/whois/common",
         "@maven//:com_github_ajalt_clikt_clikt_jvm",
     ],
 )
