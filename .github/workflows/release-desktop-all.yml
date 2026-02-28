@@ -150,6 +150,7 @@ jobs:
             openbox \
             python3-dogtail \
             python3-gi \
+            traceroute \
             xdotool \
             xvfb \
             zlib1g-dev

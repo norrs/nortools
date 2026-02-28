@@ -39,6 +39,19 @@ ROUTES = [
     ("13-domain-health", "Domain Health", "domain_health"),
 ]
 
+RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
+    "dns": (["status", "records ("], True, 12.0),
+    "http": (["response time", "headers ("], True, 12.0),
+    "https": (["chain diagram", "certificate details"], True, 14.0),
+    "subnet": (["total hosts", "network address"], True, 10.0),
+    "traceroute": (["hop diagram", "hops to"], True, 20.0),
+    "interfaces": (["routes (", "interfaces ("], True, 12.0),
+    "whois": (["whois server", "overview"], True, 12.0),
+    "reverse_dns": (["ptr records", "status"], True, 10.0),
+    "dns_health": (["nameservers", "soa"], True, 18.0),
+    "domain_health": (["pass", "total"], True, 18.0),
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -279,7 +292,35 @@ def xdotool_key(display: str, *keys: str) -> None:
     run_cmd(["xdotool", "key", *keys], display=display)
 
 
+def _normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().casefold()
+
+
 class DogtailNavigator:
+    def _walk(self, node):
+        yield node
+        children = list(getattr(node, "children", []) or [])
+        for child in children:
+            yield from self._walk(child)
+
+    def has_text_fragments(self, app, fragments: list[str], require_all: bool = True) -> bool:
+        wanted = [_normalize_text(fragment) for fragment in fragments if fragment]
+        if not wanted:
+            return False
+        matched = [False] * len(wanted)
+        for node in self._walk(app):
+            text = _normalize_text(str(getattr(node, "name", "") or ""))
+            if not text:
+                continue
+            for idx, needle in enumerate(wanted):
+                if not matched[idx] and needle in text:
+                    matched[idx] = True
+            if require_all and all(matched):
+                return True
+            if not require_all and any(matched):
+                return True
+        return all(matched) if require_all else any(matched)
+
     def find_app_root(self):
         from dogtail import tree
 
@@ -326,7 +367,28 @@ class AtspiNavigator:
 
     @staticmethod
     def _normalize_name(name: str) -> str:
-        return re.sub(r"\s+", " ", name).strip().casefold()
+        return _normalize_text(name)
+
+    def has_text_fragments(self, app, fragments: list[str], require_all: bool = True) -> bool:
+        wanted = [self._normalize_name(fragment) for fragment in fragments if fragment]
+        if not wanted:
+            return False
+        matched = [False] * len(wanted)
+        for node in self._walk(app):
+            try:
+                text = self._normalize_name(str(node.get_name() or ""))
+            except Exception:
+                continue
+            if not text:
+                continue
+            for idx, needle in enumerate(wanted):
+                if not matched[idx] and needle in text:
+                    matched[idx] = True
+            if require_all and all(matched):
+                return True
+            if not require_all and any(matched):
+                return True
+        return all(matched) if require_all else any(matched)
 
     def _iter_nortools_apps(self):
         return [app for app in self._iter_applications() if "nortools" in str(app.get_name() or "").lower()]
@@ -495,6 +557,39 @@ def create_navigator():
         return DogtailNavigator()
 
 
+def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, object]) -> None:
+    signal = RESULT_SIGNALS.get(route_key)
+    if signal is None:
+        return
+    fragments, require_all, timeout = signal
+    has_text_fragments = getattr(navigator, "has_text_fragments", None)
+    if not callable(has_text_fragments):
+        return
+
+    def predicate() -> bool:
+        app = app_ref.get("app")
+        if app is None:
+            try:
+                app = navigator.find_app_root()
+                app_ref["app"] = app
+            except Exception:
+                return False
+        try:
+            return bool(has_text_fragments(app, fragments, require_all))
+        except Exception:
+            try:
+                app_ref["app"] = navigator.find_app_root()
+            except Exception:
+                pass
+            return False
+
+    if not wait_for(predicate, timeout=timeout, interval=0.4):
+        raise RuntimeError(
+            f"Timed out waiting for AT-SPI result signal on route '{route_key}' "
+            f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all})"
+        )
+
+
 def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     # Coordinates are relative to the app window; tuned for default 1200x800.
     if route_key == "dns":
@@ -505,18 +600,18 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     elif route_key == "http":
         xdotool_click(display, window_id, 315, 120)
         xdotool_type(display, "http://example.com")
-        xdotool_key(display, "Return")
+        xdotool_click(display, window_id, 1050, 124)
         time.sleep(2.5)
     elif route_key == "https":
         xdotool_click(display, window_id, 315, 110)
         xdotool_type(display, "google.com")
-        xdotool_key(display, "Return")
-        time.sleep(3.5)
+        xdotool_click(display, window_id, 1050, 124)
+        time.sleep(4.0)
     elif route_key == "subnet":
         xdotool_click(display, window_id, 315, 120)
         xdotool_type(display, "192.168.1.0/24")
-        xdotool_key(display, "Return")
-        time.sleep(2.0)
+        xdotool_click(display, window_id, 1050, 134)
+        time.sleep(2.5)
     elif route_key == "password":
         xdotool_click(display, window_id, 286, 128)  # Length input
         xdotool_type(display, "20")
@@ -570,6 +665,8 @@ def run() -> int:
         raise RuntimeError("Xvfb is required but not found in PATH.")
     if shutil.which("import") is None:
         raise RuntimeError("ImageMagick `import` is required but not found in PATH.")
+    if shutil.which("traceroute") is None:
+        raise RuntimeError("`traceroute` is required but not found in PATH.")
 
     with tempfile.TemporaryDirectory(prefix="nortools-screenshots-") as tmp:
         workdir = Path(tmp)
@@ -579,6 +676,7 @@ def run() -> int:
         env = os.environ.copy()
         env["DISPLAY"] = args.display
         env.setdefault("LANG", "C.UTF-8")
+        env["NORTOOLS_DISABLE_UPDATER"] = "1"
         os.environ["DISPLAY"] = args.display
 
         xvfb: subprocess.Popen[bytes] | None = None
@@ -713,6 +811,7 @@ def run() -> int:
                 if not window_is_usable(args.display, window_id, min_width=300, min_height=200):
                     window_id = resolve_main_window_id(timeout=15.0)
                 perform_route_action(route_key, args.display, window_id)
+                wait_for_route_result_signal(route_key, navigator, app_ref)
                 capture_screen_with_retry(output_dir / f"{filename}.png", args.display, window_id)
 
         finally:

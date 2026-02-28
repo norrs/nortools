@@ -96,6 +96,7 @@ need_cmd Xvfb
 need_cmd xdotool
 need_cmd import
 need_cmd identify
+need_cmd traceroute
 
 check_python_atspi || die "Python Atspi bindings missing (install PyGObject/AT-SPI bindings for python3)."
 check_python_navigator || die "Neither dogtail nor Atspi Python bindings are usable."

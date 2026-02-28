@@ -194,6 +194,10 @@ private fun scoreBuildProperties(props: Properties): Int {
 
 private fun buildUpdaterConfig(devMode: Boolean): Map<String, Any> {
     if (devMode) return emptyMap()
+    if (System.getenv("NORTOOLS_DISABLE_UPDATER") == "1") {
+        println("[NorTools] Updater disabled: NORTOOLS_DISABLE_UPDATER=1")
+        return emptyMap()
+    }
     if (PINNED_UPDATER_PUBLIC_KEY_B64.isBlank()) {
         println("[NorTools] Updater disabled: PINNED_UPDATER_PUBLIC_KEY_B64 is not configured")
         return emptyMap()
