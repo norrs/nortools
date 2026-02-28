@@ -31,6 +31,12 @@ ROUTES = [
     ("05-subnet-calculator", "Subnet Calculator", "subnet"),
     ("06-password-generator", "Password Generator", "password"),
     ("07-about", "About", "about"),
+    ("08-traceroute", "Traceroute", "traceroute"),
+    ("09-interfaces-routing", ("Interfaces & Routing", "Interfaces and Routing"), "interfaces"),
+    ("10-whois-lookup", "WHOIS Lookup", "whois"),
+    ("11-reverse-dns", "Reverse DNS", "reverse_dns"),
+    ("12-dns-health", "DNS Health", "dns_health"),
+    ("13-domain-health", "Domain Health", "domain_health"),
 ]
 
 
@@ -521,6 +527,34 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     elif route_key == "about":
         # Let async /api/about render cards before capture.
         time.sleep(2.0)
+    elif route_key == "traceroute":
+        xdotool_click(display, window_id, 315, 132)
+        xdotool_type(display, "8.8.8.8")
+        xdotool_key(display, "Return")
+        time.sleep(8.0)
+    elif route_key == "interfaces":
+        # Interfaces page auto-loads on mount.
+        time.sleep(3.0)
+    elif route_key == "whois":
+        xdotool_click(display, window_id, 315, 120)
+        xdotool_type(display, "192.168.10.0")
+        xdotool_key(display, "Return")
+        time.sleep(4.0)
+    elif route_key == "reverse_dns":
+        xdotool_click(display, window_id, 315, 120)
+        xdotool_type(display, "1.1.1.1")
+        xdotool_key(display, "Return")
+        time.sleep(3.5)
+    elif route_key == "dns_health":
+        xdotool_click(display, window_id, 315, 120)
+        xdotool_type(display, "example.com")
+        xdotool_key(display, "Return")
+        time.sleep(8.0)
+    elif route_key == "domain_health":
+        xdotool_click(display, window_id, 315, 120)
+        xdotool_type(display, "example.com")
+        xdotool_key(display, "Return")
+        time.sleep(8.0)
 
 
 def run() -> int:

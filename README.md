@@ -25,12 +25,36 @@ Quick developer setup: see [developer-setup.md](developer-setup.md).
     <td><strong>Subnet Calculator</strong></td>
     <td><strong>Password Generator</strong></td>
     <td><strong>About</strong></td>
-    <td></td>
+    <td><strong>Traceroute</strong></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/05-subnet-calculator.png" alt="Subnet Calculator" width="220" /></td>
     <td><img src="docs/screenshots/06-password-generator.png" alt="Password Generator" width="220" /></td>
     <td><img src="docs/screenshots/07-about.png" alt="About" width="220" /></td>
+    <td><img src="docs/screenshots/08-traceroute.png" alt="Traceroute" width="220" /></td>
+  </tr>
+  <tr>
+    <td><strong>Interfaces & Routing</strong></td>
+    <td><strong>WHOIS Lookup</strong></td>
+    <td><strong>Reverse DNS</strong></td>
+    <td><strong>DNS Health</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/09-interfaces-routing.png" alt="Interfaces & Routing" width="220" /></td>
+    <td><img src="docs/screenshots/10-whois-lookup.png" alt="WHOIS Lookup" width="220" /></td>
+    <td><img src="docs/screenshots/11-reverse-dns.png" alt="Reverse DNS" width="220" /></td>
+    <td><img src="docs/screenshots/12-dns-health.png" alt="DNS Health" width="220" /></td>
+  </tr>
+  <tr>
+    <td><strong>Domain Health</strong></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/13-domain-health.png" alt="Domain Health" width="220" /></td>
+    <td></td>
+    <td></td>
     <td></td>
   </tr>
 </table>

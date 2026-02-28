@@ -74,6 +74,19 @@ object WhoisClient {
     private val ipV4Regex = Regex("^\\d{1,3}(?:\\.\\d{1,3}){3}$")
     private val structuredLineRegex = Regex("^([^:]{1,120}?):\\s*(.+)$")
     private val noridLineRegex = Regex("^([A-Za-z][A-Za-z0-9 .()/_-]{1,80}?)\\.+:\\s*(.+)$")
+    private val noisyFieldKeyRegexes = listOf(
+        Regex("(?i)^notice(\\s+\\d+)?$"),
+        Regex("(?i)^remarks?$"),
+        Regex("(?i)^comment$"),
+        Regex("(?i)^disclaimer$"),
+        Regex("(?i)^whois disclaimer$"),
+        Regex("(?i)^copyright notice$"),
+        Regex("(?i)^url of the icann whois data problem reporting system$"),
+        Regex("(?i)^last update of whois database$"),
+    )
+    private val boilerplateValueRegex = Regex(
+        "(?i)(terms and conditions|for more information on whois status codes|icann\\.org/epp|whois database|permission|prohibited|legal|without prior written consent|copyright|commercial use|targeted marketing)",
+    )
 
     fun determineWhoisServer(query: String): String {
         if (ipV4Regex.matches(query) || query.contains(':')) {
@@ -177,7 +190,7 @@ object WhoisClient {
             if (kv != null) {
                 val key = normalizeFieldKey(kv.groupValues[1].trim().trimEnd('.'))
                 val value = kv.groupValues[2].trim()
-                if (key.isNotEmpty() && value.isNotEmpty()) {
+                if (key.isNotEmpty() && value.isNotEmpty() && !shouldSkipField(key, value)) {
                     val previous = fields[key]
                     fields[key] = if (previous == null || previous.equals(value, ignoreCase = true)) {
                         value
@@ -233,6 +246,34 @@ object WhoisClient {
             Regex("(?i)^whois terms?( of use)?$").matches(compact) -> "Terms of Use"
             else -> compact
         }
+    }
+
+    private fun shouldSkipField(key: String, value: String): Boolean {
+        val compactKey = key.trim().replace(Regex("\\s+"), " ")
+        if (noisyFieldKeyRegexes.any { it.matches(compactKey) }) return true
+
+        if (
+            compactKey.equals("Terms of Use", ignoreCase = true) &&
+            (value.length > 120 || boilerplateValueRegex.containsMatchIn(value))
+        ) {
+            return true
+        }
+
+        val lowerKey = compactKey.lowercase()
+        if (
+            lowerKey.contains("whois database") ||
+            lowerKey.contains("icann whois data problem reporting") ||
+            lowerKey.contains("for more information on whois status codes")
+        ) {
+            return true
+        }
+
+        if (lowerKey == "http" || lowerKey == "https") return true
+
+        val keyWordCount = compactKey.split(Regex("\\s+")).size
+        if (keyWordCount >= 7) return true
+
+        return value.length > 180 && boilerplateValueRegex.containsMatchIn(value)
     }
 
     private fun inferRirReferral(response: String, currentServer: String): String? {

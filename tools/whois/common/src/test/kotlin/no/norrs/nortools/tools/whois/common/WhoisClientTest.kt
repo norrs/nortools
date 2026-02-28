@@ -122,4 +122,25 @@ class WhoisClientTest {
             fields["Terms of Use"],
         )
     }
+
+    @Test
+    fun `filters registrar disclaimer boilerplate while keeping useful fields`() {
+        val response = """
+            Domain Name: example.org
+            Registrar: Example Registrar, Inc.
+            Notice: This Whois database is provided for information purposes only and is designed to assist persons in obtaining information related to domain name registration records.
+            Terms of Use: By submitting this query, you agree to abide by these terms and conditions. This data is protected by copyright and may not be used for commercial use or targeted marketing.
+            URL of the ICANN Whois Data Problem Reporting System: http://wdprs.internic.net/
+            Name Server: NS1.EXAMPLE.ORG
+        """.trimIndent()
+
+        val fields = WhoisClient.parseWhoisFields(response)
+
+        assertEquals("example.org", fields["Domain Name"])
+        assertEquals("Example Registrar, Inc.", fields["Registrar"])
+        assertEquals("NS1.EXAMPLE.ORG", fields["Name Server"])
+        assertNull(fields["Notice"])
+        assertNull(fields["Terms of Use"])
+        assertNull(fields["URL of the ICANN Whois Data Problem Reporting System"])
+    }
 }
