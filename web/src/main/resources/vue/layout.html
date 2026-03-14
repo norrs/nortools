@@ -286,7 +286,7 @@
       width: 240px;
       background: #1a1a2e;
       color: #eee;
-      padding: 1rem;
+      padding: 0 1rem 1rem;
       min-height: 100vh;
       position: sticky;
       top: 0;
@@ -299,15 +299,25 @@
       text-decoration: none;
       color: #4fc3f7;
       display: block;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #1a1a2e;
+      margin: 0 -1rem;
+      padding: 1rem 1rem 0.75rem;
     }
 
     .logo h1 {
       font-size: 1.4rem;
-      margin-bottom: 1.5rem;
+      margin: 0;
     }
 
     .sidebar .tool-group {
       margin-bottom: 1.5rem;
+    }
+
+    .sidebar .tool-group:first-of-type {
+      margin-top: 0.75rem;
     }
 
     .sidebar .tool-group h3 {
@@ -473,7 +483,7 @@
 <body>
   <main id="main-vue">
     <div class="app-layout">
-      <nav class="sidebar">
+      <nav class="sidebar" id="sidebar-nav">
         <a href="/" class="logo" aria-label="Home">
           <h1>NorTools</h1>
         </a>
@@ -630,6 +640,59 @@
 
   <script>
     app.mount("#main-vue")
+
+    ;(function preserveNavAndPageScroll() {
+      const sidebar = document.getElementById("sidebar-nav")
+      if (!sidebar) return
+
+      const sidebarKey = "nortools:sidebar-scroll-top"
+      const pageKey = "nortools:page-scroll-y"
+      const restorePageKey = "nortools:restore-page-scroll"
+
+      try {
+        const savedSidebar = Number(window.sessionStorage.getItem(sidebarKey))
+        if (Number.isFinite(savedSidebar) && savedSidebar > 0) {
+          sidebar.scrollTop = savedSidebar
+        }
+      } catch (_e) {
+        // Best effort only.
+      }
+
+      try {
+        const shouldRestorePage = window.sessionStorage.getItem(restorePageKey) === "1"
+        const savedPageY = Number(window.sessionStorage.getItem(pageKey))
+        if (shouldRestorePage && Number.isFinite(savedPageY) && savedPageY > 0) {
+          window.requestAnimationFrame(() => {
+            window.scrollTo(0, savedPageY)
+          })
+        }
+        window.sessionStorage.removeItem(restorePageKey)
+      } catch (_e) {
+        // Best effort only.
+      }
+
+      const saveSidebarScroll = () => {
+        try {
+          window.sessionStorage.setItem(sidebarKey, String(sidebar.scrollTop))
+        } catch (_e) {
+          // Best effort only.
+        }
+      }
+
+      sidebar.addEventListener("scroll", saveSidebarScroll, { passive: true })
+
+      document.querySelectorAll("#sidebar-nav a[href]").forEach((link) => {
+        link.addEventListener("click", () => {
+          try {
+            window.sessionStorage.setItem(sidebarKey, String(sidebar.scrollTop))
+            window.sessionStorage.setItem(pageKey, String(window.scrollY || 0))
+            window.sessionStorage.setItem(restorePageKey, "1")
+          } catch (_e) {
+            // Best effort only.
+          }
+        })
+      })
+    })()
 
     ;(function setActiveSidebarLink() {
       const path = window.location.pathname
