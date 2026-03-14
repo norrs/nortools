@@ -40,7 +40,10 @@ ROUTES = [
 ]
 
 RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
-    "dns": (["status", "records ("], True, 12.0),
+    # DNS lookups can legitimately return either records, an empty-state message,
+    # or an API error depending on CI resolver/network conditions.
+    # Treat any of these as "result rendered" and allow extra time.
+    "dns": (["records (", "no dns records returned", "api error"], False, 12.0),
     "http": (["response time", "headers ("], True, 12.0),
     "https": (["chain diagram", "certificate details"], True, 14.0),
     "subnet": (["total hosts", "network address"], True, 10.0),
@@ -309,12 +312,17 @@ class DogtailNavigator:
             return False
         matched = [False] * len(wanted)
         for node in self._walk(app):
-            text = _normalize_text(str(getattr(node, "name", "") or ""))
-            if not text:
-                continue
-            for idx, needle in enumerate(wanted):
-                if not matched[idx] and needle in text:
-                    matched[idx] = True
+            texts = [
+                _normalize_text(str(getattr(node, "name", "") or "")),
+                _normalize_text(str(getattr(node, "description", "") or "")),
+                _normalize_text(str(getattr(node, "text", "") or "")),
+            ]
+            for text in texts:
+                if not text:
+                    continue
+                for idx, needle in enumerate(wanted):
+                    if not matched[idx] and needle in text:
+                        matched[idx] = True
             if require_all and all(matched):
                 return True
             if not require_all and any(matched):
@@ -375,15 +383,30 @@ class AtspiNavigator:
             return False
         matched = [False] * len(wanted)
         for node in self._walk(app):
+            texts: list[str] = []
             try:
-                text = self._normalize_name(str(node.get_name() or ""))
+                texts.append(self._normalize_name(str(node.get_name() or "")))
             except Exception:
-                continue
-            if not text:
-                continue
-            for idx, needle in enumerate(wanted):
-                if not matched[idx] and needle in text:
-                    matched[idx] = True
+                pass
+            try:
+                texts.append(self._normalize_name(str(node.get_description() or "")))
+            except Exception:
+                pass
+            # Some GTK/AT-SPI widgets expose visible content via Atspi.Text and
+            # not via name/description. Probe this when available.
+            try:
+                char_count = int(self.Atspi.Text.get_character_count(node) or 0)
+                if char_count > 0:
+                    snippet = self.Atspi.Text.get_text(node, 0, min(char_count, 4096))
+                    texts.append(self._normalize_name(str(snippet or "")))
+            except Exception:
+                pass
+            for text in texts:
+                if not text:
+                    continue
+                for idx, needle in enumerate(wanted):
+                    if not matched[idx] and needle in text:
+                        matched[idx] = True
             if require_all and all(matched):
                 return True
             if not require_all and any(matched):
@@ -566,12 +589,16 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
     if not callable(has_text_fragments):
         return
 
+    last_refresh = [0.0]
+
     def predicate() -> bool:
+        now = time.monotonic()
         app = app_ref.get("app")
-        if app is None:
+        if app is None or (now - last_refresh[0]) >= 1.5:
             try:
                 app = navigator.find_app_root()
                 app_ref["app"] = app
+                last_refresh[0] = now
             except Exception:
                 return False
         try:
@@ -593,9 +620,12 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
 def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     # Coordinates are relative to the app window; tuned for default 1200x800.
     if route_key == "dns":
-        xdotool_click(display, window_id, 315, 132)
+        # DNS page layout has moved over time; trigger both enter-submit and
+        # explicit button click to avoid focus-sensitive flakes in CI.
+        xdotool_click(display, window_id, 315, 170)
         xdotool_type(display, "example.com")
         xdotool_key(display, "Return")
+        xdotool_click(display, window_id, 1050, 170)
         time.sleep(2.5)
     elif route_key == "http":
         xdotool_click(display, window_id, 315, 120)
