@@ -46,7 +46,9 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "dns": (["records (", "no dns records returned", "api error"], False, 30.0),
     "http": (["response time", "headers ("], True, 30.0),
     "https": (["chain diagram", "certificate details"], True, 30.0),
-    "subnet": (["total hosts", "network address"], True, 30.0),
+    # Some runtimes expose subnet result values but omit the surrounding labels
+    # ("Total Hosts", "Network Address") from AT-SPI text nodes.
+    "subnet": (["192.168.1.255", "192.168.1.254"], True, 30.0),
     "traceroute": (["hop diagram", "hops to"], True, 30.0),
     "interfaces": (["routes (", "interfaces ("], True, 30.0),
     "whois": (["whois server", "overview"], True, 30.0),
