@@ -120,6 +120,7 @@ jobs:
           retention-days: 7
           path: |
             pr-screenshots/*.png
+            pr-screenshots/*.html
             pr-screenshots/README.md
 
       - name: Comment PR with result
