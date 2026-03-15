@@ -308,6 +308,39 @@ def xdotool_focus_window(display: str, window_id: str) -> None:
     run_cmd(["xdotool", "windowactivate", "--sync", window_id], display=display, check=False)
 
 
+def xdotool_fill_and_submit(
+    display: str,
+    window_id: str,
+    *,
+    input_x: int,
+    input_y: int,
+    button_x: int,
+    button_y: int,
+    text: str,
+) -> None:
+    xdotool_focus_window(display, window_id)
+    xdotool_key(display, "Escape")
+    time.sleep(0.1)
+    xdotool_click(display, window_id, input_x, input_y)
+    time.sleep(0.1)
+    xdotool_click(display, window_id, input_x, input_y)
+    xdotool_type(display, text)
+    xdotool_key(display, "Return")
+    time.sleep(0.2)
+    xdotool_click(display, window_id, button_x, button_y)
+
+
+def xdotool_select_first_dropdown_option(display: str, window_id: str, *, x: int, y: int) -> None:
+    xdotool_click(display, window_id, x, y)
+    time.sleep(0.08)
+    # Native select menus usually start at index 0 (System resolver).
+    xdotool_key(display, "Home")
+    time.sleep(0.05)
+    xdotool_key(display, "Return")
+    time.sleep(0.05)
+    xdotool_key(display, "Escape")
+
+
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().casefold()
 
@@ -876,6 +909,27 @@ def _write_timeout_artifacts(
         artifacts.append(html_path)
     except Exception as exc:
         print(f"[capture] warning: failed to write AT-SPI dump for '{route_key}': {exc}", flush=True)
+    readme_path = debug_output_dir / "README.md"
+    try:
+        readme_lines = [
+            f"## Debug timeout: {route_key}",
+            "",
+            f"- Timeout: {timeout:.1f}s",
+            f"- Fragments: {fragments}",
+            f"- Require all: {require_all}",
+        ]
+        if isinstance(debug_snapshot, dict):
+            info = _format_fragment_debug_info(debug_snapshot, sample_limit=4).lstrip("; ").strip()
+            if info:
+                readme_lines.append(f"- Snapshot: {info}")
+        if artifacts:
+            readme_lines.append(f"- Artifacts: {[path.name for path in artifacts]}")
+        readme_lines.append("")
+        with readme_path.open("a", encoding="utf-8") as fh:
+            fh.write("\n".join(readme_lines))
+            fh.write("\n")
+    except Exception as exc:
+        print(f"[capture] warning: failed to append timeout README details for '{route_key}': {exc}", flush=True)
     return artifacts
 
 
@@ -981,50 +1035,55 @@ def wait_for_route_result_signal(
 def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     # Coordinates are relative to the app window; tuned for default 1200x800.
     if route_key == "dns":
-        # DNS page layout has moved over time; trigger both enter-submit and
-        # explicit button click to avoid focus-sensitive flakes in CI.
+        # Force resolver back to "System resolver" and ensure the dropdown is
+        # closed before capture.
         xdotool_focus_window(display, window_id)
         xdotool_key(display, "Escape")
         time.sleep(0.1)
-        xdotool_click(display, window_id, 315, 112)
-        time.sleep(0.1)
-        xdotool_click(display, window_id, 315, 112)
-        xdotool_type(display, "example.com")
-        xdotool_key(display, "Return")
-        time.sleep(0.2)
-        xdotool_click(display, window_id, 1060, 112)
+        xdotool_select_first_dropdown_option(display, window_id, x=930, y=112)
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=112,
+            button_x=1060,
+            button_y=112,
+            text="example.com",
+        )
+        xdotool_key(display, "Escape")
         time.sleep(2.5)
     elif route_key == "http":
-        xdotool_focus_window(display, window_id)
-        # Close any open popovers from the previous route before interacting.
-        xdotool_key(display, "Escape")
-        time.sleep(0.1)
-        # Input can miss focus in CI; click twice and submit by Enter, then
-        # click the button as fallback.
-        xdotool_click(display, window_id, 315, 120)
-        time.sleep(0.1)
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "http://example.com")
-        xdotool_key(display, "Return")
-        time.sleep(0.2)
-        xdotool_click(display, window_id, 1050, 124)
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1050,
+            button_y=124,
+            text="http://example.com",
+        )
         time.sleep(2.5)
     elif route_key == "https":
-        xdotool_focus_window(display, window_id)
-        xdotool_key(display, "Escape")
-        time.sleep(0.1)
-        xdotool_click(display, window_id, 315, 92)
-        time.sleep(0.1)
-        xdotool_click(display, window_id, 315, 92)
-        xdotool_type(display, "google.com")
-        xdotool_key(display, "Return")
-        time.sleep(0.2)
-        xdotool_click(display, window_id, 1060, 92)
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=92,
+            button_x=1060,
+            button_y=92,
+            text="google.com",
+        )
         time.sleep(4.0)
     elif route_key == "subnet":
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "192.168.1.0/24")
-        xdotool_click(display, window_id, 1050, 134)
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1060,
+            button_y=120,
+            text="192.168.1.0/24",
+        )
         time.sleep(2.5)
     elif route_key == "password":
         xdotool_click(display, window_id, 286, 128)  # Length input
@@ -1037,32 +1096,62 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
         # Let async /api/about render cards before capture.
         time.sleep(2.0)
     elif route_key == "traceroute":
-        xdotool_click(display, window_id, 315, 132)
-        xdotool_type(display, "8.8.8.8")
-        xdotool_key(display, "Return")
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=132,
+            button_x=1060,
+            button_y=132,
+            text="8.8.8.8",
+        )
         time.sleep(8.0)
     elif route_key == "interfaces":
         # Interfaces page auto-loads on mount.
         time.sleep(3.0)
     elif route_key == "whois":
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "192.168.10.0")
-        xdotool_key(display, "Return")
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1060,
+            button_y=120,
+            text="192.168.10.0",
+        )
         time.sleep(4.0)
     elif route_key == "reverse_dns":
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "1.1.1.1")
-        xdotool_key(display, "Return")
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1060,
+            button_y=120,
+            text="1.1.1.1",
+        )
         time.sleep(3.5)
     elif route_key == "dns_health":
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "example.com")
-        xdotool_key(display, "Return")
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1060,
+            button_y=120,
+            text="example.com",
+        )
         time.sleep(8.0)
     elif route_key == "domain_health":
-        xdotool_click(display, window_id, 315, 120)
-        xdotool_type(display, "example.com")
-        xdotool_key(display, "Return")
+        xdotool_fill_and_submit(
+            display,
+            window_id,
+            input_x=315,
+            input_y=120,
+            button_x=1060,
+            button_y=120,
+            text="example.com",
+        )
         time.sleep(8.0)
 
 
