@@ -586,6 +586,14 @@ def create_navigator():
 
 
 def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, object]) -> None:
+    ci_mode = _env_flag("CI")
+    require_signals = _env_flag("CAPTURE_SCREENSHOTS_REQUIRE_ROUTE_SIGNALS")
+    if ci_mode and not require_signals:
+        # Historically CI captures were stable using fixed route delays only.
+        # AT-SPI text propagation is runtime-dependent and can flake in headless
+        # sessions, so skip strict signal gating in CI by default.
+        return
+
     signal = RESULT_SIGNALS.get(route_key)
     if signal is None:
         return
