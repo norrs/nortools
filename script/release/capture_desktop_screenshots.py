@@ -1180,7 +1180,7 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             input_y=92,
             button_x=1060,
             button_y=92,
-            text="1.1.1.1",
+            text="8.8.8.8",
         )
         time.sleep(8.0)
     elif route_key == "interfaces":
