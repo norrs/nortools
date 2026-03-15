@@ -852,25 +852,30 @@ def _write_timeout_artifacts(
         except Exception as exc:
             print(f"[capture] warning: failed to capture timeout screenshot for '{route_key}': {exc}", flush=True)
     debug_snapshot = _collect_fragment_debug_snapshot(navigator, app_ref, fragments)
+    rows: list[tuple[str, str, str, str]] = []
+    truncated = False
     app = _refresh_app_ref(navigator, app_ref)
     if app is not None:
         try:
             rows, truncated = _collect_accessibility_rows(navigator, app, max_nodes=1400)
-            dump_html = _render_accessibility_dump_html(
-                route_key=route_key,
-                fragments=fragments,
-                require_all=require_all,
-                timeout=timeout,
-                debug_snapshot=debug_snapshot,
-                rows=rows,
-                truncated=truncated,
-            )
-            html_path = debug_output_dir / f"debug-{route_key}-atspi-{stamp}.html"
-            html_path.write_text(dump_html, encoding="utf-8")
-            print(f"[capture] debug: wrote AT-SPI dump: {html_path}", flush=True)
-            artifacts.append(html_path)
         except Exception as exc:
-            print(f"[capture] warning: failed to write AT-SPI dump for '{route_key}': {exc}", flush=True)
+            print(f"[capture] warning: failed to collect AT-SPI rows for '{route_key}': {exc}", flush=True)
+    try:
+        dump_html = _render_accessibility_dump_html(
+            route_key=route_key,
+            fragments=fragments,
+            require_all=require_all,
+            timeout=timeout,
+            debug_snapshot=debug_snapshot,
+            rows=rows,
+            truncated=truncated,
+        )
+        html_path = debug_output_dir / f"debug-{route_key}-atspi-{stamp}.html"
+        html_path.write_text(dump_html, encoding="utf-8")
+        print(f"[capture] debug: wrote AT-SPI dump: {html_path}", flush=True)
+        artifacts.append(html_path)
+    except Exception as exc:
+        print(f"[capture] warning: failed to write AT-SPI dump for '{route_key}': {exc}", flush=True)
     return artifacts
 
 
@@ -978,10 +983,16 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
     if route_key == "dns":
         # DNS page layout has moved over time; trigger both enter-submit and
         # explicit button click to avoid focus-sensitive flakes in CI.
-        xdotool_click(display, window_id, 315, 170)
+        xdotool_focus_window(display, window_id)
+        xdotool_key(display, "Escape")
+        time.sleep(0.1)
+        xdotool_click(display, window_id, 315, 112)
+        time.sleep(0.1)
+        xdotool_click(display, window_id, 315, 112)
         xdotool_type(display, "example.com")
         xdotool_key(display, "Return")
-        xdotool_click(display, window_id, 1050, 170)
+        time.sleep(0.2)
+        xdotool_click(display, window_id, 1060, 112)
         time.sleep(2.5)
     elif route_key == "http":
         xdotool_focus_window(display, window_id)
@@ -999,9 +1010,16 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
         xdotool_click(display, window_id, 1050, 124)
         time.sleep(2.5)
     elif route_key == "https":
-        xdotool_click(display, window_id, 315, 110)
+        xdotool_focus_window(display, window_id)
+        xdotool_key(display, "Escape")
+        time.sleep(0.1)
+        xdotool_click(display, window_id, 315, 92)
+        time.sleep(0.1)
+        xdotool_click(display, window_id, 315, 92)
         xdotool_type(display, "google.com")
-        xdotool_click(display, window_id, 1050, 124)
+        xdotool_key(display, "Return")
+        time.sleep(0.2)
+        xdotool_click(display, window_id, 1060, 92)
         time.sleep(4.0)
     elif route_key == "subnet":
         xdotool_click(display, window_id, 315, 120)
