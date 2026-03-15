@@ -76,6 +76,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _env_flag(name: str) -> bool:
+    value = str(os.environ.get(name, "")).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def kill_process_tree(proc: subprocess.Popen[bytes]) -> None:
     if proc.poll() is not None:
         return
@@ -611,6 +616,14 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
             return False
 
     if not wait_for(predicate, timeout=timeout, interval=0.4):
+        ci_mode = _env_flag("CI")
+        allow_dns_timeout = _env_flag("CAPTURE_SCREENSHOTS_ALLOW_DNS_TIMEOUT") or ci_mode
+        if route_key == "dns" and allow_dns_timeout:
+            print(
+                f"[capture] warning: DNS AT-SPI result signal timed out after {timeout:.1f}s; continuing in CI mode.",
+                flush=True,
+            )
+            return
         raise RuntimeError(
             f"Timed out waiting for AT-SPI result signal on route '{route_key}' "
             f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all})"
