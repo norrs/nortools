@@ -12,6 +12,7 @@ Pipeline:
 from __future__ import annotations
 
 import argparse
+import html
 import os
 import re
 import shutil
@@ -54,6 +55,7 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "dns_health": (["nameservers", "soa"], True, 30.0),
     "domain_health": (["pass", "total"], True, 30.0),
 }
+MIN_ROUTE_SIGNAL_TIMEOUT_SECONDS = 30.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -302,6 +304,10 @@ def xdotool_key(display: str, *keys: str) -> None:
 
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().casefold()
+
+
+def _compact_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 class DogtailNavigator:
@@ -656,7 +662,221 @@ def create_navigator():
         return DogtailNavigator()
 
 
-def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, object]) -> None:
+def _refresh_app_ref(navigator, app_ref: dict[str, object]) -> object | None:
+    app = app_ref.get("app")
+    if app is not None:
+        return app
+    try:
+        app = navigator.find_app_root()
+        app_ref["app"] = app
+        return app
+    except Exception:
+        return None
+
+
+def _collect_fragment_debug_snapshot(navigator, app_ref: dict[str, object], fragments: list[str]) -> dict[str, object] | None:
+    snapshot_fn = getattr(navigator, "fragment_debug_snapshot", None)
+    if not callable(snapshot_fn):
+        return None
+    app = _refresh_app_ref(navigator, app_ref)
+    if app is None:
+        return None
+    try:
+        return snapshot_fn(app, fragments)
+    except Exception:
+        try:
+            app = navigator.find_app_root()
+            app_ref["app"] = app
+        except Exception:
+            return None
+        try:
+            return snapshot_fn(app, fragments)
+        except Exception:
+            return None
+
+
+def _format_fragment_debug_info(debug_snapshot: object, sample_limit: int = 5) -> str:
+    if not isinstance(debug_snapshot, dict):
+        return ""
+    wanted = list(debug_snapshot.get("wanted", []) or [])
+    matched = list(debug_snapshot.get("matched", []) or [])
+    matched_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and ok]
+    missing_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and not ok]
+    samples = list(debug_snapshot.get("samples", []) or [])[:sample_limit]
+    scanned_nodes = int(debug_snapshot.get("scanned_nodes", 0) or 0)
+    return (
+        f"; matched={matched_fragments} missing={missing_fragments} "
+        f"scanned_nodes={scanned_nodes} sample_texts={samples}"
+    )
+
+
+def _node_debug_fields(node, navigator) -> tuple[str, str, str, str]:
+    role = ""
+    name = ""
+    description = ""
+    text_value = ""
+    try:
+        role = _compact_text(str(node.get_role_name() or ""))
+    except Exception:
+        role = _compact_text(str(getattr(node, "roleName", "") or ""))
+    try:
+        name = _compact_text(str(node.get_name() or ""))
+    except Exception:
+        name = _compact_text(str(getattr(node, "name", "") or ""))
+    try:
+        description = _compact_text(str(node.get_description() or ""))
+    except Exception:
+        description = _compact_text(str(getattr(node, "description", "") or ""))
+    try:
+        text_value = _compact_text(str(getattr(node, "text", "") or ""))
+    except Exception:
+        text_value = ""
+    atspi = getattr(navigator, "Atspi", None)
+    if atspi is not None and not text_value:
+        try:
+            char_count = int(atspi.Text.get_character_count(node) or 0)
+            if char_count > 0:
+                text_value = _compact_text(str(atspi.Text.get_text(node, 0, min(char_count, 1024)) or ""))
+        except Exception:
+            pass
+    return role, name, description, text_value
+
+
+def _collect_accessibility_rows(navigator, app, max_nodes: int = 1200) -> tuple[list[tuple[str, str, str, str]], bool]:
+    walk_fn = getattr(navigator, "_walk", None)
+    if not callable(walk_fn):
+        return [], False
+    rows: list[tuple[str, str, str, str]] = []
+    truncated = False
+    for node in walk_fn(app):
+        if len(rows) >= max_nodes:
+            truncated = True
+            break
+        role, name, description, text_value = _node_debug_fields(node, navigator)
+        if not any((role, name, description, text_value)):
+            continue
+        rows.append((role[:120], name[:200], description[:300], text_value[:300]))
+    return rows, truncated
+
+
+def _render_accessibility_dump_html(
+    route_key: str,
+    fragments: list[str],
+    require_all: bool,
+    timeout: float,
+    debug_snapshot: dict[str, object] | None,
+    rows: list[tuple[str, str, str, str]],
+    truncated: bool,
+) -> str:
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    heading = html.escape(f"Route timeout accessibility dump: {route_key}")
+    summary_lines = [
+        f"generated_at={timestamp}",
+        f"route={route_key}",
+        f"timeout_seconds={timeout:.1f}",
+        f"fragments={fragments}",
+        f"require_all={require_all}",
+    ]
+    if isinstance(debug_snapshot, dict):
+        summary_lines.append(_format_fragment_debug_info(debug_snapshot, sample_limit=8).lstrip("; "))
+    summary_lines.append(f"rows={len(rows)} truncated={truncated}")
+    summary_block = "\n".join(html.escape(line) for line in summary_lines if line)
+    table_rows = []
+    for role, name, description, text_value in rows:
+        table_rows.append(
+            "<tr>"
+            f"<td>{html.escape(role)}</td>"
+            f"<td>{html.escape(name)}</td>"
+            f"<td>{html.escape(description)}</td>"
+            f"<td>{html.escape(text_value)}</td>"
+            "</tr>"
+        )
+    body_rows = "\n".join(table_rows)
+    return (
+        "<!doctype html>\n"
+        "<html><head><meta charset='utf-8' />"
+        f"<title>{heading}</title>"
+        "<style>"
+        "body{font-family:monospace;padding:16px;}"
+        "table{border-collapse:collapse;width:100%;font-size:12px;}"
+        "th,td{border:1px solid #ccc;vertical-align:top;padding:4px;text-align:left;}"
+        "pre{background:#f5f5f5;padding:8px;white-space:pre-wrap;}"
+        "</style></head><body>"
+        f"<h1>{heading}</h1>"
+        f"<pre>{summary_block}</pre>"
+        "<table><thead><tr><th>role</th><th>name</th><th>description</th><th>text</th></tr></thead><tbody>"
+        f"{body_rows}</tbody></table>"
+        "</body></html>\n"
+    )
+
+
+def _capture_timeout_screenshot(output_path: Path, display: str, window_id: str | None) -> None:
+    if window_id:
+        try:
+            capture_screen(output_path, display, window_id)
+            return
+        except Exception:
+            pass
+    subprocess.run(["import", "-display", display, "-window", "root", str(output_path)], check=True)
+
+
+def _write_timeout_artifacts(
+    route_key: str,
+    *,
+    navigator,
+    app_ref: dict[str, object],
+    fragments: list[str],
+    require_all: bool,
+    timeout: float,
+    display: str | None,
+    window_id: str | None,
+    debug_output_dir: Path | None,
+) -> list[Path]:
+    if debug_output_dir is None:
+        return []
+    debug_output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    artifacts: list[Path] = []
+    if display:
+        screenshot_path = debug_output_dir / f"debug-{route_key}-timeout-{stamp}.png"
+        try:
+            _capture_timeout_screenshot(screenshot_path, display, window_id)
+            print(f"[capture] debug: wrote timeout screenshot: {screenshot_path}", flush=True)
+            artifacts.append(screenshot_path)
+        except Exception as exc:
+            print(f"[capture] warning: failed to capture timeout screenshot for '{route_key}': {exc}", flush=True)
+    debug_snapshot = _collect_fragment_debug_snapshot(navigator, app_ref, fragments)
+    app = _refresh_app_ref(navigator, app_ref)
+    if app is not None:
+        try:
+            rows, truncated = _collect_accessibility_rows(navigator, app, max_nodes=1400)
+            dump_html = _render_accessibility_dump_html(
+                route_key=route_key,
+                fragments=fragments,
+                require_all=require_all,
+                timeout=timeout,
+                debug_snapshot=debug_snapshot,
+                rows=rows,
+                truncated=truncated,
+            )
+            html_path = debug_output_dir / f"debug-{route_key}-atspi-{stamp}.html"
+            html_path.write_text(dump_html, encoding="utf-8")
+            print(f"[capture] debug: wrote AT-SPI dump: {html_path}", flush=True)
+            artifacts.append(html_path)
+        except Exception as exc:
+            print(f"[capture] warning: failed to write AT-SPI dump for '{route_key}': {exc}", flush=True)
+    return artifacts
+
+
+def wait_for_route_result_signal(
+    route_key: str,
+    navigator,
+    app_ref: dict[str, object],
+    *,
+    display: str | None = None,
+    window_id: str | None = None,
+    debug_output_dir: Path | None = None,
+) -> None:
     if _env_flag("CAPTURE_SCREENSHOTS_SKIP_ROUTE_SIGNALS"):
         return
 
@@ -664,11 +884,13 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
     if signal is None:
         return
     fragments, require_all, timeout = signal
+    timeout = max(float(timeout), MIN_ROUTE_SIGNAL_TIMEOUT_SECONDS)
     has_text_fragments = getattr(navigator, "has_text_fragments", None)
     if not callable(has_text_fragments):
         return
 
     last_refresh = [0.0]
+    last_probe_error = [""]
 
     def predicate() -> bool:
         now = time.monotonic()
@@ -679,55 +901,69 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
                 app_ref["app"] = app
                 last_refresh[0] = now
             except Exception:
+                last_probe_error[0] = "find_app_root failed"
                 return False
         try:
+            last_probe_error[0] = ""
             return bool(has_text_fragments(app, fragments, require_all))
-        except Exception:
+        except Exception as exc:
+            last_probe_error[0] = f"{type(exc).__name__}: {exc}"
             try:
                 app_ref["app"] = navigator.find_app_root()
             except Exception:
                 pass
             return False
 
-    if not wait_for(predicate, timeout=timeout, interval=0.4):
+    interval = 0.4
+    started = time.monotonic()
+    next_progress_log = started + 2.5
+    completed = False
+    while time.monotonic() - started < timeout:
+        if predicate():
+            completed = True
+            break
+        now = time.monotonic()
+        if now >= next_progress_log:
+            progress_snapshot = _collect_fragment_debug_snapshot(navigator, app_ref, fragments)
+            progress_info = _format_fragment_debug_info(progress_snapshot, sample_limit=3)
+            probe_error_info = f"; probe_error={last_probe_error[0]}" if last_probe_error[0] else ""
+            print(
+                f"[capture] waiting for route signal '{route_key}' "
+                f"{(now - started):.1f}/{timeout:.1f}s{progress_info}{probe_error_info}",
+                flush=True,
+            )
+            next_progress_log = now + 2.5
+        time.sleep(interval)
+
+    if not completed:
+        artifacts = _write_timeout_artifacts(
+            route_key,
+            navigator=navigator,
+            app_ref=app_ref,
+            fragments=fragments,
+            require_all=require_all,
+            timeout=timeout,
+            display=display,
+            window_id=window_id,
+            debug_output_dir=debug_output_dir,
+        )
+        artifacts_info = f"; artifacts={[str(path) for path in artifacts]}" if artifacts else ""
         ci_mode = _env_flag("CI")
         allow_dns_timeout = _env_flag("CAPTURE_SCREENSHOTS_ALLOW_DNS_TIMEOUT") or ci_mode
         if route_key == "dns" and allow_dns_timeout:
             print(
-                f"[capture] warning: DNS AT-SPI result signal timed out after {timeout:.1f}s; continuing in CI mode.",
+                f"[capture] warning: DNS AT-SPI result signal timed out after {timeout:.1f}s; continuing in CI mode"
+                f"{artifacts_info}.",
                 flush=True,
             )
             return
-        debug_info = ""
-        debug_snapshot = None
-        snapshot_fn = getattr(navigator, "fragment_debug_snapshot", None)
-        if callable(snapshot_fn):
-            app = app_ref.get("app")
-            if app is None:
-                try:
-                    app = navigator.find_app_root()
-                    app_ref["app"] = app
-                except Exception:
-                    app = None
-            if app is not None:
-                try:
-                    debug_snapshot = snapshot_fn(app, fragments)
-                except Exception:
-                    debug_snapshot = None
-        if isinstance(debug_snapshot, dict):
-            wanted = list(debug_snapshot.get("wanted", []) or [])
-            matched = list(debug_snapshot.get("matched", []) or [])
-            matched_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and ok]
-            missing_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and not ok]
-            samples = list(debug_snapshot.get("samples", []) or [])[:5]
-            scanned_nodes = int(debug_snapshot.get("scanned_nodes", 0) or 0)
-            debug_info = (
-                f"; matched={matched_fragments} missing={missing_fragments} "
-                f"scanned_nodes={scanned_nodes} sample_texts={samples}"
-            )
+        debug_snapshot = _collect_fragment_debug_snapshot(navigator, app_ref, fragments)
+        debug_info = _format_fragment_debug_info(debug_snapshot, sample_limit=6)
+        probe_error_info = f"; probe_error={last_probe_error[0]}" if last_probe_error[0] else ""
         raise RuntimeError(
             f"Timed out waiting for AT-SPI result signal on route '{route_key}' "
-            f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all}){debug_info}"
+            f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all})"
+            f"{debug_info}{probe_error_info}{artifacts_info}"
         )
 
 
@@ -955,7 +1191,14 @@ def run() -> int:
                 if not window_is_usable(args.display, window_id, min_width=300, min_height=200):
                     window_id = resolve_main_window_id(timeout=15.0)
                 perform_route_action(route_key, args.display, window_id)
-                wait_for_route_result_signal(route_key, navigator, app_ref)
+                wait_for_route_result_signal(
+                    route_key,
+                    navigator,
+                    app_ref,
+                    display=args.display,
+                    window_id=window_id,
+                    debug_output_dir=output_dir,
+                )
                 capture_screen_with_retry(output_dir / f"{filename}.png", args.display, window_id)
 
         finally:
