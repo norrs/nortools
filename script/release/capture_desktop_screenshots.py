@@ -45,7 +45,9 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     # or an API error depending on CI resolver/network conditions.
     # Treat any of these as "result rendered" and allow extra time.
     "dns": (["records (", "no dns records returned", "api error"], False, 30.0),
-    "http": (["response time", "headers ("], True, 30.0),
+    # Avoid matching the static description text "response time" before results
+    # are rendered. Wait for result-only content.
+    "http": (["headers (", "no response headers available."], False, 30.0),
     "https": (["chain diagram", "certificate details"], True, 30.0),
     "subnet": (["total hosts", "network address"], True, 30.0),
     "traceroute": (["hop diagram", "hops to"], True, 30.0),
@@ -300,6 +302,10 @@ def xdotool_type(display: str, text: str) -> None:
 
 def xdotool_key(display: str, *keys: str) -> None:
     run_cmd(["xdotool", "key", *keys], display=display)
+
+
+def xdotool_focus_window(display: str, window_id: str) -> None:
+    run_cmd(["xdotool", "windowactivate", "--sync", window_id], display=display, check=False)
 
 
 def _normalize_text(value: str) -> str:
@@ -978,8 +984,18 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
         xdotool_click(display, window_id, 1050, 170)
         time.sleep(2.5)
     elif route_key == "http":
+        xdotool_focus_window(display, window_id)
+        # Close any open popovers from the previous route before interacting.
+        xdotool_key(display, "Escape")
+        time.sleep(0.1)
+        # Input can miss focus in CI; click twice and submit by Enter, then
+        # click the button as fallback.
+        xdotool_click(display, window_id, 315, 120)
+        time.sleep(0.1)
         xdotool_click(display, window_id, 315, 120)
         xdotool_type(display, "http://example.com")
+        xdotool_key(display, "Return")
+        time.sleep(0.2)
         xdotool_click(display, window_id, 1050, 124)
         time.sleep(2.5)
     elif route_key == "https":
