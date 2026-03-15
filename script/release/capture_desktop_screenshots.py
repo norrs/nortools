@@ -43,16 +43,16 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     # DNS lookups can legitimately return either records, an empty-state message,
     # or an API error depending on CI resolver/network conditions.
     # Treat any of these as "result rendered" and allow extra time.
-    "dns": (["records (", "no dns records returned", "api error"], False, 12.0),
-    "http": (["response time", "headers ("], True, 12.0),
-    "https": (["chain diagram", "certificate details"], True, 14.0),
-    "subnet": (["total hosts", "network address"], True, 10.0),
-    "traceroute": (["hop diagram", "hops to"], True, 20.0),
-    "interfaces": (["routes (", "interfaces ("], True, 12.0),
-    "whois": (["whois server", "overview"], True, 12.0),
-    "reverse_dns": (["ptr records", "status"], True, 10.0),
-    "dns_health": (["nameservers", "soa"], True, 18.0),
-    "domain_health": (["pass", "total"], True, 18.0),
+    "dns": (["records (", "no dns records returned", "api error"], False, 30.0),
+    "http": (["response time", "headers ("], True, 30.0),
+    "https": (["chain diagram", "certificate details"], True, 30.0),
+    "subnet": (["total hosts", "network address"], True, 30.0),
+    "traceroute": (["hop diagram", "hops to"], True, 30.0),
+    "interfaces": (["routes (", "interfaces ("], True, 30.0),
+    "whois": (["whois server", "overview"], True, 30.0),
+    "reverse_dns": (["ptr records", "status"], True, 30.0),
+    "dns_health": (["nameservers", "soa"], True, 30.0),
+    "domain_health": (["pass", "total"], True, 30.0),
 }
 
 
@@ -334,6 +334,36 @@ class DogtailNavigator:
                 return True
         return all(matched) if require_all else any(matched)
 
+    def fragment_debug_snapshot(self, app, fragments: list[str]) -> dict[str, object]:
+        wanted = [_normalize_text(fragment) for fragment in fragments if fragment]
+        matched = [False] * len(wanted)
+        matched_text: dict[str, str] = {}
+        samples: list[str] = []
+        scanned_nodes = 0
+        for node in self._walk(app):
+            scanned_nodes += 1
+            texts = [
+                _normalize_text(str(getattr(node, "name", "") or "")),
+                _normalize_text(str(getattr(node, "description", "") or "")),
+                _normalize_text(str(getattr(node, "text", "") or "")),
+            ]
+            for text in texts:
+                if not text:
+                    continue
+                if len(samples) < 8 and text not in samples:
+                    samples.append(text[:180])
+                for idx, needle in enumerate(wanted):
+                    if not matched[idx] and needle in text:
+                        matched[idx] = True
+                        matched_text[needle] = text[:220]
+        return {
+            "wanted": wanted,
+            "matched": matched,
+            "matched_text": matched_text,
+            "samples": samples,
+            "scanned_nodes": scanned_nodes,
+        }
+
     def find_app_root(self):
         from dogtail import tree
 
@@ -417,6 +447,47 @@ class AtspiNavigator:
             if not require_all and any(matched):
                 return True
         return all(matched) if require_all else any(matched)
+
+    def fragment_debug_snapshot(self, app, fragments: list[str]) -> dict[str, object]:
+        wanted = [self._normalize_name(fragment) for fragment in fragments if fragment]
+        matched = [False] * len(wanted)
+        matched_text: dict[str, str] = {}
+        samples: list[str] = []
+        scanned_nodes = 0
+        for node in self._walk(app):
+            scanned_nodes += 1
+            texts: list[str] = []
+            try:
+                texts.append(self._normalize_name(str(node.get_name() or "")))
+            except Exception:
+                pass
+            try:
+                texts.append(self._normalize_name(str(node.get_description() or "")))
+            except Exception:
+                pass
+            try:
+                char_count = int(self.Atspi.Text.get_character_count(node) or 0)
+                if char_count > 0:
+                    snippet = self.Atspi.Text.get_text(node, 0, min(char_count, 4096))
+                    texts.append(self._normalize_name(str(snippet or "")))
+            except Exception:
+                pass
+            for text in texts:
+                if not text:
+                    continue
+                if len(samples) < 8 and text not in samples:
+                    samples.append(text[:180])
+                for idx, needle in enumerate(wanted):
+                    if not matched[idx] and needle in text:
+                        matched[idx] = True
+                        matched_text[needle] = text[:220]
+        return {
+            "wanted": wanted,
+            "matched": matched,
+            "matched_text": matched_text,
+            "samples": samples,
+            "scanned_nodes": scanned_nodes,
+        }
 
     def _iter_nortools_apps(self):
         return [app for app in self._iter_applications() if "nortools" in str(app.get_name() or "").lower()]
@@ -586,12 +657,7 @@ def create_navigator():
 
 
 def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, object]) -> None:
-    ci_mode = _env_flag("CI")
-    require_signals = _env_flag("CAPTURE_SCREENSHOTS_REQUIRE_ROUTE_SIGNALS")
-    if ci_mode and not require_signals:
-        # Historically CI captures were stable using fixed route delays only.
-        # AT-SPI text propagation is runtime-dependent and can flake in headless
-        # sessions, so skip strict signal gating in CI by default.
+    if _env_flag("CAPTURE_SCREENSHOTS_SKIP_ROUTE_SIGNALS"):
         return
 
     signal = RESULT_SIGNALS.get(route_key)
@@ -632,9 +698,36 @@ def wait_for_route_result_signal(route_key: str, navigator, app_ref: dict[str, o
                 flush=True,
             )
             return
+        debug_info = ""
+        debug_snapshot = None
+        snapshot_fn = getattr(navigator, "fragment_debug_snapshot", None)
+        if callable(snapshot_fn):
+            app = app_ref.get("app")
+            if app is None:
+                try:
+                    app = navigator.find_app_root()
+                    app_ref["app"] = app
+                except Exception:
+                    app = None
+            if app is not None:
+                try:
+                    debug_snapshot = snapshot_fn(app, fragments)
+                except Exception:
+                    debug_snapshot = None
+        if isinstance(debug_snapshot, dict):
+            wanted = list(debug_snapshot.get("wanted", []) or [])
+            matched = list(debug_snapshot.get("matched", []) or [])
+            matched_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and ok]
+            missing_fragments = [wanted[idx] for idx, ok in enumerate(matched) if idx < len(wanted) and not ok]
+            samples = list(debug_snapshot.get("samples", []) or [])[:5]
+            scanned_nodes = int(debug_snapshot.get("scanned_nodes", 0) or 0)
+            debug_info = (
+                f"; matched={matched_fragments} missing={missing_fragments} "
+                f"scanned_nodes={scanned_nodes} sample_texts={samples}"
+            )
         raise RuntimeError(
             f"Timed out waiting for AT-SPI result signal on route '{route_key}' "
-            f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all})"
+            f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all}){debug_info}"
         )
 
 
