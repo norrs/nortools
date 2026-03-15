@@ -53,7 +53,7 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "traceroute": (["hop diagram", "hops to"], True, 30.0),
     "interfaces": (["routes (", "interfaces ("], True, 30.0),
     "whois": (["whois server", "overview"], True, 30.0),
-    "reverse_dns": (["ptr records", "status"], True, 30.0),
+    "reverse_dns": (["ptr records (", "status"], False, 30.0),
     "dns_health": (["nameservers", "soa"], True, 30.0),
     "domain_health": (["pass", "total"], True, 30.0),
 }
@@ -1198,15 +1198,16 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
         )
         time.sleep(4.0)
     elif route_key == "reverse_dns":
-        xdotool_fill_and_submit(
-            display,
-            window_id,
-            input_x=315,
-            input_y=92,
-            button_x=1060,
-            button_y=92,
-            text="1.1.1.1",
-        )
+        xdotool_focus_window(display, window_id)
+        xdotool_key(display, "Escape")
+        time.sleep(0.1)
+        xdotool_select_first_dropdown_option(display, window_id, x=930, y=92)
+        xdotool_click(display, window_id, 315, 92)
+        time.sleep(0.1)
+        xdotool_click(display, window_id, 315, 92)
+        xdotool_type(display, "1.1.1.1")
+        xdotool_key(display, "Return")
+        xdotool_key(display, "Escape")
         time.sleep(3.5)
     elif route_key == "dns_health":
         xdotool_fill_and_submit(
