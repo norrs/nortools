@@ -1156,9 +1156,9 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             display,
             window_id,
             input_x=315,
-            input_y=120,
+            input_y=92,
             button_x=1060,
-            button_y=120,
+            button_y=92,
             text="192.168.1.0/24",
         )
         time.sleep(2.5)
@@ -1191,9 +1191,9 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             display,
             window_id,
             input_x=315,
-            input_y=120,
+            input_y=92,
             button_x=1060,
-            button_y=120,
+            button_y=92,
             text="192.168.10.0",
         )
         time.sleep(4.0)
@@ -1202,9 +1202,9 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             display,
             window_id,
             input_x=315,
-            input_y=120,
+            input_y=92,
             button_x=1060,
-            button_y=120,
+            button_y=92,
             text="1.1.1.1",
         )
         time.sleep(3.5)
@@ -1213,9 +1213,9 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             display,
             window_id,
             input_x=315,
-            input_y=120,
+            input_y=92,
             button_x=1060,
-            button_y=120,
+            button_y=92,
             text="example.com",
         )
         time.sleep(8.0)
@@ -1224,9 +1224,9 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             display,
             window_id,
             input_x=315,
-            input_y=120,
+            input_y=92,
             button_x=1060,
-            button_y=120,
+            button_y=92,
             text="example.com",
         )
         time.sleep(8.0)
