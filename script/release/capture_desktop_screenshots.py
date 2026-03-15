@@ -55,7 +55,7 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "whois": (["whois server", "overview"], True, 30.0),
     "reverse_dns": (["ptr records (", "status"], False, 30.0),
     "dns_health": (["nameservers", "soa"], True, 30.0),
-    "domain_health": (["pass", "total"], True, 30.0),
+    "domain_health": (["report", "json"], True, 30.0),
 }
 MIN_ROUTE_SIGNAL_TIMEOUT_SECONDS = 30.0
 
