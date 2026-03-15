@@ -110,7 +110,7 @@ jobs:
             "
           '
           ls -la "${screenshot_dir}"
-          find "${GITHUB_WORKSPACE}" -maxdepth 4 -type f -name '*.png' | sort
+          find "${screenshot_dir}" -maxdepth 2 -type f \( -name '*.png' -o -name '*.html' \) | sort
 
       - name: Upload screenshot artifacts
         if: always()
