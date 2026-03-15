@@ -933,6 +933,69 @@ def _write_timeout_artifacts(
     return artifacts
 
 
+def _collect_accessibility_texts(navigator, app, max_nodes: int = 1600) -> list[str]:
+    walk_fn = getattr(navigator, "_walk", None)
+    if not callable(walk_fn):
+        return []
+    atspi = getattr(navigator, "Atspi", None)
+    texts: list[str] = []
+    scanned = 0
+    for node in walk_fn(app):
+        scanned += 1
+        if scanned > max_nodes:
+            break
+        node_texts: list[str] = []
+        for attr in ("name", "description", "text"):
+            try:
+                value = getattr(node, attr, "")
+            except Exception:
+                value = ""
+            normalized = _normalize_text(str(value or ""))
+            if normalized:
+                node_texts.append(normalized)
+        if atspi is not None:
+            try:
+                name = _normalize_text(str(node.get_name() or ""))
+                if name:
+                    node_texts.append(name)
+            except Exception:
+                pass
+            try:
+                description = _normalize_text(str(node.get_description() or ""))
+                if description:
+                    node_texts.append(description)
+            except Exception:
+                pass
+            try:
+                char_count = int(atspi.Text.get_character_count(node) or 0)
+                if char_count > 0:
+                    snippet = _normalize_text(str(atspi.Text.get_text(node, 0, min(char_count, 4096)) or ""))
+                    if snippet:
+                        node_texts.append(snippet)
+            except Exception:
+                pass
+        for text in node_texts:
+            if text:
+                texts.append(text)
+    return texts
+
+
+def _count_distinct_ipv4_tokens(texts: list[str]) -> int:
+    tokens: set[str] = set()
+    for text in texts:
+        for match in re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text):
+            parts = match.split(".")
+            if len(parts) != 4:
+                continue
+            try:
+                octets = [int(part) for part in parts]
+            except ValueError:
+                continue
+            if all(0 <= octet <= 255 for octet in octets):
+                tokens.add(match)
+    return len(tokens)
+
+
 def wait_for_route_result_signal(
     route_key: str,
     navigator,
@@ -956,6 +1019,7 @@ def wait_for_route_result_signal(
 
     last_refresh = [0.0]
     last_probe_error = [""]
+    last_subnet_ipv4_count = [0]
 
     def predicate() -> bool:
         now = time.monotonic()
@@ -970,7 +1034,17 @@ def wait_for_route_result_signal(
                 return False
         try:
             last_probe_error[0] = ""
-            return bool(has_text_fragments(app, fragments, require_all))
+            if bool(has_text_fragments(app, fragments, require_all)):
+                return True
+            if route_key == "subnet":
+                # Some AT-SPI stacks expose numeric subnet outputs but not the
+                # corresponding labels. Treat distinct result IP values as
+                # completion when labels are missing.
+                texts = _collect_accessibility_texts(navigator, app, max_nodes=1800)
+                last_subnet_ipv4_count[0] = _count_distinct_ipv4_tokens(texts)
+                if last_subnet_ipv4_count[0] >= 4:
+                    return True
+            return False
         except Exception as exc:
             last_probe_error[0] = f"{type(exc).__name__}: {exc}"
             try:
@@ -1025,10 +1099,13 @@ def wait_for_route_result_signal(
         debug_snapshot = _collect_fragment_debug_snapshot(navigator, app_ref, fragments)
         debug_info = _format_fragment_debug_info(debug_snapshot, sample_limit=6)
         probe_error_info = f"; probe_error={last_probe_error[0]}" if last_probe_error[0] else ""
+        subnet_info = ""
+        if route_key == "subnet":
+            subnet_info = f"; subnet_ipv4_count={last_subnet_ipv4_count[0]}"
         raise RuntimeError(
             f"Timed out waiting for AT-SPI result signal on route '{route_key}' "
             f"after {timeout:.1f}s (fragments={fragments}, require_all={require_all})"
-            f"{debug_info}{probe_error_info}{artifacts_info}"
+            f"{debug_info}{probe_error_info}{subnet_info}{artifacts_info}"
         )
 
 
