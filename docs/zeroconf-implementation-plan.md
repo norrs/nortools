@@ -75,6 +75,12 @@ Create a shared library:
   - JSON-friendly models so the existing output formatter and web handlers can reuse
     the same results.
 
+Current shared pieces:
+
+- `IpFamily` selection and `ZeroconfInterfaces` interface/address inventory.
+- `BoundedUdpDiscovery` for bounded UDP send/listen loops with local/remote endpoint
+  capture, payload previews, timeout, packet limits, and JSON-friendly observations.
+
 Implementation choices:
 
 - Use dnsjava for DNS message encode/decode where it fits mDNS and LLMNR packet format.
@@ -282,7 +288,8 @@ Manual test matrix:
 
 - [ ] M1: Add `lib/zeroconf` shared models, interface enumeration, multicast UDP primitives,
   IP-family selection, bounded passive listener support, and deterministic tests.
-  - Started: shared IP-family/interface model and NetBIOS deterministic packet tests.
+  - Started: shared IP-family/interface model, bounded UDP observation helper, loopback
+    UDP tests, and NetBIOS deterministic packet tests.
 - [ ] M2: Add early web/desktop ZeroConf Discovery harness and `ZeroconfHandlers.kt`.
   - First UI route should support NetBIOS Name Service so web/desktop can test the
     implementation while the remaining protocols are still planned.

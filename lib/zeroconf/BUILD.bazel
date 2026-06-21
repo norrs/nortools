@@ -11,6 +11,7 @@ kt_jvm_test(
     srcs = glob(["src/test/kotlin/**/*.kt"]),
     args = [
         "--select-class=no.norrs.nortools.lib.zeroconf.NetbiosNameServiceTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.UdpDiscoveryTest",
         "--disable-banner",
     ],
     main_class = "org.junit.platform.console.ConsoleLauncher",
