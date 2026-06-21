@@ -1,0 +1,15 @@
+# Default Bazel project view for JetBrains sync.
+# Keep generated Bazel output symlinks out of target discovery.
+
+derive_targets_from_directories: true
+
+directories:
+  .
+  -bazel-bin
+  -bazel-nortools
+  -bazel-out
+  -bazel-testlogs
+
+# Uncomment these lines to make indexing quicker:
+# import_depth: 0
+# import_ijars: true
