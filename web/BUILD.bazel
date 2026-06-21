@@ -23,6 +23,7 @@ kt_jvm_library(
     deps = [
         "//lib/dns",
         "//lib/network",
+        "//lib/zeroconf",
         "//tools/whois/asn",
         "//tools/whois/common",
         "@maven//:com_fasterxml_jackson_core_jackson_databind",
@@ -74,7 +75,10 @@ kt_jvm_test(
 
 kt_jvm_library(
     name = "web_arch_test_lib",
-    srcs = ["src/test/kotlin/no/norrs/nortools/web/ReflectConfigArchTest.kt"],
+    srcs = [
+        "src/test/kotlin/no/norrs/nortools/web/ReflectConfigArchTest.kt",
+        "src/test/kotlin/no/norrs/nortools/web/TestRunfiles.kt",
+    ],
     deps = [
         "@maven//:org_junit_jupiter_junit_jupiter_api",
     ],
@@ -101,7 +105,10 @@ java_test(
 
 kt_jvm_library(
     name = "web_updater_serialization_test_lib",
-    srcs = ["src/test/kotlin/no/norrs/nortools/web/UpdaterSerializationTest.kt"],
+    srcs = [
+        "src/test/kotlin/no/norrs/nortools/web/TestRunfiles.kt",
+        "src/test/kotlin/no/norrs/nortools/web/UpdaterSerializationTest.kt",
+    ],
     deps = [
         "@maven//:build_krema_krema_core",
         "@maven//:com_fasterxml_jackson_core_jackson_databind",

@@ -57,6 +57,11 @@ fun startServer(
             get("/api/trace-visual/{host}") { ctx -> traceVisual(ctx) }
             get("/api/trace-visual-stream/{host}") { ctx -> traceVisualStream(ctx) }
 
+            // Zero-configuration discovery tools
+            get("/api/zeroconf/netbios/query/{name}") { ctx -> netbiosNameQuery(ctx) }
+            get("/api/zeroconf/netbios/node-status/{host}") { ctx -> netbiosNodeStatus(ctx) }
+            get("/api/zeroconf/netbios/listen") { ctx -> netbiosListen(ctx) }
+
             // WHOIS tools
             get("/api/whois/{query}") { ctx -> whoisLookup(ctx) }
             get("/api/rpki-route/{ip}") { ctx -> rpkiRouteValidation(ctx) }
@@ -119,6 +124,7 @@ private fun registerJavalinVueRoutes() {
     get("/http", VueComponent("http-page"))
     get("/https", VueComponent("https-page"))
     get("/network-interfaces", VueComponent("network-interfaces-page"))
+    get("/zeroconf", VueComponent("zeroconf-discovery-page"))
     get("/ping", VueComponent("ping-page"))
     get("/traceroute", VueComponent("traceroute-page"))
     get("/whois", VueComponent("whois-page"))
@@ -166,6 +172,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/http-page.vue",
         "vue/components/https-page.vue",
         "vue/components/network-interfaces-page.vue",
+        "vue/components/zeroconf-discovery-page.vue",
         "vue/components/ping-page.vue",
         "vue/components/traceroute-page.vue",
         "vue/components/whois-page.vue",

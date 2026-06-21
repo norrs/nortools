@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 
 class ReflectConfigArchTest {
 
@@ -45,17 +44,8 @@ class ReflectConfigArchTest {
     }
 
     private fun readReflectConfigText(): String {
-        val testSrcDir = System.getenv("TEST_SRCDIR")
-        val workspace = System.getenv("TEST_WORKSPACE") ?: "_main"
-
-        val candidates = listOfNotNull(
-            Paths.get("desktop/graal/reflect-config.json"),
-            testSrcDir?.let { Paths.get(it, workspace, "desktop/graal/reflect-config.json") },
-            testSrcDir?.let { Paths.get(it, "_main", "desktop/graal/reflect-config.json") },
-        )
-
-        val path = candidates.firstOrNull { Files.exists(it) }
-            ?: error("Could not locate desktop/graal/reflect-config.json from candidates: $candidates")
+        val path = TestRunfiles.resolve("desktop/graal/reflect-config.json")
+            ?: error("Could not locate desktop/graal/reflect-config.json in runfiles")
         return Files.readString(path)
     }
 
@@ -79,22 +69,8 @@ class ReflectConfigArchTest {
         )
 
     private fun webSourceFiles(): List<Path> {
-        val testSrcDir = System.getenv("TEST_SRCDIR")
-        val workspace = System.getenv("TEST_WORKSPACE") ?: "_main"
-
-        val roots = listOfNotNull(
-            Paths.get("web/src/main/kotlin/no/norrs/nortools/web"),
-            testSrcDir?.let { Paths.get(it, workspace, "web/src/main/kotlin/no/norrs/nortools/web") },
-            testSrcDir?.let { Paths.get(it, "_main", "web/src/main/kotlin/no/norrs/nortools/web") },
-        )
-        val root = roots.firstOrNull { Files.isDirectory(it) }
-            ?: error("Could not locate web source directory from candidates: $roots")
-
-        return Files.list(root).use { stream ->
-            stream
-                .filter { path -> Files.isRegularFile(path) && path.fileName.toString().endsWith(".kt") }
-                .sorted()
-                .toList()
-        }
+        return TestRunfiles.list("web/src/main/kotlin/no/norrs/nortools/web")
+            .filter { path -> path.fileName.toString().endsWith(".kt") }
+            .ifEmpty { error("Could not locate web source files in runfiles") }
     }
 }
