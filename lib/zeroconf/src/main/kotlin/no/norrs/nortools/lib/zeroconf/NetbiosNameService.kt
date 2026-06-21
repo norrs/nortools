@@ -1,10 +1,12 @@
 package no.norrs.nortools.lib.zeroconf
 
 import java.io.ByteArrayOutputStream
+import java.net.BindException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.Locale
@@ -65,8 +67,22 @@ class NetbiosNameServiceClient(
         sendQuestion(name = "*", suffix = 0x00, type = NetbiosQuestionType.NBSTAT, target = host)
 
     fun listen(bindAddress: String = "0.0.0.0", maxPackets: Int = 25): List<NetbiosResponse> {
-        val socket = DatagramSocket(137, InetAddress.getByName(bindAddress))
+        val socket = DatagramSocket(null)
+        socket.reuseAddress = true
         socket.soTimeout = timeout.toMillis().toInt()
+        try {
+            socket.bind(InetSocketAddress(InetAddress.getByName(bindAddress), 137))
+        } catch (e: BindException) {
+            socket.close()
+            throw BindException(
+                "Cannot bind NetBIOS listener to $bindAddress:137. " +
+                    "UDP 137 is required for passive NBNS discovery. Try a specific local IPv4 address, " +
+                    "or stop the service that already owns UDP 137. Original error: ${e.message}",
+            )
+        } catch (e: Exception) {
+            socket.close()
+            throw e
+        }
         return socket.use { receiveResponses(it, transactionId = null, maxPackets = maxPackets) }
     }
 

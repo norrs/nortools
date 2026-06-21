@@ -44,8 +44,9 @@ fun netbiosListen(ctx: Context) {
 
     val client = NetbiosNameServiceClient(timeout = requestTimeout(ctx))
     val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() } ?: "0.0.0.0"
     val responses = runCatching {
-        client.listen(maxPackets = maxPackets)
+        client.listen(bindAddress = bindAddress, maxPackets = maxPackets)
     }.getOrElse { error ->
         return ctx.jsonResult(errorResponse(error.message ?: "NetBIOS listener failed"))
     }

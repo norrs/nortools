@@ -42,6 +42,16 @@
         <label>Packets</label>
         <input v-model.number="maxPackets" class="input" type="number" min="1" max="250" />
       </div>
+
+      <div v-if="mode === 'listen'" class="field">
+        <label>Bind Address</label>
+        <select v-model="bindAddress" class="input">
+          <option value="0.0.0.0">Any IPv4</option>
+          <option v-for="choice in bindChoices" :key="choice.value" :value="choice.value">
+            {{ choice.label }}
+          </option>
+        </select>
+      </div>
     </section>
 
     <form @submit.prevent="run" class="lookup-form">
@@ -137,6 +147,8 @@ app.component("zeroconf-discovery-page", {
       ipFamily: "ipv4",
       timeout: 5,
       maxPackets: 25,
+      bindAddress: "0.0.0.0",
+      bindChoices: [],
       name: "",
       target: "255.255.255.255",
       suffix: 32,
@@ -146,6 +158,9 @@ app.component("zeroconf-discovery-page", {
       result: null,
       activeTab: "report",
     }
+  },
+  mounted() {
+    this.loadBindChoices()
   },
   computed: {
     canRun() {
@@ -183,6 +198,7 @@ app.component("zeroconf-discovery-page", {
           url = `/api/zeroconf/netbios/node-status/${encodeURIComponent(this.host)}?${params}`
         } else {
           params.set("maxPackets", String(this.maxPackets || 25))
+          params.set("bindAddress", this.bindAddress || "0.0.0.0")
           url = `/api/zeroconf/netbios/listen?${params}`
         }
         const r = await fetch(url)
@@ -193,6 +209,26 @@ app.component("zeroconf-discovery-page", {
         this.error = e instanceof Error ? e.message : "Unexpected error"
       } finally {
         this.loading = false
+      }
+    },
+    async loadBindChoices() {
+      try {
+        const r = await fetch("/api/network-interfaces")
+        if (!r.ok) return
+        const snapshot = await r.json()
+        const choices = []
+        for (const iface of snapshot.interfaces || []) {
+          for (const address of iface.addresses || []) {
+            if (address.family !== "IPv4") continue
+            choices.push({
+              value: address.ip,
+              label: `${iface.displayName || iface.name} - ${address.ip}`,
+            })
+          }
+        }
+        this.bindChoices = choices
+      } catch (_) {
+        this.bindChoices = []
       }
     },
   },

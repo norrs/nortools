@@ -28,6 +28,11 @@ class NetbiosNsCommand : BaseCommand(
     private val maxPackets by option("--max-packets", help = "Maximum packets to collect in passive listener mode")
         .int()
         .default(25)
+    private val bindAddress by option(
+        "--bind-address",
+        help = "Local IPv4 address to bind for passive listener mode. Defaults to all IPv4 interfaces.",
+    )
+        .default("0.0.0.0")
 
     override fun run() {
         val formatter = createFormatter()
@@ -62,7 +67,7 @@ class NetbiosNsCommand : BaseCommand(
             when {
                 query != null -> client.queryName(query!!, suffix = suffix, target = target)
                 nodeStatus != null -> client.nodeStatus(nodeStatus!!)
-                else -> client.listen(maxPackets = maxPackets)
+                else -> client.listen(bindAddress = bindAddress, maxPackets = maxPackets)
             }
         } catch (e: Exception) {
             echo(
