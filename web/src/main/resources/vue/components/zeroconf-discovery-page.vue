@@ -8,7 +8,7 @@
         <label>Protocol</label>
         <select v-model="protocol" class="input">
           <option value="netbios">NetBIOS Name Service</option>
-          <option value="mdns" disabled>mDNS / DNS-SD</option>
+          <option value="mdns">mDNS / DNS-SD</option>
           <option value="llmnr" disabled>LLMNR</option>
           <option value="ssdp" disabled>SSDP / UPnP</option>
           <option value="wsd" disabled>WS-Discovery</option>
@@ -19,7 +19,7 @@
         <label>Mode</label>
         <select v-model="mode" class="input">
           <option value="query">Query</option>
-          <option value="node-status">Node Status</option>
+          <option value="node-status" :disabled="protocol !== 'netbios'">Node Status</option>
           <option value="listen">Listen</option>
         </select>
       </div>
@@ -59,16 +59,16 @@
         v-if="mode === 'query'"
         v-model.trim="name"
         class="input target-input"
-        placeholder="MYPC"
+        :placeholder="queryPlaceholder"
       />
       <input
-        v-if="mode === 'query'"
+        v-if="mode === 'query' && protocol === 'netbios'"
         v-model.trim="target"
         class="input target-input"
         placeholder="255.255.255.255"
       />
       <input
-        v-if="mode === 'query'"
+        v-if="mode === 'query' && protocol === 'netbios'"
         v-model.number="suffix"
         class="input input-sm"
         type="number"
@@ -76,7 +76,13 @@
         max="255"
       />
       <input
-        v-if="mode === 'node-status'"
+        v-if="mode === 'query' && protocol === 'mdns'"
+        v-model.trim="recordType"
+        class="input input-sm"
+        placeholder="PTR"
+      />
+      <input
+        v-if="mode === 'node-status' && protocol === 'netbios'"
         v-model.trim="host"
         class="input target-input"
         placeholder="192.168.1.25"
@@ -101,6 +107,7 @@
 
         <div v-if="result.reason" class="callout">{{ result.reason }}</div>
         <div v-if="result.error" class="callout bad-callout">{{ result.error }}</div>
+        <div v-for="warning in result.warnings || []" :key="warning" class="callout">{{ warning }}</div>
 
         <table v-if="rows.length" class="result-table">
           <thead>
@@ -150,6 +157,7 @@ app.component("zeroconf-discovery-page", {
       bindAddress: "0.0.0.0",
       bindChoices: [],
       name: "",
+      recordType: "PTR",
       target: "255.255.255.255",
       suffix: 32,
       host: "",
@@ -165,8 +173,11 @@ app.component("zeroconf-discovery-page", {
   computed: {
     canRun() {
       if (this.mode === "query") return this.name.length > 0
-      if (this.mode === "node-status") return this.host.length > 0
+      if (this.mode === "node-status") return this.protocol === "netbios" && this.host.length > 0
       return this.mode === "listen"
+    },
+    queryPlaceholder() {
+      return this.protocol === "mdns" ? "_services._dns-sd._udp.local" : "MYPC"
     },
     actionLabel() {
       if (this.mode === "listen") return "Start Listener"
@@ -190,7 +201,16 @@ app.component("zeroconf-discovery-page", {
         params.set("ipFamily", this.ipFamily)
         params.set("timeout", String(this.timeout || 5))
         let url = ""
-        if (this.mode === "query") {
+        if (this.protocol === "mdns" && this.mode === "query") {
+          params.set("type", this.recordType || "PTR")
+          params.set("maxPackets", String(this.maxPackets || 25))
+          if (this.bindAddress && this.bindAddress !== "0.0.0.0") params.set("bindAddress", this.bindAddress)
+          url = `/api/zeroconf/mdns/query/${encodeURIComponent(this.name)}?${params}`
+        } else if (this.protocol === "mdns" && this.mode === "listen") {
+          params.set("maxPackets", String(this.maxPackets || 25))
+          params.set("bindAddress", this.bindAddress || "0.0.0.0")
+          url = `/api/zeroconf/mdns/listen?${params}`
+        } else if (this.mode === "query") {
           params.set("target", this.target || "255.255.255.255")
           params.set("suffix", String(this.suffix ?? 32))
           url = `/api/zeroconf/netbios/query/${encodeURIComponent(this.name)}?${params}`
@@ -230,6 +250,15 @@ app.component("zeroconf-discovery-page", {
       } catch (_) {
         this.bindChoices = []
       }
+    },
+  },
+  watch: {
+    protocol(value) {
+      if (value !== "netbios" && this.mode === "node-status") {
+        this.mode = "query"
+      }
+      this.result = null
+      this.error = ""
     },
   },
 })

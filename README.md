@@ -270,6 +270,10 @@ bazelisk run //tools/network/trace -- --max-hops 20 example.com
 ### Zero-Configuration Discovery Tools
 
 ```bash
+# mDNS - query/listen on IPv4 UDP 5353 (first slice; full DNS-SD browser follows)
+bazelisk run //tools/zeroconf/mdns -- --query _services._dns-sd._udp.local --type PTR
+bazelisk run //tools/zeroconf/mdns -- --listen --timeout 10 --max-packets 25
+
 # NetBIOS Name Service - query IPv4 NetBIOS names over UDP 137
 bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC
 bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC --suffix 32 --target 192.168.1.255

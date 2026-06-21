@@ -42,7 +42,7 @@ Track these as separate CLI targets so each protocol can be tested independently
 
 | Status | Tool | Target | Purpose |
 |---|---|---|---|
-| Planned | `mdns` | `//tools/zeroconf/mdns` | Query and listen for mDNS records on `224.0.0.251` / `ff02::fb` |
+| Started | `mdns` | `//tools/zeroconf/mdns` | Query and listen for mDNS records on `224.0.0.251`; IPv6 multicast is pending |
 | Planned | `dns-sd` | `//tools/zeroconf/dns-sd` | Browse service types and instances, then resolve SRV/TXT/A/AAAA |
 | Planned | `llmnr` | `//tools/zeroconf/llmnr` | Query and listen for LLMNR names on IPv4/IPv6 multicast |
 | Started | `netbios-ns` | `//tools/zeroconf/netbios-ns` | Query NetBIOS names and node status over UDP 137 |
@@ -109,9 +109,9 @@ Capabilities:
 CLI shape:
 
 ```bash
-bazelisk run //tools/zeroconf/mdns -- browse --timeout 5
-bazelisk run //tools/zeroconf/mdns -- query _http._tcp.local. PTR
-bazelisk run //tools/zeroconf/mdns -- listen --ip-family both --timeout 10
+bazelisk run //tools/zeroconf/mdns -- --query _services._dns-sd._udp.local --type PTR
+bazelisk run //tools/zeroconf/mdns -- --query _http._tcp.local --type PTR
+bazelisk run //tools/zeroconf/mdns -- --listen --ip-family ipv4 --timeout 10
 bazelisk run //tools/zeroconf/dns-sd -- resolve "Printer._ipp._tcp.local."
 ```
 
@@ -294,6 +294,9 @@ Manual test matrix:
   - First UI route should support NetBIOS Name Service so web/desktop can test the
     implementation while the remaining protocols are still planned.
 - [ ] M3: Add mDNS and DNS-SD active query/listen tools and wire them into the page.
+  - Started: `mdns` CLI and web API/page support IPv4 mDNS query/listen with dnsjava
+    packet encode/decode. Full DNS-SD browse/resolve and IPv6 interface-scoped multicast
+    are still pending.
 - [ ] M4: Add LLMNR query/listen tool and wire it into the page.
 - [ ] M5: Add NetBIOS Name Service query/node-status tool.
   - Started: `netbios-ns` CLI supports name query, node status, bounded passive listen,

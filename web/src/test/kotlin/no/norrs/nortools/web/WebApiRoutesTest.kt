@@ -44,6 +44,8 @@ class WebApiRoutesTest {
             "GET /api/trace/{host}",
             "GET /api/whatismyip",
             "GET /api/whois/{query}",
+            "GET /api/zeroconf/mdns/listen",
+            "GET /api/zeroconf/mdns/query/{name}",
             "GET /api/zeroconf/netbios/listen",
             "GET /api/zeroconf/netbios/node-status/{host}",
             "GET /api/zeroconf/netbios/query/{name}",

@@ -2,6 +2,8 @@ package no.norrs.nortools.web
 
 import io.javalin.http.Context
 import no.norrs.nortools.lib.zeroconf.IpFamily
+import no.norrs.nortools.lib.zeroconf.MdnsClient
+import no.norrs.nortools.lib.zeroconf.MdnsRecord
 import no.norrs.nortools.lib.zeroconf.NetbiosNameServiceClient
 import no.norrs.nortools.lib.zeroconf.NetbiosResponse
 import java.time.Duration
@@ -54,12 +56,53 @@ fun netbiosListen(ctx: Context) {
     ctx.jsonResult(netbiosEnvelope(mode = "listen", responses = responses))
 }
 
-private fun parseIpFamily(ctx: Context): IpFamily? {
+fun mdnsQuery(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "mDNS") ?: return
+    if (!requireMdnsIpv4(ctx, ipFamily)) return
+
+    val client = MdnsClient(timeout = requestTimeout(ctx))
+    val name = ctx.pathParam("name")
+    val type = ctx.queryParam("type")?.takeIf { it.isNotBlank() } ?: "PTR"
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() }
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.query(name = name, type = type, bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "mDNS", error = error.message ?: "mDNS query failed"))
+    }
+
+    ctx.jsonResult(mdnsEnvelope(mode = "query", records = result.records, responseCount = result.responseCount))
+}
+
+fun mdnsListen(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "mDNS") ?: return
+    if (!requireMdnsIpv4(ctx, ipFamily)) return
+
+    val client = MdnsClient(timeout = requestTimeout(ctx))
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() } ?: "0.0.0.0"
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.listen(bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "mDNS", error = error.message ?: "mDNS listener failed"))
+    }
+
+    ctx.jsonResult(
+        mdnsEnvelope(
+            mode = "listen",
+            records = result.records,
+            responseCount = result.responseCount,
+            warnings = result.warnings,
+        ),
+    )
+}
+
+private fun parseIpFamily(ctx: Context, protocol: String = "NetBIOS Name Service"): IpFamily? {
     val raw = ctx.queryParam("ipFamily") ?: "ipv4"
     return runCatching { IpFamily.fromCli(raw) }.getOrElse {
         ctx.jsonResult(
             mapOf(
-                "protocol" to "NetBIOS Name Service",
+                "protocol" to protocol,
                 "status" to "error",
                 "error" to "Invalid ipFamily '$raw'. Expected ipv4, ipv6, or both.",
                 "rows" to emptyList<Map<String, Any?>>(),
@@ -83,6 +126,20 @@ private fun requireNetbiosIpv4(ctx: Context, ipFamily: IpFamily): Boolean {
     return false
 }
 
+private fun requireMdnsIpv4(ctx: Context, ipFamily: IpFamily): Boolean {
+    if (ipFamily.allowsIpv4()) return true
+    ctx.jsonResult(
+        mapOf(
+            "protocol" to "mDNS",
+            "status" to "unsupported-ip-family",
+            "requestedIpFamily" to ipFamily.name.lowercase(),
+            "reason" to "This first mDNS slice supports IPv4 multicast on 224.0.0.251 only.",
+            "rows" to emptyList<Map<String, Any?>>(),
+        ),
+    )
+    return false
+}
+
 private fun requestTimeout(ctx: Context): Duration {
     val seconds = ctx.queryParam("timeout")?.toLongOrNull()?.coerceIn(1, 60) ?: 5
     return Duration.ofSeconds(seconds)
@@ -98,9 +155,36 @@ private fun netbiosEnvelope(mode: String, responses: List<NetbiosResponse>): Map
         "responses" to responses,
     )
 
-private fun errorResponse(error: String): Map<String, Any?> =
+private fun mdnsEnvelope(
+    mode: String,
+    records: List<MdnsRecord>,
+    responseCount: Int,
+    warnings: List<String> = emptyList(),
+): Map<String, Any?> =
     mapOf(
-        "protocol" to "NetBIOS Name Service",
+        "protocol" to "mDNS",
+        "mode" to mode,
+        "status" to if (records.isEmpty()) "no-responses" else "ok",
+        "responseCount" to responseCount,
+        "rows" to records.map { record ->
+            linkedMapOf(
+                "source" to record.section,
+                "type" to record.type,
+                "name" to record.name,
+                "suffix" to "",
+                "address" to record.data,
+                "group" to "",
+                "result" to record.ttl,
+                "error" to "",
+            )
+        },
+        "records" to records,
+        "warnings" to warnings,
+    )
+
+private fun errorResponse(error: String, protocol: String = "NetBIOS Name Service"): Map<String, Any?> =
+    mapOf(
+        "protocol" to protocol,
         "status" to "error",
         "error" to error,
         "rows" to emptyList<Map<String, Any?>>(),

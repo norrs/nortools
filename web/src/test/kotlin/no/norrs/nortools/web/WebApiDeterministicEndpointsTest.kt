@@ -155,6 +155,19 @@ class WebApiDeterministicEndpointsTest {
     }
 
     @Test
+    fun `zeroconf mdns endpoint reports unsupported ipv6 without network scan`() {
+        val response = get("/api/zeroconf/mdns/query/_services._dns-sd._udp.local?ipFamily=ipv6")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("mDNS", json["protocol"].asText())
+        assertEquals("unsupported-ip-family", json["status"].asText())
+        assertTrue(json["reason"].asText().contains("IPv4"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
     fun `rpki route endpoint accepts manual asn and prefix`() {
         val response = get("/api/rpki-route/1.1.1.0%2F24?asn=AS13335")
         assertEquals(200, response.statusCode())
