@@ -74,6 +74,14 @@ All DNSSEC tools share the core DNSSEC RFCs:
 
 ---
 
+## Zero-Configuration Discovery Tools
+
+| Tool | Description | Relevant RFCs / Standards |
+|------|-------------|--------------------------|
+| **netbios-ns** | NetBIOS Name Service query, node status, and passive listener | [RFC 1001](https://datatracker.ietf.org/doc/html/rfc1001) - Protocol Standard for a NetBIOS Service on a TCP/UDP Transport: Concepts and Methods, [RFC 1002](https://datatracker.ietf.org/doc/html/rfc1002) - Detailed Specifications |
+
+---
+
 ## WHOIS & Registration Tools
 
 | Tool | Description | Relevant RFCs / Standards |
@@ -147,6 +155,8 @@ The web portal's DNS Health Check performs ~49–54 checks across 9 categories. 
 | RFC 768 | UDP | DNS Health (connectivity) |
 | RFC 792 | ICMP | ping, trace |
 | RFC 793 | TCP | tcp, DNS Health (connectivity) |
+| RFC 1001 | NetBIOS over TCP/UDP Concepts and Methods | netbios-ns |
+| RFC 1002 | NetBIOS over TCP/UDP Detailed Specifications | netbios-ns |
 | RFC 1035 | Domain Names — Implementation & Specification | All DNS tools, dns-health, dns-propagation, bulk, whatismyip |
 | RFC 1393 | Traceroute Using an IP Option | trace |
 | RFC 1876 | Location Information in DNS | loc |

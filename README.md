@@ -6,6 +6,10 @@ Most implementations in this repository were done with assistance from various A
 
 Quick developer setup: see [developer-setup.md](developer-setup.md).
 
+Planning:
+
+- [Zero-Configuration Networking Implementation Plan](docs/zeroconf-implementation-plan.md)
+
 ## Screenshots
 
 <table>
@@ -261,6 +265,16 @@ bazelisk run //tools/network/ping -- --count 10 example.com
 # Traceroute — trace network path
 bazelisk run //tools/network/trace -- example.com
 bazelisk run //tools/network/trace -- --max-hops 20 example.com
+```
+
+### Zero-Configuration Discovery Tools
+
+```bash
+# NetBIOS Name Service - query IPv4 NetBIOS names over UDP 137
+bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC
+bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC --suffix 32 --target 192.168.1.255
+bazelisk run //tools/zeroconf/netbios-ns -- --node-status 192.168.1.25
+bazelisk run //tools/zeroconf/netbios-ns -- --listen --timeout 10 --max-packets 25
 ```
 
 ### WHOIS / Registration Tools
