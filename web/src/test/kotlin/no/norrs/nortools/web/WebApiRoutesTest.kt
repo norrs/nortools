@@ -49,6 +49,8 @@ class WebApiRoutesTest {
             "GET /api/zeroconf/netbios/listen",
             "GET /api/zeroconf/netbios/node-status/{host}",
             "GET /api/zeroconf/netbios/query/{name}",
+            "GET /api/zeroconf/ssdp/listen",
+            "GET /api/zeroconf/ssdp/search",
             "POST /api/email-extract",
         )
 

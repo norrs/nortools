@@ -10,7 +10,7 @@
           <option value="netbios">NetBIOS Name Service</option>
           <option value="mdns">mDNS / DNS-SD</option>
           <option value="llmnr" disabled>LLMNR</option>
-          <option value="ssdp" disabled>SSDP / UPnP</option>
+          <option value="ssdp">SSDP / UPnP</option>
           <option value="wsd" disabled>WS-Discovery</option>
         </select>
       </div>
@@ -134,7 +134,7 @@
           </tbody>
         </table>
 
-        <div v-else class="empty-state">No decoded NetBIOS rows.</div>
+        <div v-else class="empty-state">No decoded discovery rows.</div>
       </div>
 
       <div v-show="activeTab === 'json'" class="tab-panel">
@@ -177,12 +177,14 @@ app.component("zeroconf-discovery-page", {
       return this.mode === "listen"
     },
     queryPlaceholder() {
-      return this.protocol === "mdns" ? "_services._dns-sd._udp.local" : "MYPC"
+      if (this.protocol === "mdns") return "_services._dns-sd._udp.local"
+      if (this.protocol === "ssdp") return "ssdp:all"
+      return "MYPC"
     },
     actionLabel() {
       if (this.mode === "listen") return "Start Listener"
       if (this.mode === "node-status") return "Read Node Status"
-      return "Query Name"
+      return this.protocol === "ssdp" ? "Search Services" : "Query Name"
     },
     rows() {
       return Array.isArray(this.result?.rows) ? this.result.rows : []
@@ -206,6 +208,15 @@ app.component("zeroconf-discovery-page", {
           params.set("maxPackets", String(this.maxPackets || 25))
           if (this.bindAddress && this.bindAddress !== "0.0.0.0") params.set("bindAddress", this.bindAddress)
           url = `/api/zeroconf/mdns/query/${encodeURIComponent(this.name)}?${params}`
+        } else if (this.protocol === "ssdp" && this.mode === "query") {
+          params.set("searchTarget", this.name || "ssdp:all")
+          params.set("maxPackets", String(this.maxPackets || 25))
+          if (this.bindAddress && this.bindAddress !== "0.0.0.0") params.set("bindAddress", this.bindAddress)
+          url = `/api/zeroconf/ssdp/search?${params}`
+        } else if (this.protocol === "ssdp" && this.mode === "listen") {
+          params.set("maxPackets", String(this.maxPackets || 25))
+          params.set("bindAddress", this.bindAddress || "0.0.0.0")
+          url = `/api/zeroconf/ssdp/listen?${params}`
         } else if (this.protocol === "mdns" && this.mode === "listen") {
           params.set("maxPackets", String(this.maxPackets || 25))
           params.set("bindAddress", this.bindAddress || "0.0.0.0")

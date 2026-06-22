@@ -15,6 +15,7 @@ kt_jvm_test(
     args = [
         "--select-class=no.norrs.nortools.lib.zeroconf.MdnsDiscoveryTest",
         "--select-class=no.norrs.nortools.lib.zeroconf.NetbiosNameServiceTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.SsdpDiscoveryTest",
         "--select-class=no.norrs.nortools.lib.zeroconf.UdpDiscoveryTest",
         "--disable-banner",
     ],

@@ -63,6 +63,8 @@ fun startServer(
             get("/api/zeroconf/netbios/listen") { ctx -> netbiosListen(ctx) }
             get("/api/zeroconf/mdns/query/{name}") { ctx -> mdnsQuery(ctx) }
             get("/api/zeroconf/mdns/listen") { ctx -> mdnsListen(ctx) }
+            get("/api/zeroconf/ssdp/search") { ctx -> ssdpSearch(ctx) }
+            get("/api/zeroconf/ssdp/listen") { ctx -> ssdpListen(ctx) }
 
             // WHOIS tools
             get("/api/whois/{query}") { ctx -> whoisLookup(ctx) }
