@@ -2,8 +2,11 @@ package no.norrs.nortools.lib.zeroconf
 
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.MulticastSocket
+import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 import java.time.Duration
 import java.time.Instant
@@ -87,6 +90,38 @@ class BoundedUdpDiscovery(
         return socket.use { receive(it, maxPackets) }
     }
 
+    fun listenMulticast(
+        groupAddress: String,
+        bindPort: Int,
+        bindAddress: String? = null,
+        maxPackets: Int,
+        ipFamily: IpFamily = IpFamily.IPV4,
+    ): List<UdpObservation> {
+        require(bindPort in 1..65535) { "UDP bind port must be between 1 and 65535" }
+        require(maxPackets > 0) { "maxPackets must be positive" }
+
+        val group = InetAddress.getByName(groupAddress)
+        val interfaces = resolveMulticastInterfaces(bindAddress, ipFamily)
+        require(interfaces.isNotEmpty()) {
+            "No multicast-capable interfaces available for ${ipFamily.name.lowercase()} and bindAddress=${bindAddress ?: "0.0.0.0"}"
+        }
+
+        val socket = MulticastSocket(null)
+        socket.reuseAddress = true
+        socket.soTimeout = timeout.toMillis().toInt()
+        socket.bind(InetSocketAddress(bindPort))
+        interfaces.forEach { socket.joinGroup(InetSocketAddress(group, bindPort), it) }
+
+        return try {
+            receive(socket, maxPackets, multicastGroup = group.hostAddress)
+        } finally {
+            interfaces.forEach { iface ->
+                runCatching { socket.leaveGroup(InetSocketAddress(group, bindPort), iface) }
+            }
+            socket.close()
+        }
+    }
+
     fun sendAndReceive(
         payload: ByteArray,
         targetAddress: String,
@@ -122,7 +157,56 @@ class BoundedUdpDiscovery(
         }
     }
 
-    private fun receive(socket: DatagramSocket, maxPackets: Int): List<UdpObservation> {
+    fun sendAndReceiveMulticast(
+        payload: ByteArray,
+        groupAddress: String,
+        groupPort: Int,
+        bindAddress: String? = null,
+        maxPackets: Int = 25,
+        ipFamily: IpFamily = IpFamily.IPV4,
+    ): List<UdpObservation> {
+        require(groupPort in 1..65535) { "UDP target port must be between 1 and 65535" }
+        require(maxPackets > 0) { "maxPackets must be positive" }
+
+        val group = InetAddress.getByName(groupAddress)
+        val interfaces = resolveMulticastInterfaces(bindAddress, ipFamily)
+        require(interfaces.isNotEmpty()) {
+            "No multicast-capable interfaces available for ${ipFamily.name.lowercase()} and bindAddress=${bindAddress ?: "0.0.0.0"}"
+        }
+
+        val socket = MulticastSocket(null)
+        socket.reuseAddress = true
+        socket.soTimeout = timeout.toMillis().toInt()
+        socket.bind(InetSocketAddress(groupPort))
+        interfaces.forEach { socket.joinGroup(InetSocketAddress(group, groupPort), it) }
+        socket.networkInterface = interfaces.first()
+
+        return try {
+            socket.send(DatagramPacket(payload, payload.size, group, groupPort))
+            val sent = UdpObservation(
+                protocol = protocol,
+                direction = UdpDirection.SENT,
+                local = socket.localEndpoint(),
+                remote = UdpEndpoint(group.hostAddress, groupPort),
+                interfaceName = interfaces.first().name,
+                multicastGroup = group.hostAddress,
+                rawLength = payload.size,
+                payload = payload.copyOf(),
+            )
+            listOf(sent) + receive(socket, maxPackets, multicastGroup = group.hostAddress)
+        } finally {
+            interfaces.forEach { iface ->
+                runCatching { socket.leaveGroup(InetSocketAddress(group, groupPort), iface) }
+            }
+            socket.close()
+        }
+    }
+
+    private fun receive(
+        socket: DatagramSocket,
+        maxPackets: Int,
+        multicastGroup: String? = null,
+    ): List<UdpObservation> {
         val observations = mutableListOf<UdpObservation>()
         val buffer = ByteArray(maxPayloadBytes)
 
@@ -136,6 +220,7 @@ class BoundedUdpDiscovery(
                     direction = UdpDirection.RECEIVED,
                     local = socket.localEndpoint(),
                     remote = UdpEndpoint(packet.address.hostAddress, packet.port),
+                    multicastGroup = multicastGroup,
                     rawLength = payload.size,
                     payload = payload,
                 )
@@ -149,4 +234,32 @@ class BoundedUdpDiscovery(
 
     private fun DatagramSocket.localEndpoint(): UdpEndpoint =
         UdpEndpoint(localAddress.hostAddress, localPort)
+
+    internal fun resolveMulticastInterfaces(
+        bindAddress: String?,
+        ipFamily: IpFamily,
+    ): List<NetworkInterface> {
+        val requested = bindAddress?.takeIf { it.isNotBlank() && it != "0.0.0.0" }
+        if (requested != null) {
+            val address = InetAddress.getByName(requested)
+            require(address is Inet4Address || ipFamily.allowsIpv6()) {
+                "Requested bindAddress '$bindAddress' does not match the selected IP family."
+            }
+            val iface = NetworkInterface.getByInetAddress(address)
+                ?: throw IllegalArgumentException("No network interface found for bindAddress '$bindAddress'")
+            require(iface.supportsMulticast()) { "Interface '${iface.name}' does not support multicast" }
+            return listOf(iface)
+        }
+
+        return NetworkInterface.getNetworkInterfaces().asSequence()
+            .filter { it.isUp }
+            .filter { !it.isLoopback }
+            .filter { it.supportsMulticast() }
+            .filter { iface ->
+                val addresses = iface.inetAddresses.asSequence().toList()
+                (ipFamily.allowsIpv4() && addresses.any { it is Inet4Address }) ||
+                    (ipFamily.allowsIpv6() && addresses.any { it !is Inet4Address })
+            }
+            .toList()
+    }
 }

@@ -38,12 +38,11 @@ class MdnsClient(
         val normalizedType = MdnsCodec.typeCode(type)
         val payload = MdnsCodec.buildQuery(name, normalizedType)
         val observations = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
-            .sendAndReceive(
+            .sendAndReceiveMulticast(
                 payload = payload,
-                targetAddress = MDNS_IPV4_GROUP,
-                targetPort = MDNS_PORT,
+                groupAddress = MDNS_IPV4_GROUP,
+                groupPort = MDNS_PORT,
                 bindAddress = bindAddress,
-                bindPort = MDNS_PORT,
                 maxPackets = maxPackets,
             )
         return MdnsResult(
@@ -65,16 +64,18 @@ class MdnsClient(
 
     fun listen(bindAddress: String = "0.0.0.0", maxPackets: Int = 25): MdnsResult {
         val observations = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
-            .listen(bindAddress = bindAddress, bindPort = MDNS_PORT, maxPackets = maxPackets)
+            .listenMulticast(
+                groupAddress = MDNS_IPV4_GROUP,
+                bindPort = MDNS_PORT,
+                bindAddress = bindAddress,
+                maxPackets = maxPackets,
+            )
         return MdnsResult(
             mode = "listen",
             status = if (observations.isEmpty()) "no-responses" else "ok",
             responseCount = observations.size,
             records = observations.flatMap { MdnsCodec.parseRecords(it.payload) },
             observations = observations,
-            warnings = listOf(
-                "Passive mDNS listen binds UDP 5353. Interface-scoped multicast group joins will be added with the full mDNS browser.",
-            ),
         )
     }
 
