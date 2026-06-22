@@ -37,7 +37,7 @@ class MdnsClient(
     ): MdnsResult {
         val normalizedType = MdnsCodec.typeCode(type)
         val payload = MdnsCodec.buildQuery(name, normalizedType)
-        val observations = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
+        val session = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
             .sendAndReceiveMulticast(
                 payload = payload,
                 groupAddress = MDNS_IPV4_GROUP,
@@ -45,6 +45,7 @@ class MdnsClient(
                 bindAddress = bindAddress,
                 maxPackets = maxPackets,
             )
+        val observations = session.observations
         return MdnsResult(
             mode = "query",
             status = if (observations.any { it.direction == UdpDirection.RECEIVED }) "ok" else "no-responses",
@@ -59,23 +60,26 @@ class MdnsClient(
                 }
             },
             observations = observations,
+            warnings = session.warnings,
         )
     }
 
     fun listen(bindAddress: String = "0.0.0.0", maxPackets: Int = 25): MdnsResult {
-        val observations = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
+        val session = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
             .listenMulticast(
                 groupAddress = MDNS_IPV4_GROUP,
                 bindPort = MDNS_PORT,
                 bindAddress = bindAddress,
                 maxPackets = maxPackets,
             )
+        val observations = session.observations
         return MdnsResult(
             mode = "listen",
             status = if (observations.isEmpty()) "no-responses" else "ok",
             responseCount = observations.size,
             records = observations.flatMap { MdnsCodec.parseRecords(it.payload) },
             observations = observations,
+            warnings = session.warnings,
         )
     }
 

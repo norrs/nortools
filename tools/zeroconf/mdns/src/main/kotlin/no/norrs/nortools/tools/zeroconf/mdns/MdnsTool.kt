@@ -84,16 +84,18 @@ class MdnsCommand : BaseCommand(
         }
 
         if (result.records.isEmpty()) {
+            val detail = linkedMapOf(
+                "Protocol" to result.protocol,
+                "Mode" to result.mode,
+                "Status" to result.status,
+                "Responses" to result.responseCount,
+                "Timeout" to "${timeoutSeconds}s",
+            )
+            if (result.warnings.isNotEmpty()) {
+                detail["Warnings"] = result.warnings.joinToString(" | ")
+            }
             echo(
-                formatter.formatDetail(
-                    linkedMapOf(
-                        "Protocol" to result.protocol,
-                        "Mode" to result.mode,
-                        "Status" to result.status,
-                        "Responses" to result.responseCount,
-                        "Timeout" to "${timeoutSeconds}s",
-                    ),
-                ),
+                formatter.formatDetail(detail),
             )
             return
         }

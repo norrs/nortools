@@ -70,6 +70,11 @@ data class UdpObservation(
     }
 }
 
+data class MulticastSession(
+    val observations: List<UdpObservation>,
+    val warnings: List<String> = emptyList(),
+)
+
 class BoundedUdpDiscovery(
     private val protocol: String,
     private val timeout: Duration = Duration.ofSeconds(5),
@@ -96,7 +101,7 @@ class BoundedUdpDiscovery(
         bindAddress: String? = null,
         maxPackets: Int,
         ipFamily: IpFamily = IpFamily.IPV4,
-    ): List<UdpObservation> {
+    ): MulticastSession {
         require(bindPort in 1..65535) { "UDP bind port must be between 1 and 65535" }
         require(maxPackets > 0) { "maxPackets must be positive" }
 
@@ -110,12 +115,29 @@ class BoundedUdpDiscovery(
         socket.reuseAddress = true
         socket.soTimeout = timeout.toMillis().toInt()
         socket.bind(InetSocketAddress(bindPort))
-        interfaces.forEach { socket.joinGroup(InetSocketAddress(group, bindPort), it) }
+        val warnings = mutableListOf<String>()
+        val joinedInterfaces = mutableListOf<NetworkInterface>()
+        for (iface in interfaces) {
+            runCatching {
+                socket.joinGroup(InetSocketAddress(group, bindPort), iface)
+            }.onSuccess {
+                joinedInterfaces += iface
+                warnings += "Joined multicast group ${group.hostAddress}:$bindPort on interface ${iface.name}."
+            }.onFailure { error ->
+                warnings += "Failed to join multicast group ${group.hostAddress}:$bindPort on interface ${iface.name}: ${error.message ?: error::class.java.simpleName}"
+            }
+        }
+        require(joinedInterfaces.isNotEmpty()) {
+            "Could not join multicast group ${group.hostAddress}:$bindPort on any eligible interface."
+        }
 
         return try {
-            receive(socket, maxPackets, multicastGroup = group.hostAddress)
+            MulticastSession(
+                observations = receive(socket, maxPackets, multicastGroup = group.hostAddress),
+                warnings = warnings,
+            )
         } finally {
-            interfaces.forEach { iface ->
+            joinedInterfaces.forEach { iface ->
                 runCatching { socket.leaveGroup(InetSocketAddress(group, bindPort), iface) }
             }
             socket.close()
@@ -164,7 +186,7 @@ class BoundedUdpDiscovery(
         bindAddress: String? = null,
         maxPackets: Int = 25,
         ipFamily: IpFamily = IpFamily.IPV4,
-    ): List<UdpObservation> {
+    ): MulticastSession {
         require(groupPort in 1..65535) { "UDP target port must be between 1 and 65535" }
         require(maxPackets > 0) { "maxPackets must be positive" }
 
@@ -178,8 +200,22 @@ class BoundedUdpDiscovery(
         socket.reuseAddress = true
         socket.soTimeout = timeout.toMillis().toInt()
         socket.bind(InetSocketAddress(groupPort))
-        interfaces.forEach { socket.joinGroup(InetSocketAddress(group, groupPort), it) }
-        socket.networkInterface = interfaces.first()
+        val warnings = mutableListOf<String>()
+        val joinedInterfaces = mutableListOf<NetworkInterface>()
+        for (iface in interfaces) {
+            runCatching {
+                socket.joinGroup(InetSocketAddress(group, groupPort), iface)
+            }.onSuccess {
+                joinedInterfaces += iface
+                warnings += "Joined multicast group ${group.hostAddress}:$groupPort on interface ${iface.name}."
+            }.onFailure { error ->
+                warnings += "Failed to join multicast group ${group.hostAddress}:$groupPort on interface ${iface.name}: ${error.message ?: error::class.java.simpleName}"
+            }
+        }
+        require(joinedInterfaces.isNotEmpty()) {
+            "Could not join multicast group ${group.hostAddress}:$groupPort on any eligible interface."
+        }
+        socket.networkInterface = joinedInterfaces.first()
 
         return try {
             socket.send(DatagramPacket(payload, payload.size, group, groupPort))
@@ -188,14 +224,17 @@ class BoundedUdpDiscovery(
                 direction = UdpDirection.SENT,
                 local = socket.localEndpoint(),
                 remote = UdpEndpoint(group.hostAddress, groupPort),
-                interfaceName = interfaces.first().name,
+                interfaceName = joinedInterfaces.first().name,
                 multicastGroup = group.hostAddress,
                 rawLength = payload.size,
                 payload = payload.copyOf(),
             )
-            listOf(sent) + receive(socket, maxPackets, multicastGroup = group.hostAddress)
+            MulticastSession(
+                observations = listOf(sent) + receive(socket, maxPackets, multicastGroup = group.hostAddress),
+                warnings = warnings,
+            )
         } finally {
-            interfaces.forEach { iface ->
+            joinedInterfaces.forEach { iface ->
                 runCatching { socket.leaveGroup(InetSocketAddress(group, groupPort), iface) }
             }
             socket.close()
