@@ -1,11 +1,7 @@
 package no.norrs.nortools.lib.zeroconf
 
-import org.xbill.DNS.DClass
-import org.xbill.DNS.Flags
-import org.xbill.DNS.Message
-import org.xbill.DNS.Name
-import org.xbill.DNS.Record
-import org.xbill.DNS.Section
+import no.norrs.nortools.lib.dns.DnsWireCodec
+import no.norrs.nortools.lib.dns.DnsWireRecord
 import org.xbill.DNS.Type
 import java.time.Duration
 
@@ -89,40 +85,23 @@ class MdnsClient(
 }
 
 object MdnsCodec {
-    fun normalizeName(name: String): String =
-        if (name.endsWith(".")) name else "$name."
+    fun normalizeName(name: String): String = DnsWireCodec.normalizeName(name)
 
-    fun typeCode(type: String): Int {
-        val code = Type.value(type.uppercase())
-        require(code > 0) { "Unknown DNS record type: $type" }
-        return code
-    }
+    fun typeCode(type: String): Int = DnsWireCodec.typeCode(type)
 
-    fun buildQuery(name: String, type: Int): ByteArray {
-        val dnsName = Name.fromString(normalizeName(name))
-        val record = Record.newRecord(dnsName, type, DClass.IN)
-        val message = Message.newQuery(record)
-        message.header.unsetFlag(Flags.RD.toInt())
-        return message.toWire()
-    }
+    fun buildQuery(name: String, type: Int): ByteArray =
+        DnsWireCodec.buildQueryWire(name, type, recursionDesired = false)
 
-    fun parseRecords(payload: ByteArray): List<MdnsRecord> {
-        val message = Message(payload)
-        return listOf(
-            Section.ANSWER to "answer",
-            Section.AUTHORITY to "authority",
-            Section.ADDITIONAL to "additional",
-        ).flatMap { (section, label) ->
-            message.getSection(section).map { record ->
-                MdnsRecord(
-                    section = label,
-                    name = record.name.toString(),
-                    type = Type.string(record.type),
-                    dnsClass = DClass.string(record.getDClass() and 0x7fff),
-                    ttl = record.ttl,
-                    data = record.rdataToString(),
-                )
-            }
-        }
-    }
+    fun parseRecords(payload: ByteArray): List<MdnsRecord> =
+        DnsWireCodec.parseRecords(payload).map(DnsWireRecord::toMdnsRecord)
 }
+
+private fun DnsWireRecord.toMdnsRecord(): MdnsRecord =
+    MdnsRecord(
+        section = section,
+        name = name,
+        type = type,
+        dnsClass = dnsClass,
+        ttl = ttl,
+        data = data,
+    )

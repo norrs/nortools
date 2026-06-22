@@ -16,6 +16,7 @@ kt_jvm_test(
     name = "dns_test",
     srcs = glob(["src/test/kotlin/**/*.kt"]),
     args = [
+        "--select-class=no.norrs.nortools.lib.dns.DnsWireCodecTest",
         "--select-class=no.norrs.nortools.lib.dns.DnsModelsTest",
         "--select-class=no.norrs.nortools.lib.dns.DnsResolverWindowsConfigTest",
         "--disable-banner",
