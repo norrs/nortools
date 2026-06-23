@@ -11,7 +11,7 @@
           <option value="mdns">mDNS / DNS-SD</option>
           <option value="llmnr" disabled>LLMNR</option>
           <option value="ssdp">SSDP / UPnP</option>
-          <option value="wsd" disabled>WS-Discovery</option>
+          <option value="wsd">WS-Discovery</option>
         </select>
       </div>
 
@@ -80,6 +80,12 @@
         v-model.trim="recordType"
         class="input input-sm"
         placeholder="PTR"
+      />
+      <input
+        v-if="mode === 'query' && protocol === 'wsd'"
+        v-model.trim="scopeFilter"
+        class="input target-input"
+        placeholder="Scopes (optional)"
       />
       <input
         v-if="mode === 'node-status' && protocol === 'netbios'"
@@ -158,6 +164,7 @@ app.component("zeroconf-discovery-page", {
       bindChoices: [],
       name: "",
       recordType: "PTR",
+      scopeFilter: "",
       target: "255.255.255.255",
       suffix: 32,
       host: "",
@@ -172,13 +179,14 @@ app.component("zeroconf-discovery-page", {
   },
   computed: {
     canRun() {
-      if (this.mode === "query") return this.name.length > 0
+      if (this.mode === "query") return this.protocol === "wsd" || this.name.length > 0
       if (this.mode === "node-status") return this.protocol === "netbios" && this.host.length > 0
       return this.mode === "listen"
     },
     queryPlaceholder() {
       if (this.protocol === "mdns") return "_services._dns-sd._udp.local"
       if (this.protocol === "ssdp") return "ssdp:all"
+      if (this.protocol === "wsd") return "wsdp:Device or dn:NetworkVideoTransmitter"
       return "MYPC"
     },
     actionLabel() {
@@ -217,6 +225,16 @@ app.component("zeroconf-discovery-page", {
           params.set("maxPackets", String(this.maxPackets || 25))
           params.set("bindAddress", this.bindAddress || "0.0.0.0")
           url = `/api/zeroconf/ssdp/listen?${params}`
+        } else if (this.protocol === "wsd" && this.mode === "query") {
+          params.set("maxPackets", String(this.maxPackets || 25))
+          if (this.name) params.set("types", this.name)
+          if (this.scopeFilter) params.set("scopes", this.scopeFilter)
+          if (this.bindAddress && this.bindAddress !== "0.0.0.0") params.set("bindAddress", this.bindAddress)
+          url = `/api/zeroconf/wsd/probe?${params}`
+        } else if (this.protocol === "wsd" && this.mode === "listen") {
+          params.set("maxPackets", String(this.maxPackets || 25))
+          params.set("bindAddress", this.bindAddress || "0.0.0.0")
+          url = `/api/zeroconf/wsd/listen?${params}`
         } else if (this.protocol === "mdns" && this.mode === "listen") {
           params.set("maxPackets", String(this.maxPackets || 25))
           params.set("bindAddress", this.bindAddress || "0.0.0.0")

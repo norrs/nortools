@@ -8,6 +8,8 @@ import no.norrs.nortools.lib.zeroconf.NetbiosNameServiceClient
 import no.norrs.nortools.lib.zeroconf.NetbiosResponse
 import no.norrs.nortools.lib.zeroconf.SsdpClient
 import no.norrs.nortools.lib.zeroconf.SsdpMessage
+import no.norrs.nortools.lib.zeroconf.WsDiscoveryClient
+import no.norrs.nortools.lib.zeroconf.WsDiscoveryMessage
 import java.time.Duration
 
 fun netbiosNameQuery(ctx: Context) {
@@ -132,6 +134,40 @@ fun ssdpListen(ctx: Context) {
     ctx.jsonResult(ssdpEnvelope(result.mode, result.messages, result.responseCount, result.searchTarget, result.warnings))
 }
 
+fun wsdProbe(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "WS-Discovery") ?: return
+    if (!requireWsdIpv4(ctx, ipFamily)) return
+
+    val client = WsDiscoveryClient(timeout = requestTimeout(ctx))
+    val types = ctx.queryParam("types")?.takeIf { it.isNotBlank() }
+    val scopes = ctx.queryParam("scopes")?.takeIf { it.isNotBlank() }
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() }
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.probe(types = types, scopes = scopes, bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "WS-Discovery", error = error.message ?: "WS-Discovery probe failed"))
+    }
+
+    ctx.jsonResult(wsdEnvelope(result.mode, result.messages, result.responseCount, result.probeTypes, result.scopes, result.warnings))
+}
+
+fun wsdListen(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "WS-Discovery") ?: return
+    if (!requireWsdIpv4(ctx, ipFamily)) return
+
+    val client = WsDiscoveryClient(timeout = requestTimeout(ctx))
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() } ?: "0.0.0.0"
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.listen(bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "WS-Discovery", error = error.message ?: "WS-Discovery listener failed"))
+    }
+
+    ctx.jsonResult(wsdEnvelope(result.mode, result.messages, result.responseCount, result.probeTypes, result.scopes, result.warnings))
+}
+
 private fun parseIpFamily(ctx: Context, protocol: String = "NetBIOS Name Service"): IpFamily? {
     val raw = ctx.queryParam("ipFamily") ?: "ipv4"
     return runCatching { IpFamily.fromCli(raw) }.getOrElse {
@@ -183,6 +219,20 @@ private fun requireSsdpIpv4(ctx: Context, ipFamily: IpFamily): Boolean {
             "status" to "unsupported-ip-family",
             "requestedIpFamily" to ipFamily.name.lowercase(),
             "reason" to "This first SSDP slice supports IPv4 multicast on 239.255.255.250 only.",
+            "rows" to emptyList<Map<String, Any?>>(),
+        ),
+    )
+    return false
+}
+
+private fun requireWsdIpv4(ctx: Context, ipFamily: IpFamily): Boolean {
+    if (ipFamily.allowsIpv4()) return true
+    ctx.jsonResult(
+        mapOf(
+            "protocol" to "WS-Discovery",
+            "status" to "unsupported-ip-family",
+            "requestedIpFamily" to ipFamily.name.lowercase(),
+            "reason" to "This first WS-Discovery slice supports IPv4 multicast on 239.255.255.250:3702 only.",
             "rows" to emptyList<Map<String, Any?>>(),
         ),
     )
@@ -257,6 +307,37 @@ private fun ssdpEnvelope(
                 "address" to (message.location ?: ""),
                 "group" to (message.uniqueServiceName ?: ""),
                 "result" to (message.server ?: ""),
+                "error" to "",
+            )
+        },
+        "messages" to messages,
+        "warnings" to warnings,
+    )
+
+private fun wsdEnvelope(
+    mode: String,
+    messages: List<WsDiscoveryMessage>,
+    responseCount: Int,
+    probeTypes: String? = null,
+    scopes: String? = null,
+    warnings: List<String> = emptyList(),
+): Map<String, Any?> =
+    mapOf(
+        "protocol" to "WS-Discovery",
+        "mode" to mode,
+        "status" to if (messages.isEmpty()) "no-responses" else "ok",
+        "responseCount" to responseCount,
+        "probeTypes" to probeTypes,
+        "scopes" to scopes,
+        "rows" to messages.map { message ->
+            linkedMapOf(
+                "source" to "",
+                "type" to message.messageType,
+                "name" to (message.types ?: ""),
+                "suffix" to "",
+                "address" to (message.xAddrs ?: ""),
+                "group" to (message.endpointReference ?: ""),
+                "result" to (message.metadataVersion ?: ""),
                 "error" to "",
             )
         },

@@ -17,6 +17,7 @@ kt_jvm_test(
         "--select-class=no.norrs.nortools.lib.zeroconf.NetbiosNameServiceTest",
         "--select-class=no.norrs.nortools.lib.zeroconf.SsdpDiscoveryTest",
         "--select-class=no.norrs.nortools.lib.zeroconf.UdpDiscoveryTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.WsDiscoveryTest",
         "--disable-banner",
     ],
     main_class = "org.junit.platform.console.ConsoleLauncher",

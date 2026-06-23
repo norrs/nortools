@@ -51,6 +51,8 @@ class WebApiRoutesTest {
             "GET /api/zeroconf/netbios/query/{name}",
             "GET /api/zeroconf/ssdp/listen",
             "GET /api/zeroconf/ssdp/search",
+            "GET /api/zeroconf/wsd/listen",
+            "GET /api/zeroconf/wsd/probe",
             "POST /api/email-extract",
         )
 
