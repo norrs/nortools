@@ -81,6 +81,11 @@
   {"name": "no.norrs.nortools.web.DmarcGeneratorResponse",     "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.AboutBuildInfo",             "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.AboutResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfDashboardSnapshot",   "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfDashboardDevice",     "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfDashboardService",    "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfDashboardEvent",      "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfProtocolStat",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
 
   {"name": "build.krema.core.updater.UpdateManifest",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "build.krema.core.updater.UpdateManifest$PlatformEntry", "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},

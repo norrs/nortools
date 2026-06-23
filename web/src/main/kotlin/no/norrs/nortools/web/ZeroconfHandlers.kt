@@ -14,6 +14,23 @@ import no.norrs.nortools.lib.zeroconf.WsDiscoveryClient
 import no.norrs.nortools.lib.zeroconf.WsDiscoveryMessage
 import java.time.Duration
 
+fun zeroconfDashboard(ctx: Context) {
+    ZeroconfDiscoveryMonitor.start()
+    ctx.jsonResult(ZeroconfDiscoveryMonitor.snapshot())
+}
+
+fun zeroconfDashboardRefresh(ctx: Context) {
+    ZeroconfDiscoveryMonitor.start()
+    Thread {
+        ZeroconfDiscoveryMonitor.refreshNow()
+    }.apply {
+        isDaemon = true
+        name = "zeroconf-dashboard-refresh"
+        start()
+    }
+    ctx.jsonResult(ZeroconfDiscoveryMonitor.snapshot())
+}
+
 fun netbiosNameQuery(ctx: Context) {
     val ipFamily = parseIpFamily(ctx) ?: return
     if (!requireNetbiosIpv4(ctx, ipFamily)) return
