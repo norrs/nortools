@@ -2,6 +2,8 @@ package no.norrs.nortools.web
 
 import io.javalin.http.Context
 import no.norrs.nortools.lib.zeroconf.IpFamily
+import no.norrs.nortools.lib.zeroconf.LlmnrClient
+import no.norrs.nortools.lib.zeroconf.LlmnrRecord
 import no.norrs.nortools.lib.zeroconf.MdnsClient
 import no.norrs.nortools.lib.zeroconf.MdnsRecord
 import no.norrs.nortools.lib.zeroconf.NetbiosNameServiceClient
@@ -58,6 +60,38 @@ fun netbiosListen(ctx: Context) {
     }
 
     ctx.jsonResult(netbiosEnvelope(mode = "listen", responses = responses))
+}
+
+fun llmnrQuery(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "LLMNR") ?: return
+
+    val client = LlmnrClient(timeout = requestTimeout(ctx))
+    val name = ctx.pathParam("name")
+    val type = ctx.queryParam("type")?.takeIf { it.isNotBlank() } ?: "A"
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() }
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.query(name = name, type = type, ipFamily = ipFamily, bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "LLMNR", error = error.message ?: "LLMNR query failed"))
+    }
+
+    ctx.jsonResult(llmnrEnvelope(mode = "query", records = result.records, responseCount = result.responseCount, warnings = result.warnings))
+}
+
+fun llmnrListen(ctx: Context) {
+    val ipFamily = parseIpFamily(ctx, protocol = "LLMNR") ?: return
+
+    val client = LlmnrClient(timeout = requestTimeout(ctx))
+    val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() }
+    val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
+    val result = runCatching {
+        client.listen(ipFamily = ipFamily, bindAddress = bindAddress, maxPackets = maxPackets)
+    }.getOrElse { error ->
+        return ctx.jsonResult(errorResponse(protocol = "LLMNR", error = error.message ?: "LLMNR listener failed"))
+    }
+
+    ctx.jsonResult(llmnrEnvelope(mode = "listen", records = result.records, responseCount = result.responseCount, warnings = result.warnings))
 }
 
 fun mdnsQuery(ctx: Context) {
@@ -273,6 +307,33 @@ private fun mdnsEnvelope(
                 "suffix" to "",
                 "address" to record.data,
                 "group" to "",
+                "result" to record.ttl,
+                "error" to "",
+            )
+        },
+        "records" to records,
+        "warnings" to warnings,
+    )
+
+private fun llmnrEnvelope(
+    mode: String,
+    records: List<LlmnrRecord>,
+    responseCount: Int,
+    warnings: List<String> = emptyList(),
+): Map<String, Any?> =
+    mapOf(
+        "protocol" to "LLMNR",
+        "mode" to mode,
+        "status" to if (records.isEmpty()) "no-responses" else "ok",
+        "responseCount" to responseCount,
+        "rows" to records.map { record ->
+            linkedMapOf(
+                "source" to record.section,
+                "type" to record.type,
+                "name" to record.name,
+                "suffix" to "",
+                "address" to record.data,
+                "group" to record.dnsClass,
                 "result" to record.ttl,
                 "error" to "",
             )

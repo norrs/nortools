@@ -61,6 +61,8 @@ fun startServer(
             get("/api/zeroconf/netbios/query/{name}") { ctx -> netbiosNameQuery(ctx) }
             get("/api/zeroconf/netbios/node-status/{host}") { ctx -> netbiosNodeStatus(ctx) }
             get("/api/zeroconf/netbios/listen") { ctx -> netbiosListen(ctx) }
+            get("/api/zeroconf/llmnr/query/{name}") { ctx -> llmnrQuery(ctx) }
+            get("/api/zeroconf/llmnr/listen") { ctx -> llmnrListen(ctx) }
             get("/api/zeroconf/mdns/query/{name}") { ctx -> mdnsQuery(ctx) }
             get("/api/zeroconf/mdns/listen") { ctx -> mdnsListen(ctx) }
             get("/api/zeroconf/ssdp/search") { ctx -> ssdpSearch(ctx) }

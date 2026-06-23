@@ -155,6 +155,19 @@ class WebApiDeterministicEndpointsTest {
     }
 
     @Test
+    fun `zeroconf llmnr endpoint rejects invalid ip family before network scan`() {
+        val response = get("/api/zeroconf/llmnr/query/printer.local?ipFamily=bogus")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("LLMNR", json["protocol"].asText())
+        assertEquals("error", json["status"].asText())
+        assertTrue(json["error"].asText().contains("Invalid ipFamily"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
     fun `zeroconf mdns endpoint reports unsupported ipv6 without network scan`() {
         val response = get("/api/zeroconf/mdns/query/_services._dns-sd._udp.local?ipFamily=ipv6")
         assertEquals(200, response.statusCode())
