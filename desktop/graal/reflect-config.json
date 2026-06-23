@@ -86,6 +86,10 @@
   {"name": "no.norrs.nortools.web.ZeroconfDashboardService",    "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.ZeroconfDashboardEvent",      "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.ZeroconfProtocolStat",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfDnsRecordView",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfTxtRecordView",       "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfHostnameResolution",  "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.ZeroconfServiceTypeInfo",     "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
 
   {"name": "build.krema.core.updater.UpdateManifest",          "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "build.krema.core.updater.UpdateManifest$PlatformEntry", "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
