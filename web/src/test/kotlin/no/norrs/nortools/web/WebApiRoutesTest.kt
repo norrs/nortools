@@ -46,6 +46,7 @@ class WebApiRoutesTest {
             "GET /api/whois/{query}",
             "GET /api/zeroconf/dashboard",
             "GET /api/zeroconf/dashboard/refresh",
+            "GET /api/zeroconf/description",
             "GET /api/zeroconf/mdns/listen",
             "GET /api/zeroconf/mdns/query/{name}",
             "GET /api/zeroconf/llmnr/listen",

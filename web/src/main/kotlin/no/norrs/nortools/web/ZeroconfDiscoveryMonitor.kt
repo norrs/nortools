@@ -18,6 +18,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 data class ZeroconfDashboardSnapshot(
     val generatedAt: String,
@@ -107,6 +108,7 @@ data class ZeroconfProtocolStat(
 
 object ZeroconfDiscoveryMonitor {
     private val timeout = Duration.ofSeconds(2)
+    private val passiveListenTimeout = Duration.ofSeconds(30)
     private val devices = linkedMapOf<String, MutableDashboardDevice>()
     private val hostnameRecords = linkedMapOf<String, MutableHostnameResolution>()
     private val serviceTypes = linkedMapOf<String, MutableServiceTypeInfo>()
@@ -114,17 +116,23 @@ object ZeroconfDiscoveryMonitor {
     private val warnings = ArrayDeque<String>()
     private val stats = linkedMapOf<String, ZeroconfProtocolStat>()
     private val started = AtomicBoolean(false)
+    private val passiveStarted = AtomicBoolean(false)
     private val scanning = AtomicBoolean(false)
     private var lastCycleStartedAt: String? = null
     private var lastCycleFinishedAt: String? = null
     private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "zeroconf-discovery-monitor").apply { isDaemon = true }
     }
+    private val listenerThreadId = AtomicInteger(0)
+    private val listenerExecutor = Executors.newFixedThreadPool(5) { runnable ->
+        Thread(runnable, "zeroconf-passive-listener-${listenerThreadId.incrementAndGet()}").apply { isDaemon = true }
+    }
 
     fun start() {
         if (started.compareAndSet(false, true)) {
             executor.scheduleWithFixedDelay({ refreshNow() }, 0, 15, TimeUnit.SECONDS)
         }
+        startPassiveListeners()
     }
 
     fun refreshNow() {
@@ -192,17 +200,6 @@ object ZeroconfDiscoveryMonitor {
             messages.forEach(::ingestWsd)
             updateStats("WS-Discovery", messages.size)
         }
-        safeProtocol("LLMNR") {
-            val result = LlmnrClient(timeout = timeout).listen(ipFamily = IpFamily.BOTH, maxPackets = 30)
-            result.warnings.forEach { rememberDiscoveryWarning(it) }
-            result.records.forEach(::ingestLlmnr)
-            updateStats("LLMNR", result.records.size)
-        }
-        safeProtocol("NetBIOS") {
-            val responses = NetbiosNameServiceClient(timeout = timeout).listen(maxPackets = 20)
-            responses.forEach(::ingestNetbios)
-            updateStats("NetBIOS", responses.size)
-        }
     }
 
     private fun safeProtocol(protocol: String, block: () -> Unit) {
@@ -210,6 +207,67 @@ object ZeroconfDiscoveryMonitor {
             rememberWarning("$protocol discovery failed: ${error.message ?: error::class.java.simpleName}")
             updateStats(protocol, 0, status = "warning")
         }
+    }
+
+    private fun startPassiveListeners() {
+        if (!passiveStarted.compareAndSet(false, true)) return
+        listenerExecutor.execute {
+            passiveListenLoop("mDNS") {
+                val result = MdnsClient(timeout = passiveListenTimeout).listen(maxPackets = 250)
+                rememberPassiveWarnings(result.warnings)
+                val usefulRecords = ingestMdnsRecords(result.records)
+                updateStats("mDNS", usefulRecords)
+            }
+        }
+        listenerExecutor.execute {
+            passiveListenLoop("SSDP") {
+                val result = SsdpClient(timeout = passiveListenTimeout).listen(maxPackets = 250)
+                rememberPassiveWarnings(result.warnings)
+                val messages = result.messages.filter { it.isNotify || it.isResponse }
+                messages.forEach(::ingestSsdp)
+                updateStats("SSDP", messages.size)
+            }
+        }
+        listenerExecutor.execute {
+            passiveListenLoop("WS-Discovery") {
+                val result = WsDiscoveryClient(timeout = passiveListenTimeout).listen(maxPackets = 250)
+                rememberPassiveWarnings(result.warnings)
+                val messages = result.messages.filterNot { it.messageType == "Probe" || it.messageType == "Resolve" }
+                messages.forEach(::ingestWsd)
+                updateStats("WS-Discovery", messages.size)
+            }
+        }
+        listenerExecutor.execute {
+            passiveListenLoop("LLMNR") {
+                val result = LlmnrClient(timeout = passiveListenTimeout).listen(ipFamily = IpFamily.BOTH, maxPackets = 250)
+                rememberPassiveWarnings(result.warnings)
+                result.records.forEach(::ingestLlmnr)
+                updateStats("LLMNR", result.records.size)
+            }
+        }
+        listenerExecutor.execute {
+            passiveListenLoop("NetBIOS") {
+                val responses = NetbiosNameServiceClient(timeout = passiveListenTimeout).listen(maxPackets = 250)
+                responses.forEach(::ingestNetbios)
+                updateStats("NetBIOS", responses.size)
+            }
+        }
+    }
+
+    private fun passiveListenLoop(protocol: String, block: () -> Unit) {
+        while (started.get() && !Thread.currentThread().isInterrupted) {
+            runCatching(block).onFailure { error ->
+                rememberWarning("$protocol passive listener failed: ${error.message ?: error::class.java.simpleName}")
+                updateStats(protocol, 0, status = "warning")
+                Thread.sleep(5_000)
+            }
+        }
+    }
+
+    private fun rememberPassiveWarnings(protocolWarnings: List<String>) {
+        protocolWarnings
+            .filter { warning -> warning.startsWith("Failed", ignoreCase = true) || warning.startsWith("Could not", ignoreCase = true) }
+            .forEach(::rememberDiscoveryWarning)
     }
 
     @Synchronized

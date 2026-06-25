@@ -128,6 +128,9 @@
             <span>{{ device.protocols.join(', ') }}</span>
             <span>{{ device.addresses[0] || device.locations[0] || 'No address yet' }}</span>
           </div>
+          <div v-if="deviceServiceLines(device).length" class="device-services">
+            <span v-for="line in deviceServiceLines(device)" :key="line">{{ line }}</span>
+          </div>
           <div class="confidence" :class="device.confidence">{{ device.confidence }}</div>
         </button>
         <div v-if="!filteredDevices.length" class="empty-state">No devices discovered yet. Leave the page open or run Scan Now.</div>
@@ -230,8 +233,28 @@
 
           <div class="detail-section">
             <h4>Locations</h4>
-            <code v-for="location in selectedDevice.locations" :key="location">{{ location }}</code>
+            <div v-for="location in selectedDevice.locations" :key="location" class="location-row">
+              <a :href="location" target="_blank" rel="noopener noreferrer">{{ location }}</a>
+              <button v-if="isDescriptionUrl(location)" class="link-button" @click="loadDescription(location)" :disabled="descriptionLoadingUrl === location">
+                {{ descriptionLoadingUrl === location ? 'Inspecting...' : 'Inspect description' }}
+              </button>
+            </div>
             <p v-if="!selectedDevice.locations.length" class="muted">No metadata URL observed.</p>
+            <p v-if="descriptionError" class="muted">{{ descriptionError }}</p>
+            <div v-for="location in selectedDevice.locations" :key="`${location}-description`">
+              <div v-if="descriptions[location]?.description" class="description-card">
+                <div class="kv" v-for="row in descriptionRows(descriptions[location].description)" :key="row.label">
+                  <span>{{ row.label }}</span>
+                  <strong>{{ row.value }}</strong>
+                </div>
+                <div v-if="descriptions[location].description.services?.length" class="description-services">
+                  <strong>Services</strong>
+                  <code v-for="service in descriptions[location].description.services" :key="service.serviceId || service.serviceType">
+                    {{ service.serviceType || service.serviceId }}
+                  </code>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="detail-section">
@@ -359,6 +382,9 @@ app.component("zeroconf-discovery-page", {
       host: "",
       manualLoading: false,
       manualResult: null,
+      descriptionLoadingUrl: "",
+      descriptionError: "",
+      descriptions: {},
     }
   },
   mounted() {
@@ -524,6 +550,50 @@ app.component("zeroconf-discovery-page", {
       }
       return hints[normalized] || "service metadata"
     },
+    deviceServiceLines(device) {
+      const services = Array.isArray(device?.services) ? device.services : []
+      return services.map(service => {
+        const type = service.type || service.name || service.protocol
+        const endpoint = service.port
+          ? `${service.target || service.location || "-"}:${service.port}`
+          : (service.target || service.location || "")
+        return endpoint ? `${service.protocol}: ${type} -> ${endpoint}` : `${service.protocol}: ${type}`
+      })
+    },
+    isDescriptionUrl(location) {
+      return /^https?:\/\//i.test(location || "")
+    },
+    descriptionRows(description) {
+      const labels = [
+        ["friendlyName", "Friendly name"],
+        ["deviceType", "Device type"],
+        ["manufacturer", "Manufacturer"],
+        ["modelName", "Model"],
+        ["modelDescription", "Model description"],
+        ["modelNumber", "Model number"],
+        ["serialNumber", "Serial"],
+        ["UDN", "UDN"],
+        ["presentationURL", "Presentation URL"],
+      ]
+      return labels
+        .map(([key, label]) => ({ label, value: description?.[key] }))
+        .filter(row => row.value)
+    },
+    async loadDescription(location) {
+      this.descriptionLoadingUrl = location
+      this.descriptionError = ""
+      try {
+        const r = await fetch(`/api/zeroconf/description?url=${encodeURIComponent(location)}`)
+        if (!r.ok) throw new Error(`Description error: ${r.status}`)
+        const result = await r.json()
+        if (result.status !== "ok") throw new Error(result.error || "Could not read device description")
+        this.descriptions = { ...this.descriptions, [location]: result }
+      } catch (e) {
+        this.descriptionError = e instanceof Error ? e.message : "Could not read device description"
+      } finally {
+        this.descriptionLoadingUrl = ""
+      }
+    },
     async runManual() {
       this.manualLoading = true
       this.manualResult = null
@@ -622,6 +692,8 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page .device-main strong { font-size: 0.92rem; overflow-wrap: anywhere; }
 .zeroconf-page .device-main span, .zeroconf-page .device-meta { color: #64748b; font-size: 0.78rem; }
 .zeroconf-page .device-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 0.6rem; overflow-wrap: anywhere; }
+.zeroconf-page .device-services { grid-column: 1 / -1; display: grid; gap: 0.22rem; margin-top: 0.1rem; }
+.zeroconf-page .device-services span { color: #334155; font-size: 0.74rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.22rem 0.38rem; overflow-wrap: anywhere; }
 .zeroconf-page .confidence { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0; border-radius: 999px; padding: 0.18rem 0.45rem; background: #f1f5f9; color: #475569; height: fit-content; }
 .zeroconf-page .confidence.high { background: #dcfce7; color: #166534; }
 .zeroconf-page .confidence.medium { background: #fef3c7; color: #92400e; }
@@ -636,6 +708,12 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page code { display: block; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem 0.45rem; overflow-wrap: anywhere; }
 .zeroconf-page .kv { display: flex; justify-content: space-between; gap: 0.7rem; font-size: 0.82rem; }
 .zeroconf-page .kv span { color: #64748b; }
+.zeroconf-page .location-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.45rem; align-items: center; }
+.zeroconf-page .location-row a { color: #1d4ed8; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem 0.45rem; overflow-wrap: anywhere; }
+.zeroconf-page .description-card { border: 1px solid #dbeafe; border-radius: 8px; background: #eff6ff; padding: 0.55rem; display: grid; gap: 0.35rem; }
+.zeroconf-page .description-card .kv strong { text-align: right; overflow-wrap: anywhere; }
+.zeroconf-page .description-services { border-top: 1px solid #bfdbfe; padding-top: 0.45rem; display: grid; gap: 0.3rem; }
+.zeroconf-page .description-services > strong { font-size: 0.78rem; color: #1e3a8a; }
 .zeroconf-page .meaning-row { margin: 0; display: grid; grid-template-columns: minmax(120px, 0.45fr) minmax(160px, 1fr); gap: 0.55rem; font-size: 0.82rem; color: #475569; }
 .zeroconf-page .meaning-row strong { color: #111827; overflow-wrap: anywhere; }
 .zeroconf-page .mini-table, .zeroconf-page .result-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
@@ -660,6 +738,7 @@ app.component("zeroconf-discovery-page", {
   .zeroconf-page .resolution-flow { flex-direction: column; }
   .zeroconf-page .flow-arrow { display: none; }
   .zeroconf-page .service-type-row, .zeroconf-page .meaning-row { grid-template-columns: 1fr; }
+  .zeroconf-page .location-row { grid-template-columns: 1fr; }
   .zeroconf-page .page-head { flex-direction: column; }
   .zeroconf-page .head-actions { justify-content: flex-start; }
 }
