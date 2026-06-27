@@ -43,6 +43,7 @@ app.component("home-page", {
             { name: "TCP Port Check", path: "/tcp", icon: "🔌", description: "Test TCP connectivity to a host" },
             { name: "HTTP Check", path: "/http", icon: "🌐", description: "Check HTTP response from a URL" },
             { name: "HTTPS / SSL", path: "/https", icon: "🔒", description: "Check HTTPS and SSL/TLS details" },
+            { name: "ZeroConf Discovery", path: "/zeroconf", icon: "📶", description: "Discover local devices over mDNS, SSDP, WS-Discovery, LLMNR, and NetBIOS" },
             { name: "Interfaces & Routing", path: "/network-interfaces", icon: "🧭", description: "Inspect interfaces, routes, and DNS settings" },
             { name: "Ping", path: "/ping", icon: "📡", description: "Ping a host to check reachability" },
             { name: "Traceroute", path: "/traceroute", icon: "🗺️", description: "Visual network path tracing" },
