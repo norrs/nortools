@@ -184,10 +184,12 @@ class BoundedUdpDiscovery(
         groupAddress: String,
         groupPort: Int,
         bindAddress: String? = null,
+        bindPort: Int = groupPort,
         maxPackets: Int = 25,
         ipFamily: IpFamily = IpFamily.IPV4,
     ): MulticastSession {
         require(groupPort in 1..65535) { "UDP target port must be between 1 and 65535" }
+        require(bindPort in 0..65535) { "UDP bind port must be between 0 and 65535" }
         require(maxPackets > 0) { "maxPackets must be positive" }
 
         val group = InetAddress.getByName(groupAddress)
@@ -199,7 +201,7 @@ class BoundedUdpDiscovery(
         val socket = MulticastSocket(null)
         socket.reuseAddress = true
         socket.soTimeout = timeout.toMillis().toInt()
-        socket.bind(InetSocketAddress(groupPort))
+        socket.bind(InetSocketAddress(bindPort))
         val warnings = mutableListOf<String>()
         val joinedInterfaces = mutableListOf<NetworkInterface>()
         for (iface in interfaces) {
@@ -215,22 +217,23 @@ class BoundedUdpDiscovery(
         require(joinedInterfaces.isNotEmpty()) {
             "Could not join multicast group ${group.hostAddress}:$groupPort on any eligible interface."
         }
-        socket.networkInterface = joinedInterfaces.first()
-
         return try {
-            socket.send(DatagramPacket(payload, payload.size, group, groupPort))
-            val sent = UdpObservation(
-                protocol = protocol,
-                direction = UdpDirection.SENT,
-                local = socket.localEndpoint(),
-                remote = UdpEndpoint(group.hostAddress, groupPort),
-                interfaceName = joinedInterfaces.first().name,
-                multicastGroup = group.hostAddress,
-                rawLength = payload.size,
-                payload = payload.copyOf(),
-            )
+            val sent = joinedInterfaces.map { iface ->
+                socket.networkInterface = iface
+                socket.send(DatagramPacket(payload, payload.size, group, groupPort))
+                UdpObservation(
+                    protocol = protocol,
+                    direction = UdpDirection.SENT,
+                    local = socket.localEndpoint(),
+                    remote = UdpEndpoint(group.hostAddress, groupPort),
+                    interfaceName = iface.name,
+                    multicastGroup = group.hostAddress,
+                    rawLength = payload.size,
+                    payload = payload.copyOf(),
+                )
+            }
             MulticastSession(
-                observations = listOf(sent) + receive(socket, maxPackets, multicastGroup = group.hostAddress),
+                observations = sent + receive(socket, maxPackets, multicastGroup = group.hostAddress),
                 warnings = warnings,
             )
         } finally {

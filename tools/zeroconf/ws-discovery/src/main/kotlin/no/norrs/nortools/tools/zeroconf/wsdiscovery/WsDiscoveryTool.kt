@@ -37,26 +37,12 @@ class WsDiscoveryCommand : BaseCommand(
             return
         }
 
-        if (!ipFamily.allowsIpv4()) {
-            echo(
-                formatter.formatDetail(
-                    linkedMapOf(
-                        "Protocol" to "WS-Discovery",
-                        "Status" to "Unsupported IP family",
-                        "Requested IP Family" to ipFamilyValue,
-                        "Reason" to "This first WS-Discovery slice supports IPv4 multicast on 239.255.255.250:3702 only.",
-                    ),
-                ),
-            )
-            return
-        }
-
         val client = WsDiscoveryClient(timeout = Duration.ofSeconds(timeoutSeconds.toLong()))
         val result = try {
             if (listen) {
-                client.listen(bindAddress = bindAddress ?: "0.0.0.0", maxPackets = maxPackets)
+                client.listen(bindAddress = bindAddress ?: "0.0.0.0", ipFamily = ipFamily, maxPackets = maxPackets)
             } else {
-                client.probe(types = probeTypes, scopes = scopes, bindAddress = bindAddress, maxPackets = maxPackets)
+                client.probe(types = probeTypes, scopes = scopes, ipFamily = ipFamily, bindAddress = bindAddress, maxPackets = maxPackets)
             }
         } catch (e: Exception) {
             echo(
@@ -78,6 +64,7 @@ class WsDiscoveryCommand : BaseCommand(
                 "Status" to result.status,
                 "Responses" to result.responseCount,
                 "Timeout" to "${timeoutSeconds}s",
+                "IP Family" to ipFamilyValue,
             )
             result.probeTypes?.let { detail["Types"] = it }
             result.scopes?.let { detail["Scopes"] = it }

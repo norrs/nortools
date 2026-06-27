@@ -20,6 +20,29 @@ class WsDiscoveryTest {
     }
 
     @Test
+    fun `builds ws-discovery resolve envelope`() {
+        val payload = WsDiscoverySoapCodec.buildResolve(
+            endpointReference = "urn:uuid:device-1",
+            messageId = "urn:uuid:test-resolve",
+        ).toString(Charsets.UTF_8)
+
+        assertTrue(payload.contains("<w:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Resolve</w:Action>"))
+        assertTrue(payload.contains("<w:MessageID>urn:uuid:test-resolve</w:MessageID>"))
+        assertTrue(payload.contains("<w:Address>urn:uuid:device-1</w:Address>"))
+    }
+
+    @Test
+    fun `builds ws-transfer get envelope`() {
+        val payload = WsDiscoverySoapCodec.buildGet(
+            messageId = "urn:uuid:test-get",
+        ).toString(Charsets.UTF_8)
+
+        assertTrue(payload.contains("<w:Action>http://schemas.xmlsoap.org/ws/2004/09/transfer/Get</w:Action>"))
+        assertTrue(payload.contains("<w:MessageID>urn:uuid:test-get</w:MessageID>"))
+        assertTrue(payload.contains("<x:Get />"))
+    }
+
+    @Test
     fun `parses probe match message`() {
         val payload = """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -85,5 +108,67 @@ class WsDiscoveryTest {
         assertEquals("urn:uuid:printer-1", message.endpointReference)
         assertEquals("wsdp:Device", message.types)
         assertEquals("http://printer.local:5357/wsd", message.xAddrs)
+    }
+
+    @Test
+    fun `parses resolve match message`() {
+        val payload = """
+            <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+              xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+              xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery">
+              <s:Header>
+                <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/ResolveMatches</a:Action>
+                <a:RelatesTo>urn:uuid:resolve-1</a:RelatesTo>
+              </s:Header>
+              <s:Body>
+                <d:ResolveMatches>
+                  <d:ResolveMatch>
+                    <a:EndpointReference><a:Address>urn:uuid:device-1</a:Address></a:EndpointReference>
+                    <d:Types>wsdp:Device pub:Computer</d:Types>
+                    <d:XAddrs>http://192.168.1.50:3702/uuid/device-1</d:XAddrs>
+                    <d:MetadataVersion>2</d:MetadataVersion>
+                  </d:ResolveMatch>
+                </d:ResolveMatches>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent().toByteArray()
+
+        val message = WsDiscoverySoapCodec.parseMessage(payload)
+
+        assertEquals("ResolveMatches", message.messageType)
+        assertEquals("urn:uuid:device-1", message.endpointReference)
+        assertEquals("wsdp:Device pub:Computer", message.types)
+        assertEquals("http://192.168.1.50:3702/uuid/device-1", message.xAddrs)
+    }
+
+    @Test
+    fun `parses wsdd2 metadata response`() {
+        val payload = """
+            <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+              xmlns:wsdp="http://schemas.xmlsoap.org/ws/2006/02/devprof"
+              xmlns:pub="http://schemas.microsoft.com/windows/pub/2005/07">
+              <s:Body>
+                <wsdp:ThisDevice>
+                  <wsdp:FriendlyName>dalaran</wsdp:FriendlyName>
+                  <wsdp:Manufacturer>unknown</wsdp:Manufacturer>
+                  <wsdp:ModelName>Linux Samba</wsdp:ModelName>
+                  <wsdp:SerialNumber>0</wsdp:SerialNumber>
+                </wsdp:ThisDevice>
+                <pub:Computer>dalaran</pub:Computer>
+                <wsdp:Relationship>
+                  <wsdp:Host>
+                    <wsdp:Scopes>ldap:///Workgroup:WORKGROUP ldap:///Computer:dalaran</wsdp:Scopes>
+                  </wsdp:Host>
+                </wsdp:Relationship>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent().toByteArray()
+
+        val metadata = WsDiscoverySoapCodec.parseMetadata(payload)
+
+        assertEquals("dalaran", metadata.friendlyName)
+        assertEquals("Linux Samba", metadata.modelName)
+        assertEquals("dalaran", metadata.computerName)
+        assertEquals("WORKGROUP", metadata.workgroup)
     }
 }
