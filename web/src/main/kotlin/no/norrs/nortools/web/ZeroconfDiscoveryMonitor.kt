@@ -11,9 +11,18 @@ import no.norrs.nortools.lib.zeroconf.SsdpClient
 import no.norrs.nortools.lib.zeroconf.SsdpMessage
 import no.norrs.nortools.lib.zeroconf.WsDiscoveryClient
 import no.norrs.nortools.lib.zeroconf.WsDiscoveryMessage
+import no.norrs.nortools.lib.zeroconf.WsDiscoveryMetadata
+import no.norrs.nortools.lib.zeroconf.WsDiscoverySoapCodec
+import java.net.HttpURLConnection
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.URI
+import java.net.NetworkInterface
+import java.net.Socket
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -47,6 +56,7 @@ data class ZeroconfDashboardDevice(
     val dnsRecords: List<ZeroconfDnsRecordView>,
     val txtRecords: List<ZeroconfTxtRecordView>,
     val locations: List<String>,
+    val documents: List<ZeroconfDiscoveryDocument>,
     val firstSeen: String,
     val lastSeen: String,
     val evidenceCount: Int,
@@ -62,6 +72,14 @@ data class ZeroconfDashboardService(
     val location: String,
     val port: Int? = null,
     val description: String = "",
+)
+
+data class ZeroconfDiscoveryDocument(
+    val index: Int,
+    val protocol: String,
+    val label: String,
+    val contentType: String,
+    val sizeBytes: Int,
 )
 
 data class ZeroconfDnsRecordView(
@@ -175,14 +193,23 @@ object ZeroconfDiscoveryMonitor {
     @Synchronized
     fun deviceById(id: String): ZeroconfDashboardDevice? = devices[id]?.toDevice()
 
+    @Synchronized
+    fun documentById(id: String, index: Int): Pair<String, String>? =
+        devices[id]?.documents?.getOrNull(index)?.let { it.contentType to it.content }
+
     private fun runDiscoveryCycle() {
         safeProtocol("mDNS") {
             val client = MdnsClient(timeout = timeout)
-            val records = listOf(
-                client.query("_services._dns-sd._udp.local", "PTR", maxPackets = 30),
-                client.query("_http._tcp.local", "PTR", maxPackets = 30),
-                client.query("_ipp._tcp.local", "PTR", maxPackets = 30),
-            ).flatMap { result ->
+            val serviceCatalog = client.query("_services._dns-sd._udp.local", "PTR", maxPackets = 60)
+            serviceCatalog.warnings.forEach { rememberDiscoveryWarning(it) }
+            val serviceTypes = (mdnsSeedServiceTypes() + serviceCatalog.records
+                .filter { it.type == "PTR" && it.name.equals("_services._dns-sd._udp.local.", ignoreCase = true) }
+                .map { cleanDnsName(it.data) })
+                .distinct()
+                .take(16)
+            val records = (listOf(serviceCatalog) + serviceTypes.map { type ->
+                client.query(type, "PTR", maxPackets = 40)
+            }).flatMap { result ->
                 result.warnings.forEach { rememberDiscoveryWarning(it) }
                 result.records
             }
@@ -197,11 +224,18 @@ object ZeroconfDiscoveryMonitor {
             updateStats("SSDP", messages.size)
         }
         safeProtocol("WS-Discovery") {
-            val result = WsDiscoveryClient(timeout = timeout).probe(maxPackets = 60)
+            val client = WsDiscoveryClient(timeout = timeout)
+            val result = client.probe(ipFamily = IpFamily.BOTH, maxPackets = 60)
             result.warnings.forEach { rememberDiscoveryWarning(it) }
             val messages = result.messages.filterNot { it.messageType == "Probe" || it.messageType == "Resolve" }
-            messages.forEach(::ingestWsd)
-            updateStats("WS-Discovery", messages.size)
+            val enrichedMessages = enrichWsdMessages(client, messages)
+            enrichedMessages.forEach { ingestWsd(it.message, it.metadata) }
+            updateStats("WS-Discovery", enrichedMessages.size)
+        }
+        safeProtocol("SMB Sweep") {
+            val hits = scanLocalSmbHosts()
+            hits.forEach(::ingestSmbSweep)
+            updateStats("SMB Sweep", hits.size)
         }
     }
 
@@ -233,11 +267,13 @@ object ZeroconfDiscoveryMonitor {
         }
         listenerExecutor.execute {
             passiveListenLoop("WS-Discovery") {
-                val result = WsDiscoveryClient(timeout = passiveListenTimeout).listen(maxPackets = 250)
+                val client = WsDiscoveryClient(timeout = passiveListenTimeout)
+                val result = client.listen(ipFamily = IpFamily.BOTH, maxPackets = 250)
                 rememberPassiveWarnings(result.warnings)
                 val messages = result.messages.filterNot { it.messageType == "Probe" || it.messageType == "Resolve" }
-                messages.forEach(::ingestWsd)
-                updateStats("WS-Discovery", messages.size)
+                val enrichedMessages = enrichWsdMessages(client, messages)
+                enrichedMessages.forEach { ingestWsd(it.message, it.metadata) }
+                updateStats("WS-Discovery", enrichedMessages.size)
             }
         }
         listenerExecutor.execute {
@@ -413,25 +449,100 @@ object ZeroconfDiscoveryMonitor {
         rememberEvent("SSDP", "${message.notificationType ?: message.searchTarget ?: message.startLine} ${message.location ?: ""}".trim())
     }
 
+    private fun enrichWsdMessages(client: WsDiscoveryClient, messages: List<WsDiscoveryMessage>): List<EnrichedWsdMessage> {
+        val resolved = messages
+            .filter { it.xAddrs.isNullOrBlank() && !it.endpointReference.isNullOrBlank() }
+            .flatMap { message ->
+                runCatching {
+                    val result = client.resolve(message.endpointReference!!, ipFamily = IpFamily.BOTH, maxPackets = 20)
+                    result.warnings.forEach { rememberDiscoveryWarning(it) }
+                    result.messages.filterNot { it.messageType == "Probe" || it.messageType == "Resolve" }
+                }.getOrElse { error ->
+                    rememberDiscoveryWarning("WS-Discovery resolve failed for ${message.endpointReference}: ${error.message ?: error::class.java.simpleName}")
+                    emptyList()
+                }
+            }
+        return (messages + resolved)
+            .distinctBy { listOfNotNull(it.endpointReference, it.xAddrs, it.messageId, it.action).joinToString("|") }
+            .map { message ->
+                EnrichedWsdMessage(
+                    message = message,
+                    metadata = message.xAddrs?.let(::fetchWsdMetadata),
+                )
+            }
+    }
+
+    private fun fetchWsdMetadata(xAddrs: String): WsDiscoveryMetadata? {
+        val url = xAddrs.split(Regex("\\s+")).firstOrNull { it.startsWith("http://", ignoreCase = true) }
+            ?: return null
+        return runCatching {
+            val payload = WsDiscoverySoapCodec.buildGet()
+            val connection = (URI(url).toURL().openConnection() as HttpURLConnection).apply {
+                connectTimeout = timeout.toMillis().toInt()
+                readTimeout = timeout.toMillis().toInt()
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/soap+xml")
+                setRequestProperty("Content-Length", payload.size.toString())
+            }
+            try {
+                connection.outputStream.use { output -> output.write(payload) }
+                val bytes = if (connection.responseCode in 200..299) {
+                    connection.inputStream.use { it.readNBytes(256 * 1024) }
+                } else {
+                    connection.errorStream?.use { it.readNBytes(64 * 1024) } ?: ByteArray(0)
+                }
+                if (bytes.isEmpty()) null else WsDiscoverySoapCodec.parseMetadata(bytes)
+            } finally {
+                connection.disconnect()
+            }
+        }.getOrNull()
+    }
+
     @Synchronized
-    private fun ingestWsd(message: WsDiscoveryMessage) {
+    private fun ingestWsd(message: WsDiscoveryMessage, metadata: WsDiscoveryMetadata? = null) {
+        val xAddrLocations = splitXAddrs(message.xAddrs)
         val key = message.endpointReference?.let { "wsd:${extractUuid(it) ?: it.lowercase()}" }
-            ?: message.xAddrs?.let { "wsd:${locationHost(it) ?: it.lowercase()}" }
+            ?: xAddrLocations.firstOrNull()?.let { "wsd:${locationHost(it) ?: it.lowercase()}" }
             ?: "wsd:${message.messageId ?: message.action ?: message.rawXml.hashCode()}"
-        val device = device(key, message.types ?: message.endpointReference ?: "WS-Discovery device", inferWsdCategory(message))
+        val label = metadata?.computerName
+            ?: metadata?.friendlyName
+            ?: message.types
+            ?: message.endpointReference
+            ?: "WS-Discovery device"
+        val device = device(key, label, inferWsdCategory(message, metadata))
         device.protocols += "WS-Discovery"
-        message.xAddrs?.let {
-            device.locations += it
-            locationHost(it)?.let { host -> device.addresses += host }
+        if (device.documents.none { it.content == message.rawXml }) {
+            device.documents += MutableDiscoveryDocument(
+                protocol = "WS-Discovery",
+                label = "${message.messageType} discovery XML",
+                contentType = "application/xml",
+                content = message.rawXml,
+            )
         }
-        device.services += ZeroconfDashboardService(
-            protocol = "WS-Discovery",
-            type = message.messageType,
-            name = message.types ?: "",
-            target = message.endpointReference ?: "",
-            location = message.xAddrs ?: "",
-            description = wsdTypeInfo(message.types ?: "").second,
-        )
+        xAddrLocations.forEach { location ->
+            device.locations += location
+            locationHost(location)?.let { host -> device.addresses += host }
+        }
+        metadata?.computerName?.let { device.hostnames += it }
+        metadata?.friendlyName?.let { device.details["WSD Friendly Name"] = it }
+        metadata?.manufacturer?.let { device.details["WSD Manufacturer"] = it }
+        metadata?.modelName?.let { device.details["WSD Model"] = it }
+        metadata?.modelNumber?.let { device.details["WSD Model Number"] = it }
+        metadata?.serialNumber?.let { device.details["WSD Serial"] = it }
+        metadata?.workgroup?.let { device.details["WSD Workgroup"] = it }
+        val serviceLocations = xAddrLocations.ifEmpty { listOf("") }
+        serviceLocations.forEach { location ->
+            device.services += ZeroconfDashboardService(
+                protocol = "WS-Discovery",
+                type = message.messageType,
+                name = message.types ?: "",
+                target = locationHost(location) ?: message.endpointReference ?: "",
+                location = location,
+                port = locationPort(location),
+                description = wsdTypeInfo(message.types ?: "").second,
+            )
+        }
         message.types?.split(Regex("\\s+"))?.filter { it.isNotBlank() }?.forEach { type ->
             val known = wsdTypeInfo(type)
             val info = serviceTypes.getOrPut("wsd:$type") {
@@ -442,7 +553,7 @@ object ZeroconfDiscoveryMonitor {
         message.scopes?.let { device.details["WSD Scopes"] = it }
         message.metadataVersion?.let { device.details["WSD Metadata"] = it }
         device.touch()
-        rememberEvent("WS-Discovery", "${message.messageType} ${message.types ?: message.endpointReference ?: ""}".trim())
+        rememberEvent("WS-Discovery", "${message.messageType} ${metadata?.computerName ?: message.types ?: message.endpointReference ?: ""}".trim())
     }
 
     @Synchronized
@@ -463,6 +574,110 @@ object ZeroconfDiscoveryMonitor {
         device.touch()
         rememberEvent("NetBIOS", "$name from ${response.sourceAddress}")
     }
+
+    @Synchronized
+    private fun ingestSmbSweep(hit: SmbSweepHit) {
+        val key = "smb:${hit.address}"
+        val displayName = hit.hostname?.substringBefore('.') ?: hit.hostname ?: hit.address
+        val device = device(key, displayName, "Windows / SMB host")
+        device.protocols += "SMB"
+        device.addresses += hit.address
+        hit.hostname?.let { device.hostnames += it }
+        device.services += ZeroconfDashboardService(
+            protocol = "SMB",
+            type = "microsoft-ds",
+            name = "SMB file sharing",
+            target = hit.address,
+            location = "",
+            port = 445,
+            description = "SMB/CIFS file sharing endpoint reachable on TCP 445.",
+        )
+        if (hit.wsdTcpOpen) {
+            device.protocols += "WS-Discovery"
+            device.services += ZeroconfDashboardService(
+                protocol = "WS-Discovery",
+                type = "WSD metadata",
+                name = "TCP 3702",
+                target = hit.address,
+                location = "http://${hit.address}:3702/",
+                port = 3702,
+                description = "WS-Discovery metadata endpoint is reachable over TCP.",
+            )
+        }
+        device.details["SMB Port"] = "445 open"
+        if (hit.wsdTcpOpen) device.details["WSD TCP Port"] = "3702 open"
+        device.touch()
+        rememberEvent("SMB Sweep", "$displayName ${hit.address}")
+    }
+
+    private fun scanLocalSmbHosts(): List<SmbSweepHit> {
+        val candidates = localPrivateIpv4Candidates()
+        if (candidates.isEmpty()) return emptyList()
+        val executor = Executors.newFixedThreadPool(32) { runnable ->
+            Thread(runnable, "smb-sweep-worker").apply { isDaemon = true }
+        }
+        return try {
+            executor.invokeAll(
+                candidates.map { address ->
+                    Callable {
+                        if (!isTcpOpen(address, 445, 250)) return@Callable null
+                        SmbSweepHit(
+                            address = address,
+                            hostname = reverseHostname(address),
+                            wsdTcpOpen = isTcpOpen(address, 3702, 250),
+                        )
+                    }
+                },
+                8,
+                TimeUnit.SECONDS,
+            ).mapNotNull { future ->
+                runCatching { future.get() }.getOrNull()
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    private fun localPrivateIpv4Candidates(): List<String> {
+        val ranges = linkedSetOf<String>()
+        NetworkInterface.getNetworkInterfaces().asSequence()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { iface -> iface.interfaceAddresses.asSequence() }
+            .mapNotNull { address -> address.address as? Inet4Address }
+            .map { it.hostAddress }
+            .filter(::isPrivateIpv4)
+            .forEach { address ->
+                val parts = address.split('.').mapNotNull { it.toIntOrNull() }
+                if (parts.size == 4) {
+                    for (host in 1..254) {
+                        val candidate = "${parts[0]}.${parts[1]}.${parts[2]}.$host"
+                        if (candidate != address) ranges += candidate
+                    }
+                }
+            }
+        return ranges.toList()
+    }
+
+    private fun isPrivateIpv4(address: String): Boolean {
+        val parts = address.split('.').mapNotNull { it.toIntOrNull() }
+        if (parts.size != 4) return false
+        return parts[0] == 10 ||
+            (parts[0] == 172 && parts[1] in 16..31) ||
+            (parts[0] == 192 && parts[1] == 168)
+    }
+
+    private fun isTcpOpen(address: String, port: Int, timeoutMs: Int): Boolean =
+        runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(address, port), timeoutMs)
+            }
+            true
+        }.getOrDefault(false)
+
+    private fun reverseHostname(address: String): String? =
+        runCatching { InetAddress.getByName(address).canonicalHostName }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() && it != address }
 
     @Synchronized
     private fun updateStats(protocol: String, observations: Int, status: String = "ok") {
@@ -564,12 +779,26 @@ object ZeroconfDiscoveryMonitor {
     private fun locationHost(location: String): String? =
         runCatching { URI(location).host }.getOrNull()?.takeIf { it.isNotBlank() }
 
+    private fun locationPort(location: String): Int? =
+        runCatching { URI(location).port }.getOrNull()?.takeIf { it > 0 }
+
+    private fun splitXAddrs(xAddrs: String?): List<String> =
+        xAddrs
+            ?.split(Regex("\\s+"))
+            ?.map { it.trim() }
+            ?.filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
+            ?.filter { runCatching { URI(it) }.isSuccess }
+            ?.distinct()
+            ?: emptyList()
+
     private fun extractUuid(value: String): String? =
         Regex("""uuid:[a-zA-Z0-9._-]+""").find(value)?.value?.lowercase()
 
     private fun inferDnsSdCategory(serviceType: String, instance: String): String {
         val text = "$serviceType $instance".lowercase()
         return when {
+            "_smb" in text -> "Windows / SMB host"
+            "_device-info" in text -> "Device"
             "_ipp" in text || "_printer" in text -> "Printer"
             "_airplay" in text || "_raop" in text || "_spotify" in text || "_googlecast" in text -> "Media"
             "_hap" in text || "_homekit" in text -> "Smart Home"
@@ -581,6 +810,8 @@ object ZeroconfDiscoveryMonitor {
     private fun dnsSdServiceInfo(type: String): Pair<String, String> {
         val normalized = type.lowercase().removeSuffix(".")
         return when {
+            normalized == "_smb._tcp.local" -> "SMB File Sharing" to "Samba or SMB/CIFS file sharing advertised through DNS-SD."
+            normalized == "_device-info._tcp.local" -> "Device Info" to "DNS-SD metadata record with model and device-class hints."
             normalized == "_ipp._tcp.local" -> "IPP Printer" to "Internet Printing Protocol. AirPrint and Mopria printers commonly expose queues here."
             normalized == "_ipps._tcp.local" -> "Secure IPP Printer" to "Encrypted IPP printing over TLS."
             normalized == "_printer._tcp.local" -> "LPD Printer" to "Legacy printer service discovery."
@@ -596,6 +827,16 @@ object ZeroconfDiscoveryMonitor {
             else -> type to "DNS-SD service type advertised on the local link."
         }
     }
+
+    private fun mdnsSeedServiceTypes(): List<String> =
+        listOf(
+            "_smb._tcp.local",
+            "_device-info._tcp.local",
+            "_http._tcp.local",
+            "_http-alt._tcp.local",
+            "_ipp._tcp.local",
+            "_ipps._tcp.local",
+        )
 
     private fun upnpServiceInfo(type: String): Pair<String, String> {
         val normalized = type.lowercase()
@@ -633,8 +874,11 @@ object ZeroconfDiscoveryMonitor {
         }
     }
 
-    private fun inferWsdCategory(message: WsDiscoveryMessage): String {
-        val text = listOf(message.types, message.scopes, message.xAddrs).filterNotNull().joinToString(" ").lowercase()
+    private fun inferWsdCategory(message: WsDiscoveryMessage, metadata: WsDiscoveryMetadata? = null): String {
+        val text = listOf(message.types, message.scopes, message.xAddrs, metadata?.computerName, metadata?.friendlyName)
+            .filterNotNull()
+            .joinToString(" ")
+            .lowercase()
         return when {
             "print" in text || "scanner" in text -> "Printer / Scanner"
             "camera" in text || "onvif" in text -> "Camera"
@@ -643,6 +887,33 @@ object ZeroconfDiscoveryMonitor {
         }
     }
 }
+
+private data class EnrichedWsdMessage(
+    val message: WsDiscoveryMessage,
+    val metadata: WsDiscoveryMetadata?,
+)
+
+private data class MutableDiscoveryDocument(
+    val protocol: String,
+    val label: String,
+    val contentType: String,
+    val content: String,
+) {
+    fun toDocument(index: Int): ZeroconfDiscoveryDocument =
+        ZeroconfDiscoveryDocument(
+            index = index,
+            protocol = protocol,
+            label = label,
+            contentType = contentType,
+            sizeBytes = content.toByteArray(Charsets.UTF_8).size,
+        )
+}
+
+private data class SmbSweepHit(
+    val address: String,
+    val hostname: String?,
+    val wsdTcpOpen: Boolean,
+)
 
 private class MutableDashboardDevice(
     val id: String,
@@ -656,6 +927,7 @@ private class MutableDashboardDevice(
     val dnsRecords = linkedSetOf<ZeroconfDnsRecordView>()
     val txtRecords = linkedSetOf<ZeroconfTxtRecordView>()
     val locations = linkedSetOf<String>()
+    val documents = mutableListOf<MutableDiscoveryDocument>()
     val details = linkedMapOf<String, String>()
     val firstSeen: String = Instant.now().toString()
     var lastSeen: String = firstSeen
@@ -678,6 +950,7 @@ private class MutableDashboardDevice(
             dnsRecords = dnsRecords.toList().takeLast(30),
             txtRecords = txtRecords.toList().sortedWith(compareBy({ it.service }, { it.key })),
             locations = locations.toList().sorted(),
+            documents = documents.mapIndexed { index, document -> document.toDocument(index) },
             firstSeen = firstSeen,
             lastSeen = lastSeen,
             evidenceCount = evidenceCount,

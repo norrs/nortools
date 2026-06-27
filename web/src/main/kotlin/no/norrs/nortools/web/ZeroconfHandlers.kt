@@ -45,6 +45,17 @@ fun zeroconfDeviceDetails(ctx: Context) {
     ctx.jsonResult(ZeroconfHostInspector.inspect(device, requestTimeout(ctx), includeSmb = includeSmb))
 }
 
+fun zeroconfDeviceDocument(ctx: Context) {
+    ZeroconfDiscoveryMonitor.start()
+    val deviceId = ctx.pathParam("id")
+    val index = ctx.pathParam("index").toIntOrNull()
+        ?: return ctx.jsonResult(errorResponse(protocol = "ZeroConf Device Document", error = "Invalid document index"))
+    val document = ZeroconfDiscoveryMonitor.documentById(deviceId, index)
+        ?: return ctx.jsonResult(errorResponse(protocol = "ZeroConf Device Document", error = "Unknown device document: $deviceId/$index"))
+    ctx.contentType(document.first)
+    ctx.result(document.second)
+}
+
 fun netbiosNameQuery(ctx: Context) {
     val ipFamily = parseIpFamily(ctx) ?: return
     if (!requireNetbiosIpv4(ctx, ipFamily)) return
@@ -201,7 +212,6 @@ fun ssdpListen(ctx: Context) {
 
 fun wsdProbe(ctx: Context) {
     val ipFamily = parseIpFamily(ctx, protocol = "WS-Discovery") ?: return
-    if (!requireWsdIpv4(ctx, ipFamily)) return
 
     val client = WsDiscoveryClient(timeout = requestTimeout(ctx))
     val types = ctx.queryParam("types")?.takeIf { it.isNotBlank() }
@@ -209,7 +219,7 @@ fun wsdProbe(ctx: Context) {
     val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() }
     val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
     val result = runCatching {
-        client.probe(types = types, scopes = scopes, bindAddress = bindAddress, maxPackets = maxPackets)
+        client.probe(types = types, scopes = scopes, ipFamily = ipFamily, bindAddress = bindAddress, maxPackets = maxPackets)
     }.getOrElse { error ->
         return ctx.jsonResult(errorResponse(protocol = "WS-Discovery", error = error.message ?: "WS-Discovery probe failed"))
     }
@@ -219,13 +229,12 @@ fun wsdProbe(ctx: Context) {
 
 fun wsdListen(ctx: Context) {
     val ipFamily = parseIpFamily(ctx, protocol = "WS-Discovery") ?: return
-    if (!requireWsdIpv4(ctx, ipFamily)) return
 
     val client = WsDiscoveryClient(timeout = requestTimeout(ctx))
     val bindAddress = ctx.queryParam("bindAddress")?.takeIf { it.isNotBlank() } ?: "0.0.0.0"
     val maxPackets = ctx.queryParam("maxPackets")?.toIntOrNull()?.coerceIn(1, 250) ?: 25
     val result = runCatching {
-        client.listen(bindAddress = bindAddress, maxPackets = maxPackets)
+        client.listen(bindAddress = bindAddress, ipFamily = ipFamily, maxPackets = maxPackets)
     }.getOrElse { error ->
         return ctx.jsonResult(errorResponse(protocol = "WS-Discovery", error = error.message ?: "WS-Discovery listener failed"))
     }

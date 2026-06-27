@@ -359,7 +359,14 @@
           <div class="detail-section">
             <h4>Locations</h4>
             <div v-for="location in selectedDevice.locations" :key="location" class="location-row">
-              <a :href="location" target="_blank" rel="noopener noreferrer" @click.prevent="openExternalUrl(location)">{{ location }}</a>
+              <a
+                v-if="isExternalUrl(location)"
+                :href="location"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.prevent="openExternalUrl(location)"
+              >{{ location }}</a>
+              <span v-else>{{ location }}</span>
               <button v-if="isDescriptionUrl(location)" class="link-button" @click="loadDescription(location)" :disabled="descriptionLoadingUrl === location">
                 {{ descriptionLoadingUrl === location ? 'Inspecting...' : 'Inspect description' }}
               </button>
@@ -370,7 +377,14 @@
               <div v-if="descriptions[location]?.description" class="description-card">
                 <div class="kv" v-for="row in descriptionRows(descriptions[location].description)" :key="row.label">
                   <span>{{ row.label }}</span>
-                  <strong>{{ row.value }}</strong>
+                  <strong v-if="!isExternalUrl(row.value)">{{ row.value }}</strong>
+                  <a
+                    v-else
+                    :href="row.value"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click.prevent="openExternalUrl(row.value)"
+                  >{{ row.value }}</a>
                 </div>
                 <div v-if="descriptions[location].description.services?.length" class="description-services">
                   <strong>Services</strong>
@@ -380,6 +394,20 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Discovery Documents</h4>
+            <div v-for="document in selectedDevice.documents || []" :key="document.index" class="location-row">
+              <a
+                :href="discoveryDocumentUrl(document)"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.prevent="openExternalUrl(discoveryDocumentUrl(document))"
+              >{{ document.label }}</a>
+              <span class="muted">{{ document.protocol }} / {{ document.contentType }} / {{ formatBytes(document.sizeBytes) }}</span>
+            </div>
+            <p v-if="!(selectedDevice.documents || []).length" class="muted">No raw discovery XML captured for this device.</p>
           </div>
 
           <div class="detail-section">
@@ -689,14 +717,30 @@ app.component("zeroconf-discovery-page", {
       if (value === undefined || value === null || Number.isNaN(Number(value))) return "-"
       return `0x${Number(value).toString(16)}`
     },
+    formatBytes(value) {
+      const bytes = Number(value || 0)
+      if (bytes < 1024) return `${bytes} B`
+      return `${(bytes / 1024).toFixed(1)} KB`
+    },
     async openExternalUrl(url) {
       const target = String(url || "").trim()
       if (!target) return
       if (this.hasKremaBridge()) {
-        await window.krema.invoke("shell:openUrl", { url: target })
-        return
+        try {
+          await window.krema.invoke("shell:openUrl", { url: target })
+          return
+        } catch (_) {
+          // Fall through for browser/dev mode and older desktop bridge builds.
+        }
       }
       window.open(target, "_blank", "noopener,noreferrer")
+    },
+    isExternalUrl(value) {
+      return /^https?:\/\//i.test(String(value || "").trim())
+    },
+    discoveryDocumentUrl(document) {
+      const path = `/api/zeroconf/device/${encodeURIComponent(this.selectedDeviceId)}/documents/${encodeURIComponent(document.index)}`
+      return new URL(path, window.location.origin).toString()
     },
     deviceLabel(device) {
       const description = this.deviceDescription(device)
@@ -805,7 +849,7 @@ app.component("zeroconf-discovery-page", {
       }
     },
     isDescriptionUrl(location) {
-      return /^https?:\/\//i.test(location || "")
+      return this.isExternalUrl(location)
     },
     descriptionRows(description) {
       const labels = [

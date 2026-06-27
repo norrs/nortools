@@ -47,6 +47,7 @@ class WebApiRoutesTest {
             "GET /api/zeroconf/dashboard",
             "GET /api/zeroconf/dashboard/refresh",
             "GET /api/zeroconf/device/{id}/details",
+            "GET /api/zeroconf/device/{id}/documents/{index}",
             "GET /api/zeroconf/description",
             "GET /api/zeroconf/mdns/listen",
             "GET /api/zeroconf/mdns/query/{name}",
