@@ -166,7 +166,7 @@ filegroup(
 #   bazelisk build //desktop:native-macos-x64      # on macOS x86_64
 #   bazelisk build //desktop:native-macos-arm64    # on macOS ARM64
 #   bazelisk build //desktop:native-windows-x64    # on Windows x86_64
-#   bazelisk run   //desktop:run-native-linux-x64  # build and run Linux native binary
+#   bazelisk run --run_under='sudo' //desktop:run-native-linux-x64  # build and run Linux native binary
 #   bazelisk run   //desktop:run-native-macos-arm64  # build and run macOS ARM64 native binary
 # =============================================================================
 
@@ -220,7 +220,7 @@ genrule(
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
-            --enable-url-protocols=https \
+            --enable-url-protocols=http,https \
             --enable-native-access=ALL-UNNAMED \
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
@@ -318,7 +318,7 @@ genrule(
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
-            --enable-url-protocols=https \
+            --enable-url-protocols=http,https \
             --enable-native-access=ALL-UNNAMED \
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
@@ -409,7 +409,7 @@ genrule(
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
-            --enable-url-protocols=https \
+            --enable-url-protocols=http,https \
             --enable-native-access=ALL-UNNAMED \
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \
@@ -503,7 +503,7 @@ genrule(
         "$$NATIVE_IMAGE" \
             -jar "$$DEPLOY_JAR" \
             -o "$$WORKDIR/nortools" \
-            --enable-url-protocols=https \
+            --enable-url-protocols=http,https \
             --enable-native-access=ALL-UNNAMED \
             -H:+UnlockExperimentalVMOptions \
             -H:-CheckToolchain \

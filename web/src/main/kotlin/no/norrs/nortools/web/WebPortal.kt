@@ -60,6 +60,7 @@ fun startServer(
             // Zero-configuration discovery tools
             get("/api/zeroconf/dashboard") { ctx -> zeroconfDashboard(ctx) }
             get("/api/zeroconf/dashboard/refresh") { ctx -> zeroconfDashboardRefresh(ctx) }
+            get("/api/zeroconf/device/{id}/details") { ctx -> zeroconfDeviceDetails(ctx) }
             get("/api/zeroconf/netbios/query/{name}") { ctx -> netbiosNameQuery(ctx) }
             get("/api/zeroconf/netbios/node-status/{host}") { ctx -> netbiosNodeStatus(ctx) }
             get("/api/zeroconf/netbios/listen") { ctx -> netbiosListen(ctx) }

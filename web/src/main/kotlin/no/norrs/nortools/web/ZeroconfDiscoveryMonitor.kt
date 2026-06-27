@@ -172,6 +172,9 @@ object ZeroconfDiscoveryMonitor {
         )
     }
 
+    @Synchronized
+    fun deviceById(id: String): ZeroconfDashboardDevice? = devices[id]?.toDevice()
+
     private fun runDiscoveryCycle() {
         safeProtocol("mDNS") {
             val client = MdnsClient(timeout = timeout)

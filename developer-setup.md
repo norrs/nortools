@@ -9,7 +9,7 @@ sudo apt update
 sudo apt install -y mise bazelisk
 mise trust
 mise install
-bazelisk run //desktop:run-native-linux-x64
+bazelisk run --run_under='sudo' //desktop:run-native-linux-x64
 ```
 
 ## macOS (Apple Silicon)

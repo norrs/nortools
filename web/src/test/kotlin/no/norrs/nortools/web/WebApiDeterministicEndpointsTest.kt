@@ -207,6 +207,17 @@ class WebApiDeterministicEndpointsTest {
     }
 
     @Test
+    fun `zeroconf device detail endpoint reports unknown device id`() {
+        val response = get("/api/zeroconf/device/does-not-exist/details")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("ZeroConf Device Detail", json["protocol"].asText())
+        assertEquals("error", json["status"].asText())
+        assertTrue(json["error"].asText().contains("Unknown device id"))
+    }
+
+    @Test
     fun `rpki route endpoint accepts manual asn and prefix`() {
         val response = get("/api/rpki-route/1.1.1.0%2F24?asn=AS13335")
         assertEquals(200, response.statusCode())

@@ -29,6 +29,8 @@ kt_jvm_library(
         "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_fasterxml_jackson_module_jackson_module_kotlin",
         "@maven//:com_google_code_gson_gson",  # kept temporarily to avoid breaking other files that still reference Gson
+        "@maven//:com_hierynomus_smbj",
+        "@maven//:com_rapid7_client_dcerpc",
         "@maven//:dnsjava_dnsjava",
         "@maven//:io_javalin_javalin",
         "@maven//:org_webjars_npm_vue",

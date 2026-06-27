@@ -36,6 +36,15 @@ fun zeroconfDashboardRefresh(ctx: Context) {
     ctx.jsonResult(ZeroconfDiscoveryMonitor.snapshot())
 }
 
+fun zeroconfDeviceDetails(ctx: Context) {
+    ZeroconfDiscoveryMonitor.start()
+    val deviceId = ctx.pathParam("id")
+    val device = ZeroconfDiscoveryMonitor.deviceById(deviceId)
+        ?: return ctx.jsonResult(errorResponse(protocol = "ZeroConf Device Detail", error = "Unknown device id: $deviceId"))
+    val includeSmb = ctx.queryParam("includeSmb")?.equals("true", ignoreCase = true) == true
+    ctx.jsonResult(ZeroconfHostInspector.inspect(device, requestTimeout(ctx), includeSmb = includeSmb))
+}
+
 fun netbiosNameQuery(ctx: Context) {
     val ipFamily = parseIpFamily(ctx) ?: return
     if (!requireNetbiosIpv4(ctx, ipFamily)) return

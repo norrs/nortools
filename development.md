@@ -18,5 +18,5 @@ bazelisk build //web:web //desktop:desktop //desktop:desktop_jar_deploy.jar
 ## Native Smoke
 
 ```bash
-bazelisk run //desktop:run-native-linux-x64
+bazelisk run --run_under='sudo' //desktop:run-native-linux-x64
 ```

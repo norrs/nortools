@@ -6,6 +6,14 @@
         <p class="desc">Live local discovery inventory from mDNS, LLMNR, NetBIOS, SSDP, and WS-Discovery.</p>
       </div>
       <div class="head-actions">
+        <label class="toggle-chip">
+          <input v-model="autoDescriptions" type="checkbox" />
+          <span>Auto-fetch SSDP descriptions</span>
+        </label>
+        <label class="toggle-chip">
+          <input v-model="smbIntrospection" type="checkbox" />
+          <span>SMB introspection</span>
+        </label>
         <button class="btn btn-secondary" @click="loadSnapshot" :disabled="loading">Refresh View</button>
         <button class="btn" @click="forceRefresh" :disabled="refreshing">{{ refreshing ? 'Scanning...' : 'Scan Now' }}</button>
       </div>
@@ -121,7 +129,7 @@
           @click="selectedId = device.id"
         >
           <div class="device-main">
-            <strong>{{ device.displayName }}</strong>
+            <strong>{{ deviceLabel(device) }}</strong>
             <span>{{ device.category }}</span>
           </div>
           <div class="device-meta">
@@ -139,7 +147,7 @@
       <aside class="detail-panel">
         <template v-if="selectedDevice">
           <div class="detail-head">
-            <h3>{{ selectedDevice.displayName }}</h3>
+            <h3>{{ deviceLabel(selectedDevice) }}</h3>
             <span>{{ selectedDevice.category }}</span>
           </div>
           <div class="tag-row">
@@ -175,7 +183,7 @@
           <div class="detail-section">
             <h4>Services</h4>
             <table v-if="selectedDevice.services.length" class="mini-table">
-              <thead><tr><th>Protocol</th><th>Type</th><th>Name</th><th>Target</th><th>Port</th></tr></thead>
+              <thead><tr><th>Protocol</th><th>Type</th><th>Name</th><th>Target</th><th>Port</th><th>Action</th></tr></thead>
               <tbody>
                 <tr v-for="(service, idx) in selectedDevice.services" :key="idx">
                   <td>{{ service.protocol }}</td>
@@ -183,10 +191,127 @@
                   <td>{{ service.name }}</td>
                   <td>{{ service.target || service.location }}</td>
                   <td>{{ service.port || '' }}</td>
+                  <td>
+                    <a
+                      v-if="serviceActionHref(service)"
+                      :href="serviceActionHref(service)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      @click.prevent="openExternalUrl(serviceActionHref(service))"
+                    >Open</a>
+                    <span v-else class="muted">-</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
             <p v-else class="muted">No decoded services yet.</p>
+          </div>
+
+          <div class="detail-section">
+            <div class="section-head">
+              <h4>Host Inspection</h4>
+              <button class="link-button" @click="loadSelectedDetail(true)" :disabled="detailLoading || !selectedDeviceId">
+                {{ detailLoading ? 'Inspecting...' : 'Refresh host details' }}
+              </button>
+            </div>
+            <p v-if="detailError" class="muted">{{ detailError }}</p>
+            <p v-else-if="detailLoading && !selectedDetail" class="muted">Inspecting advertised services and reachable endpoints.</p>
+            <template v-else-if="selectedDetail">
+              <div v-for="warning in selectedDetail.warnings || []" :key="warning" class="callout">{{ warning }}</div>
+
+              <div class="inspection-grid">
+                <div class="inspection-panel">
+                  <div class="panel-title">
+                    <h4>Web Interfaces</h4>
+                    <span>{{ (selectedDetail.webLinks || []).length }}</span>
+                  </div>
+                  <div v-if="selectedDetail.webLinks?.length" class="inspection-list">
+                    <div v-for="link in selectedDetail.webLinks" :key="link.url" class="inspection-row">
+                      <div>
+                        <strong>{{ link.label }}</strong>
+                        <a :href="link.url" target="_blank" rel="noopener noreferrer" @click.prevent="openExternalUrl(link.url)">{{ link.url }}</a>
+                      </div>
+                      <div class="inspection-meta">
+                        <span>{{ link.source }}</span>
+                        <span v-if="link.httpStatus">HTTP {{ link.httpStatus }}</span>
+                        <span v-if="link.server">{{ link.server }}</span>
+                        <span v-if="link.error">{{ link.error }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-else class="muted">No HTTP or HTTPS interfaces inferred from discovery data.</p>
+                </div>
+
+                <div class="inspection-panel">
+                  <div class="panel-title">
+                    <h4>Reachable Ports</h4>
+                    <span>{{ (selectedDetail.portChecks || []).length }}</span>
+                  </div>
+                  <table v-if="selectedDetail.portChecks?.length" class="mini-table">
+                    <thead><tr><th>Host</th><th>Port</th><th>Service</th><th>Status</th><th>Info</th></tr></thead>
+                    <tbody>
+                      <tr v-for="probe in selectedDetail.portChecks" :key="`${probe.host}:${probe.port}`">
+                        <td>{{ probe.host }}</td>
+                        <td>{{ probe.port }}</td>
+                        <td>{{ probe.label }}</td>
+                        <td>{{ probe.connected ? 'Open' : 'Closed' }}</td>
+                        <td>{{ probe.banner || probe.error || `${probe.responseTimeMs} ms` }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p v-else class="muted">No follow-up ports selected for this host.</p>
+                </div>
+              </div>
+
+              <div v-if="selectedDetail.netbios" class="inspection-panel">
+                <div class="panel-title">
+                  <h4>NetBIOS Node Status</h4>
+                  <span>{{ selectedDetail.netbios.host }}</span>
+                </div>
+                <table v-if="selectedDetail.netbios.names?.length" class="mini-table">
+                  <thead><tr><th>Name</th><th>Suffix</th><th>Group</th><th>Flags</th></tr></thead>
+                  <tbody>
+                    <tr v-for="entry in selectedDetail.netbios.names" :key="`${entry.name}:${entry.suffix}:${entry.flags}`">
+                      <td>{{ entry.name }}</td>
+                      <td>{{ formatHex(entry.suffix) }}</td>
+                      <td>{{ entry.group ? 'yes' : 'no' }}</td>
+                      <td>{{ formatHex(entry.flags) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p v-else class="muted">No NetBIOS node status names returned.</p>
+                <p v-if="selectedDetail.netbios.addresses?.length" class="muted">Addresses: {{ selectedDetail.netbios.addresses.join(', ') }}</p>
+                <p v-if="selectedDetail.netbios.errors?.length" class="muted">{{ selectedDetail.netbios.errors.join(' | ') }}</p>
+              </div>
+
+              <div v-if="selectedDetail.smb || smbIntrospection" class="inspection-panel">
+                <div class="panel-title">
+                  <h4>SMB Introspection</h4>
+                  <span>{{ selectedDevice.addresses?.[0] || selectedDevice.hostnames?.[0] || '-' }}</span>
+                </div>
+                <p v-if="!smbIntrospection" class="muted">Enable the SMB introspection toggle to attempt anonymous or guest SMB share enumeration.</p>
+                <template v-else-if="selectedDetail.smb">
+                  <div class="inspection-meta">
+                    <span v-if="selectedDetail.smb.dialect">{{ selectedDetail.smb.dialect }}</span>
+                    <span v-if="selectedDetail.smb.authenticationStatus">{{ selectedDetail.smb.authenticationStatus }}</span>
+                    <span v-if="selectedDetail.smb.signingRequired">signing required</span>
+                    <span v-else-if="selectedDetail.smb.signingEnabled">signing enabled</span>
+                    <span v-if="selectedDetail.smb.encryptionSupported">encryption supported</span>
+                  </div>
+                  <table v-if="selectedDetail.smb.shares?.length" class="mini-table">
+                    <thead><tr><th>Name</th><th>Type</th><th>Comment</th></tr></thead>
+                    <tbody>
+                      <tr v-for="share in selectedDetail.smb.shares" :key="`${share.name}:${share.type}`">
+                        <td>{{ share.name }}</td>
+                        <td>{{ share.type }}</td>
+                        <td>{{ share.comment }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p v-else class="muted">{{ selectedDetail.smb.note || selectedDetail.smb.error || 'No SMB shares were returned.' }}</p>
+                </template>
+              </div>
+            </template>
           </div>
 
           <div class="detail-section">
@@ -234,7 +359,7 @@
           <div class="detail-section">
             <h4>Locations</h4>
             <div v-for="location in selectedDevice.locations" :key="location" class="location-row">
-              <a :href="location" target="_blank" rel="noopener noreferrer">{{ location }}</a>
+              <a :href="location" target="_blank" rel="noopener noreferrer" @click.prevent="openExternalUrl(location)">{{ location }}</a>
               <button v-if="isDescriptionUrl(location)" class="link-button" @click="loadDescription(location)" :disabled="descriptionLoadingUrl === location">
                 {{ descriptionLoadingUrl === location ? 'Inspecting...' : 'Inspect description' }}
               </button>
@@ -385,9 +510,18 @@ app.component("zeroconf-discovery-page", {
       descriptionLoadingUrl: "",
       descriptionError: "",
       descriptions: {},
+      descriptionRequests: {},
+      autoDescriptions: false,
+      autoDescriptionPrimed: false,
+      smbIntrospection: false,
+      detailLoading: false,
+      detailError: "",
+      detailCache: {},
     }
   },
   mounted() {
+    this.autoDescriptions = sessionStorage.getItem("zeroconf-auto-descriptions") === "1"
+    this.smbIntrospection = sessionStorage.getItem("zeroconf-smb-introspection") === "1"
     this.loadSnapshot()
     this.poller = setInterval(this.loadSnapshot, 5000)
   },
@@ -443,7 +577,7 @@ app.component("zeroconf-discovery-page", {
     filteredDevices() {
       const term = this.filter.toLowerCase()
       return this.devices.filter(device => {
-        const blob = JSON.stringify(device).toLowerCase()
+        const blob = `${this.deviceLabel(device)} ${JSON.stringify(device)}`.toLowerCase()
         return (!term || blob.includes(term)) &&
           (!this.categoryFilter || device.category === this.categoryFilter) &&
           (!this.protocolFilter || (device.protocols || []).includes(this.protocolFilter))
@@ -452,6 +586,14 @@ app.component("zeroconf-discovery-page", {
     selectedDevice() {
       if (!this.filteredDevices.length) return null
       return this.filteredDevices.find(d => d.id === this.selectedId) || this.filteredDevices[0]
+    },
+    selectedDeviceId() {
+      return this.selectedDevice?.id || ""
+    },
+    selectedDetail() {
+      if (!this.selectedDeviceId) return null
+      const cacheKey = `${this.selectedDeviceId}|smb=${this.smbIntrospection ? '1' : '0'}`
+      return this.detailCache[cacheKey] || null
     },
     selectedResolutionSteps() {
       const device = this.selectedDevice
@@ -489,7 +631,28 @@ app.component("zeroconf-discovery-page", {
       return "Query Name"
     },
   },
+  watch: {
+    autoDescriptions(value) {
+      sessionStorage.setItem("zeroconf-auto-descriptions", value ? "1" : "0")
+      if (value) {
+        this.hydrateKnownDescriptions()
+      }
+    },
+    smbIntrospection(value) {
+      sessionStorage.setItem("zeroconf-smb-introspection", value ? "1" : "0")
+      if (this.selectedDeviceId) this.loadSelectedDetail(true)
+    },
+    selectedDeviceId: {
+      immediate: true,
+      handler(id) {
+        if (id) this.loadSelectedDetail(false)
+      },
+    },
+  },
   methods: {
+    hasKremaBridge() {
+      return !!(window.krema && typeof window.krema.invoke === "function")
+    },
     async loadSnapshot() {
       this.loading = true
       try {
@@ -497,6 +660,7 @@ app.component("zeroconf-discovery-page", {
         if (!r.ok) throw new Error(`Dashboard error: ${r.status}`)
         this.snapshot = await r.json()
         this.error = ""
+        if (this.autoDescriptions) this.hydrateKnownDescriptions()
       } catch (e) {
         this.error = e instanceof Error ? e.message : "Could not load discovery dashboard"
       } finally {
@@ -509,6 +673,7 @@ app.component("zeroconf-discovery-page", {
         const r = await fetch("/api/zeroconf/dashboard/refresh")
         if (!r.ok) throw new Error(`Refresh error: ${r.status}`)
         this.snapshot = await r.json()
+        if (this.autoDescriptions) this.hydrateKnownDescriptions()
         setTimeout(this.loadSnapshot, 2500)
       } catch (e) {
         this.error = e instanceof Error ? e.message : "Could not start discovery scan"
@@ -519,6 +684,28 @@ app.component("zeroconf-discovery-page", {
     shortTime(value) {
       if (!value) return "-"
       try { return new Date(value).toLocaleTimeString() } catch (_) { return value }
+    },
+    formatHex(value) {
+      if (value === undefined || value === null || Number.isNaN(Number(value))) return "-"
+      return `0x${Number(value).toString(16)}`
+    },
+    async openExternalUrl(url) {
+      const target = String(url || "").trim()
+      if (!target) return
+      if (this.hasKremaBridge()) {
+        await window.krema.invoke("shell:openUrl", { url: target })
+        return
+      }
+      window.open(target, "_blank", "noopener,noreferrer")
+    },
+    deviceLabel(device) {
+      const description = this.deviceDescription(device)
+      return description?.friendlyName || description?.modelName || device?.displayName || "Unknown device"
+    },
+    deviceDescription(device) {
+      if (!device) return null
+      const location = (device.locations || []).find(url => this.descriptions[url]?.description)
+      return location ? this.descriptions[location]?.description || null : null
     },
     recordTypeHint(type) {
       const hints = {
@@ -560,6 +747,63 @@ app.component("zeroconf-discovery-page", {
         return endpoint ? `${service.protocol}: ${type} -> ${endpoint}` : `${service.protocol}: ${type}`
       })
     },
+    async hydrateKnownDescriptions() {
+      const shouldPrime = !this.autoDescriptionPrimed
+      this.autoDescriptionPrimed = true
+      const candidates = this.devices
+        .filter(device => (device.protocols || []).includes("SSDP"))
+        .flatMap(device => device.locations || [])
+        .filter(location => this.isDescriptionUrl(location))
+        .filter(location => shouldPrime || !this.descriptions[location])
+        .filter(location => !this.descriptionRequests[location])
+      for (const location of [...new Set(candidates)]) {
+        await this.loadDescription(location, { silent: true })
+      }
+    },
+    serviceActionHref(service) {
+      if (!service) return ""
+      if (service.location && /^https?:\/\//i.test(service.location)) return service.location
+      const host = this.normalizeServiceHost(service.target) || this.selectedDevice?.addresses?.[0] || this.selectedDevice?.hostnames?.[0]
+      const port = service.port
+      if (!host || !port) return ""
+      const type = String(service.type || "").toLowerCase()
+      const scheme = (type.includes("_ipps") || type.includes("https") || port === 443 || port === 8443) ? "https"
+        : (type.includes("_http") || type.includes("_ipp") || [80, 81, 631, 8008, 8080].includes(port)) ? "http"
+        : ""
+      if (!scheme) return ""
+      const defaultPort = (scheme === "http" && port === 80) || (scheme === "https" && port === 443)
+      return defaultPort ? `${scheme}://${host}/` : `${scheme}://${host}:${port}/`
+    },
+    normalizeServiceHost(value) {
+      const raw = String(value || "").trim()
+      if (!raw || raw.startsWith("uuid:") || raw.startsWith("urn:")) return ""
+      return raw.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0]
+    },
+    async loadSelectedDetail(force) {
+      const id = this.selectedDeviceId
+      if (!id) return
+      const cacheKey = `${id}|smb=${this.smbIntrospection ? '1' : '0'}`
+      if (!force && this.detailCache[cacheKey]) {
+        this.detailError = ""
+        return
+      }
+      this.detailLoading = true
+      this.detailError = ""
+      try {
+        const params = new URLSearchParams()
+        if (this.smbIntrospection) params.set("includeSmb", "true")
+        const suffix = params.toString() ? `?${params.toString()}` : ""
+        const r = await fetch(`/api/zeroconf/device/${encodeURIComponent(id)}/details${suffix}`)
+        if (!r.ok) throw new Error(`Host detail error: ${r.status}`)
+        const result = await r.json()
+        if (result.status === "error") throw new Error(result.error || "Could not inspect host")
+        this.detailCache = { ...this.detailCache, [cacheKey]: result }
+      } catch (e) {
+        this.detailError = e instanceof Error ? e.message : "Could not inspect host"
+      } finally {
+        this.detailLoading = false
+      }
+    },
     isDescriptionUrl(location) {
       return /^https?:\/\//i.test(location || "")
     },
@@ -579,9 +823,14 @@ app.component("zeroconf-discovery-page", {
         .map(([key, label]) => ({ label, value: description?.[key] }))
         .filter(row => row.value)
     },
-    async loadDescription(location) {
-      this.descriptionLoadingUrl = location
-      this.descriptionError = ""
+    async loadDescription(location, options = {}) {
+      const silent = !!options.silent
+      if (this.descriptions[location] || this.descriptionRequests[location]) return
+      this.descriptionRequests = { ...this.descriptionRequests, [location]: true }
+      if (!silent) {
+        this.descriptionLoadingUrl = location
+        this.descriptionError = ""
+      }
       try {
         const r = await fetch(`/api/zeroconf/description?url=${encodeURIComponent(location)}`)
         if (!r.ok) throw new Error(`Description error: ${r.status}`)
@@ -589,9 +838,14 @@ app.component("zeroconf-discovery-page", {
         if (result.status !== "ok") throw new Error(result.error || "Could not read device description")
         this.descriptions = { ...this.descriptions, [location]: result }
       } catch (e) {
-        this.descriptionError = e instanceof Error ? e.message : "Could not read device description"
+        if (!silent) {
+          this.descriptionError = e instanceof Error ? e.message : "Could not read device description"
+        }
       } finally {
-        this.descriptionLoadingUrl = ""
+        const nextRequests = { ...this.descriptionRequests }
+        delete nextRequests[location]
+        this.descriptionRequests = nextRequests
+        if (!silent) this.descriptionLoadingUrl = ""
       }
     },
     async runManual() {
@@ -650,6 +904,8 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page .page-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; }
 .zeroconf-page .desc { color: #64748b; font-size: 0.9rem; margin: 0.25rem 0 0; }
 .zeroconf-page .head-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.zeroconf-page .toggle-chip { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid #d1d5db; border-radius: 999px; background: #fff; padding: 0.45rem 0.7rem; font-size: 0.78rem; color: #334155; }
+.zeroconf-page .toggle-chip input { margin: 0; }
 .zeroconf-page .btn { border: 0; background: #0f172a; color: #fff; border-radius: 6px; padding: 0.55rem 0.95rem; cursor: pointer; }
 .zeroconf-page .btn-secondary { background: #e5e7eb; color: #111827; }
 .zeroconf-page .btn:disabled { opacity: .6; cursor: default; }
@@ -705,6 +961,7 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page .tag-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
 .zeroconf-page .tag { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 0.2rem 0.5rem; font-size: 0.74rem; }
 .zeroconf-page .detail-section { border-top: 1px solid #e5e7eb; padding-top: 0.7rem; margin-top: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.zeroconf-page .section-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; }
 .zeroconf-page code { display: block; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem 0.45rem; overflow-wrap: anywhere; }
 .zeroconf-page .kv { display: flex; justify-content: space-between; gap: 0.7rem; font-size: 0.82rem; }
 .zeroconf-page .kv span { color: #64748b; }
@@ -716,6 +973,13 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page .description-services > strong { font-size: 0.78rem; color: #1e3a8a; }
 .zeroconf-page .meaning-row { margin: 0; display: grid; grid-template-columns: minmax(120px, 0.45fr) minmax(160px, 1fr); gap: 0.55rem; font-size: 0.82rem; color: #475569; }
 .zeroconf-page .meaning-row strong { color: #111827; overflow-wrap: anywhere; }
+.zeroconf-page .inspection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.zeroconf-page .inspection-panel { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.65rem; background: #f8fafc; }
+.zeroconf-page .inspection-list { display: grid; gap: 0.45rem; }
+.zeroconf-page .inspection-row { border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; padding: 0.5rem; display: grid; gap: 0.3rem; }
+.zeroconf-page .inspection-row strong { display: block; font-size: 0.82rem; }
+.zeroconf-page .inspection-row a { color: #1d4ed8; overflow-wrap: anywhere; }
+.zeroconf-page .inspection-meta { display: flex; flex-wrap: wrap; gap: 0.45rem; color: #64748b; font-size: 0.74rem; }
 .zeroconf-page .mini-table, .zeroconf-page .result-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .zeroconf-page .mini-table th, .zeroconf-page .mini-table td, .zeroconf-page .result-table th, .zeroconf-page .result-table td { border-bottom: 1px solid #e5e7eb; padding: 0.45rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .zeroconf-page .mini-table th, .zeroconf-page .result-table th { color: #475569; background: #f8fafc; font-weight: 600; }
@@ -734,7 +998,7 @@ app.component("zeroconf-discovery-page", {
 .zeroconf-page .json-pre { margin: 0; background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.8rem; }
 @media (max-width: 1000px) {
   .zeroconf-page .summary-grid, .zeroconf-page .protocol-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .zeroconf-page .inventory-layout, .zeroconf-page .filter-band, .zeroconf-page .explainer-grid { grid-template-columns: 1fr; }
+  .zeroconf-page .inventory-layout, .zeroconf-page .filter-band, .zeroconf-page .explainer-grid, .zeroconf-page .inspection-grid { grid-template-columns: 1fr; }
   .zeroconf-page .resolution-flow { flex-direction: column; }
   .zeroconf-page .flow-arrow { display: none; }
   .zeroconf-page .service-type-row, .zeroconf-page .meaning-row { grid-template-columns: 1fr; }
