@@ -21,9 +21,9 @@ build:macos --workspace_status_command=tools/bazel/workspace_status.sh
 build:windows --workspace_status_command=tools/bazel/workspace_status.cmd
 
 # Windows needs a populated runfiles tree for Kotlin workers.
-build:windows --enable_runfiles
+#build:windows --enable_runfiles
 # Keep legacy external runfiles layout for rules_kotlin runfiles resolution on Windows.
-build:windows --legacy_external_runfiles
+#build:windows --legacy_external_runfiles
 
 # Ensure Bazel C++ toolchain detection can find VS Build Tools on Windows.
 build:windows --repo_env=BAZEL_VS=C:/PROGRA~2/MICROS~3/2022/BUILDT~1

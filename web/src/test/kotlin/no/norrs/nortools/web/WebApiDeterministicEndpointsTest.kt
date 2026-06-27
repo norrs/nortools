@@ -142,6 +142,71 @@ class WebApiDeterministicEndpointsTest {
     }
 
     @Test
+    fun `zeroconf netbios endpoint reports unsupported ipv6 without network scan`() {
+        val response = get("/api/zeroconf/netbios/query/MYPC?ipFamily=ipv6")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("NetBIOS Name Service", json["protocol"].asText())
+        assertEquals("unsupported-ip-family", json["status"].asText())
+        assertTrue(json["reason"].asText().contains("IPv4"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
+    fun `zeroconf llmnr endpoint rejects invalid ip family before network scan`() {
+        val response = get("/api/zeroconf/llmnr/query/printer.local?ipFamily=bogus")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("LLMNR", json["protocol"].asText())
+        assertEquals("error", json["status"].asText())
+        assertTrue(json["error"].asText().contains("Invalid ipFamily"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
+    fun `zeroconf mdns endpoint reports unsupported ipv6 without network scan`() {
+        val response = get("/api/zeroconf/mdns/query/_services._dns-sd._udp.local?ipFamily=ipv6")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("mDNS", json["protocol"].asText())
+        assertEquals("unsupported-ip-family", json["status"].asText())
+        assertTrue(json["reason"].asText().contains("IPv4"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
+    fun `zeroconf ssdp endpoint reports unsupported ipv6 without network scan`() {
+        val response = get("/api/zeroconf/ssdp/search?ipFamily=ipv6")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("SSDP", json["protocol"].asText())
+        assertEquals("unsupported-ip-family", json["status"].asText())
+        assertTrue(json["reason"].asText().contains("IPv4"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
+    fun `zeroconf ws-discovery endpoint reports unsupported ipv6 without network scan`() {
+        val response = get("/api/zeroconf/wsd/probe?ipFamily=ipv6")
+        assertEquals(200, response.statusCode())
+
+        val json = mapper.readTree(response.body())
+        assertEquals("WS-Discovery", json["protocol"].asText())
+        assertEquals("unsupported-ip-family", json["status"].asText())
+        assertTrue(json["reason"].asText().contains("IPv4"))
+        assertTrue(json["rows"].isArray)
+        assertEquals(0, json["rows"].size())
+    }
+
+    @Test
     fun `rpki route endpoint accepts manual asn and prefix`() {
         val response = get("/api/rpki-route/1.1.1.0%2F24?asn=AS13335")
         assertEquals(200, response.statusCode())

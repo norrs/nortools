@@ -3,7 +3,6 @@ package no.norrs.nortools.web
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
-import java.nio.file.Paths
 
 class WebApiRoutesTest {
 
@@ -45,6 +44,20 @@ class WebApiRoutesTest {
             "GET /api/trace/{host}",
             "GET /api/whatismyip",
             "GET /api/whois/{query}",
+            "GET /api/zeroconf/dashboard",
+            "GET /api/zeroconf/dashboard/refresh",
+            "GET /api/zeroconf/description",
+            "GET /api/zeroconf/mdns/listen",
+            "GET /api/zeroconf/mdns/query/{name}",
+            "GET /api/zeroconf/llmnr/listen",
+            "GET /api/zeroconf/llmnr/query/{name}",
+            "GET /api/zeroconf/netbios/listen",
+            "GET /api/zeroconf/netbios/node-status/{host}",
+            "GET /api/zeroconf/netbios/query/{name}",
+            "GET /api/zeroconf/ssdp/listen",
+            "GET /api/zeroconf/ssdp/search",
+            "GET /api/zeroconf/wsd/listen",
+            "GET /api/zeroconf/wsd/probe",
             "POST /api/email-extract",
         )
 
@@ -56,15 +69,8 @@ class WebApiRoutesTest {
     }
 
     private fun readWebPortalSource(): String {
-        val testSrcDir = System.getenv("TEST_SRCDIR")
-        val workspace = System.getenv("TEST_WORKSPACE") ?: "_main"
-        val candidates = listOfNotNull(
-            Paths.get("web/src/main/kotlin/no/norrs/nortools/web/WebPortal.kt"),
-            testSrcDir?.let { Paths.get(it, workspace, "web/src/main/kotlin/no/norrs/nortools/web/WebPortal.kt") },
-            testSrcDir?.let { Paths.get(it, "_main", "web/src/main/kotlin/no/norrs/nortools/web/WebPortal.kt") },
-        )
-        val path = candidates.firstOrNull { Files.exists(it) }
-            ?: error("Could not locate WebPortal.kt from candidates: $candidates")
+        val path = TestRunfiles.resolve("web/src/main/kotlin/no/norrs/nortools/web/WebPortal.kt")
+            ?: error("Could not locate WebPortal.kt in runfiles")
         return Files.readString(path)
     }
 }

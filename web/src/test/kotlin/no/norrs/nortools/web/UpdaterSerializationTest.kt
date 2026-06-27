@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 
 class UpdaterSerializationTest {
 
@@ -43,18 +41,8 @@ class UpdaterSerializationTest {
     }
 
     private fun readReflectConfigText(): String {
-        val testSrcDir = System.getenv("TEST_SRCDIR")
-        val workspace = System.getenv("TEST_WORKSPACE") ?: "_main"
-
-        val candidates = listOfNotNull(
-            Paths.get("desktop/graal/reflect-config.json"),
-            testSrcDir?.let { Paths.get(it, workspace, "desktop/graal/reflect-config.json") },
-            testSrcDir?.let { Paths.get(it, "_main", "desktop/graal/reflect-config.json") },
-        )
-
-        val path = candidates.firstOrNull { Files.exists(it) }
-            ?: error("Could not locate desktop/graal/reflect-config.json from candidates: $candidates")
+        val path = TestRunfiles.resolve("desktop/graal/reflect-config.json")
+            ?: error("Could not locate desktop/graal/reflect-config.json in runfiles")
         return Files.readString(path)
     }
 }
-

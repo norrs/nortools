@@ -74,6 +74,15 @@ All DNSSEC tools share the core DNSSEC RFCs:
 
 ---
 
+## Zero-Configuration Discovery Tools
+
+| Tool | Description | Relevant RFCs / Standards |
+|------|-------------|--------------------------|
+| **mdns** | mDNS query and passive listener for local DNS-style records | [RFC 6762](https://datatracker.ietf.org/doc/html/rfc6762) - Multicast DNS, [RFC 6763](https://datatracker.ietf.org/doc/html/rfc6763) - DNS-Based Service Discovery |
+| **netbios-ns** | NetBIOS Name Service query, node status, and passive listener | [RFC 1001](https://datatracker.ietf.org/doc/html/rfc1001) - Protocol Standard for a NetBIOS Service on a TCP/UDP Transport: Concepts and Methods, [RFC 1002](https://datatracker.ietf.org/doc/html/rfc1002) - Detailed Specifications |
+
+---
+
 ## WHOIS & Registration Tools
 
 | Tool | Description | Relevant RFCs / Standards |
@@ -147,10 +156,14 @@ The web portal's DNS Health Check performs ~49–54 checks across 9 categories. 
 | RFC 768 | UDP | DNS Health (connectivity) |
 | RFC 792 | ICMP | ping, trace |
 | RFC 793 | TCP | tcp, DNS Health (connectivity) |
+| RFC 1001 | NetBIOS over TCP/UDP Concepts and Methods | netbios-ns |
+| RFC 1002 | NetBIOS over TCP/UDP Detailed Specifications | netbios-ns |
 | RFC 1035 | Domain Names — Implementation & Specification | All DNS tools, dns-health, dns-propagation, bulk, whatismyip |
 | RFC 1393 | Traceroute Using an IP Option | trace |
 | RFC 1876 | Location Information in DNS | loc |
 | RFC 2782 | DNS SRV Records | srv |
+| RFC 6762 | Multicast DNS | mdns |
+| RFC 6763 | DNS-Based Service Discovery | mdns, future dns-sd |
 | RFC 2822 | Internet Message Format (obsoleted by 5322) | header-analyzer |
 | RFC 3207 | SMTP STARTTLS Extension | smtp, mailflow |
 | RFC 3596 | DNS Extensions for IPv6 | aaaa, DNS Health |

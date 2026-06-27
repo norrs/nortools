@@ -1,0 +1,34 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
+
+kt_jvm_library(
+    name = "zeroconf",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/dns",
+    ],
+)
+
+kt_jvm_test(
+    name = "zeroconf_test",
+    srcs = glob(["src/test/kotlin/**/*.kt"]),
+    args = [
+        "--select-class=no.norrs.nortools.lib.zeroconf.MdnsDiscoveryTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.LlmnrDiscoveryTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.NetbiosNameServiceTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.SsdpDiscoveryTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.UdpDiscoveryTest",
+        "--select-class=no.norrs.nortools.lib.zeroconf.WsDiscoveryTest",
+        "--disable-banner",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    test_class = "no.norrs.nortools.lib.zeroconf.NetbiosNameServiceTest",
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+    ],
+    deps = [
+        ":zeroconf",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
