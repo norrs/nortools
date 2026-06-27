@@ -129,7 +129,7 @@ foreach ($f in $GraalConfigs.Split(" ")) {
 $nativeArgs = @(
     "-jar", $deployJarPath,
     "-o", (Join-Path $workdir "nortools"),
-    "--enable-url-protocols=https",
+    "--enable-url-protocols=http,https",
     "--enable-native-access=ALL-UNNAMED",
     "-H:+UnlockExperimentalVMOptions",
     "-H:-CheckToolchain",
