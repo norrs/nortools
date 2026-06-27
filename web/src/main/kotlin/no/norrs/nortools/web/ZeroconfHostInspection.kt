@@ -3,7 +3,9 @@ package no.norrs.nortools.web
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.SmbConfig
 import com.hierynomus.smbj.auth.AuthenticationContext
+import com.hierynomus.mssmb2.SMB2Dialect
 import com.rapid7.client.dcerpc.mssrvs.ServerService
+import com.rapid7.client.dcerpc.mssrvs.dto.NetShareInfo0
 import com.rapid7.client.dcerpc.mssrvs.dto.NetShareInfo1
 import com.rapid7.client.dcerpc.transport.SMBTransportFactories
 import no.norrs.nortools.lib.network.HttpClient
@@ -117,7 +119,10 @@ object ZeroconfHostInspector {
             }
 
         val primaryIpv4 = device.addresses.firstOrNull(::isIpv4Address)
-            ?: device.locations.mapNotNull(::locationHost).firstOrNull(::isIpv4Address)
+            ?: device.locations.flatMap(::splitLocationUrls).mapNotNull(::locationHost).firstOrNull(::isIpv4Address)
+        val primarySmbHost = primaryIpv4
+            ?: primaryNetworkHost(device)
+        val smbCandidate = isSmbCandidate(device)
 
         val netbios = if (device.protocols.contains("NetBIOS") && primaryIpv4 != null) {
             inspectNetbios(primaryIpv4, timeout, warnings)
@@ -125,8 +130,8 @@ object ZeroconfHostInspector {
             null
         }
 
-        val smb = if (includeSmb && (device.protocols.contains("NetBIOS") || portChecks.any { it.port == 445 && it.connected }) && primaryIpv4 != null) {
-            inspectSmb(primaryIpv4, timeout)
+        val smb = if (includeSmb && (smbCandidate || portChecks.any { it.port == 445 && it.connected }) && primarySmbHost != null) {
+            inspectSmb(primarySmbHost, timeout)
         } else {
             null
         }
@@ -172,6 +177,13 @@ object ZeroconfHostInspector {
         var session: com.hierynomus.smbj.session.Session? = null
         try {
             val config = SmbConfig.builder()
+                .withDialects(
+                    SMB2Dialect.SMB_3_1_1,
+                    SMB2Dialect.SMB_3_0_2,
+                    SMB2Dialect.SMB_3_0,
+                    SMB2Dialect.SMB_2_1,
+                    SMB2Dialect.SMB_2_0_2,
+                )
                 .withTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                 .withSoTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                 .build()
@@ -184,15 +196,19 @@ object ZeroconfHostInspector {
                 )
             }
 
-            val connectionInfo = connection.connectionInfo
+            val connectionInfo = connection.connectionContext
             val dialect = connection.negotiatedProtocol.dialect.name
             val signingRequired = connectionInfo.isServerRequiresSigning()
             val signingEnabled = connectionInfo.isServerSigningEnabled()
             val serverGuid = connectionInfo.serverGuid?.toString()
+            val encryptionSupported = connectionInfo.supportsEncryption()
 
             val attempts = listOf(
                 "anonymous" to AuthenticationContext.anonymous(),
                 "guest" to AuthenticationContext.guest(),
+                "empty-user" to AuthenticationContext("", CharArray(0), ""),
+                "guest-empty-password" to AuthenticationContext("guest", CharArray(0), ""),
+                "guest-workgroup" to AuthenticationContext("guest", CharArray(0), "WORKGROUP"),
             )
 
             var lastError: String? = null
@@ -206,7 +222,7 @@ object ZeroconfHostInspector {
                         dialect = dialect,
                         signingRequired = signingRequired,
                         signingEnabled = signingEnabled,
-                        encryptionSupported = false,
+                        encryptionSupported = encryptionSupported,
                         serverGuid = serverGuid,
                         authenticationMode = mode,
                         authenticationStatus = when {
@@ -231,7 +247,7 @@ object ZeroconfHostInspector {
                 dialect = dialect,
                 signingRequired = signingRequired,
                 signingEnabled = signingEnabled,
-                encryptionSupported = false,
+                encryptionSupported = encryptionSupported,
                 serverGuid = serverGuid,
                 authenticationStatus = "denied",
                 note = "Anonymous and guest SMB sessions were not accepted.",
@@ -253,10 +269,20 @@ object ZeroconfHostInspector {
     private fun enumerateShares(session: com.hierynomus.smbj.session.Session): List<ZeroconfSmbShare> {
         val transport = SMBTransportFactories.SRVSVC.getTransport(session)
         val service = ServerService(transport)
-        return service.getShares1()
-            .map(::toSmbShare)
-            .filterNot { share -> share.name.isBlank() }
+        return runCatching {
+            service.getShares1().map(::toSmbShare)
+        }.getOrElse {
+            service.getShares0().map(::toSmbShare)
+        }.filterNot { share -> share.name.isBlank() }
             .sortedWith(compareBy<ZeroconfSmbShare> { it.name.lowercase() })
+    }
+
+    private fun toSmbShare(share: NetShareInfo0): ZeroconfSmbShare {
+        return ZeroconfSmbShare(
+            name = share.netName ?: "",
+            type = "Unknown",
+            comment = "",
+        )
     }
 
     private fun toSmbShare(share: NetShareInfo1): ZeroconfSmbShare {
@@ -284,7 +310,7 @@ object ZeroconfHostInspector {
         val candidates = linkedMapOf<String, WebCandidate>()
 
         device.locations
-            .filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
+            .flatMap(::splitLocationUrls)
             .forEach { location ->
                 candidates[location] = WebCandidate(
                     label = "Advertised URL",
@@ -333,8 +359,8 @@ object ZeroconfHostInspector {
             )
         }
 
-        val primaryAddress = device.addresses.firstOrNull()
-        if (primaryAddress != null && device.protocols.contains("NetBIOS")) {
+        val primaryAddress = primaryNetworkHost(device)
+        if (primaryAddress != null && isSmbCandidate(device)) {
             listOf(139 to "SMB over NetBIOS", 445 to "SMB").forEach { (port, label) ->
                 val key = "$primaryAddress:$port"
                 candidates.putIfAbsent(key, PortCandidate(primaryAddress, port, label))
@@ -351,7 +377,7 @@ object ZeroconfHostInspector {
             }
             val key = "$host:$port"
             candidates.putIfAbsent(key, PortCandidate(host, port, "Web interface", grabBanner = port == 80))
-        }`
+        }
 
         return candidates.values.toList()
     }
@@ -381,6 +407,29 @@ object ZeroconfHostInspector {
 
     private fun locationHost(value: String): String? =
         runCatching { URI(value).host }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    private fun primaryNetworkHost(device: ZeroconfDashboardDevice): String? =
+        device.addresses.firstOrNull()
+            ?: device.hostnames.firstOrNull()
+            ?: device.locations.flatMap(::splitLocationUrls).mapNotNull(::locationHost).firstOrNull()
+
+    private fun splitLocationUrls(value: String): List<String> =
+        value.split(Regex("\\s+"))
+            .map { it.trim() }
+            .filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
+            .filter { runCatching { URI(it) }.isSuccess }
+
+    private fun isSmbCandidate(device: ZeroconfDashboardDevice): Boolean {
+        val category = device.category.lowercase()
+        if ("smb" in category || "computer" in category || "windows" in category) return true
+        if (device.protocols.any { it.equals("NetBIOS", ignoreCase = true) }) return true
+        return device.services.any { service ->
+            val text = listOf(service.protocol, service.type, service.name, service.description)
+                .joinToString(" ")
+                .lowercase()
+            "smb" in text || "netbios" in text || "computer" in text
+        }
+    }
 
     private fun isIpv4Address(value: String): Boolean =
         runCatching { InetAddress.getByName(value) }.getOrNull() is Inet4Address
