@@ -64,7 +64,7 @@ class MdnsClient(
         )
     }
 
-    fun listen(bindAddress: String = "0.0.0.0", maxPackets: Int = 25): MdnsResult {
+    fun listen(bindAddress: String? = "0.0.0.0", maxPackets: Int = 25): MdnsResult {
         val session = BoundedUdpDiscovery(protocol = "mDNS", timeout = timeout)
             .listenMulticast(
                 groupAddress = MDNS_IPV4_GROUP,
