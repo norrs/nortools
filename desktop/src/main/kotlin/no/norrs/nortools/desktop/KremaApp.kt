@@ -43,6 +43,7 @@ import no.norrs.nortools.tools.network.https.HttpsCheckCommand
 import no.norrs.nortools.tools.network.ping.PingCommand
 import no.norrs.nortools.tools.network.tcp.TcpCheckCommand
 import no.norrs.nortools.tools.network.trace.TraceCommand
+import no.norrs.nortools.tools.zeroconf.sambabrowse.SambaBrowseCommand
 import no.norrs.nortools.tools.util.dnshealth.DnsHealthCommand
 import no.norrs.nortools.tools.util.dnspropagation.DnsPropagationCommand
 import no.norrs.nortools.tools.util.emailextract.EmailExtractCommand
@@ -304,6 +305,7 @@ private fun createCommand(name: String): CliktCommand? = when (name) {
     "rrsig" -> RrsigLookupCommand()
     "smtp" -> SmtpTestCommand()
     "soa" -> SoaLookupCommand()
+    "samba-browse" -> SambaBrowseCommand()
     "spf" -> SpfLookupCommand()
     "spf-generator" -> SpfGeneratorCommand()
     "srv" -> SrvLookupCommand()
@@ -324,7 +326,7 @@ private fun printUnknownCommand(name: String) {
         "dns-propagation", "dnskey", "domain-health", "ds", "email-extract", "deliverability",
         "header-analyzer", "http", "https", "ipseckey", "loc", "mailflow", "mta-sts", "mx",
         "nsec", "nsec3param", "ns", "password-gen", "ping", "ptr", "rrsig", "smtp", "soa",
-        "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
+        "samba-browse", "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
         "whatismyip", "whois",
     )
     System.err.println("Unknown command: $name")
@@ -341,7 +343,7 @@ private fun printRootHelp() {
         "dns-propagation", "dnskey", "domain-health", "ds", "email-extract", "deliverability",
         "header-analyzer", "http", "https", "ipseckey", "loc", "mailflow", "mta-sts", "mx",
         "nsec", "nsec3param", "ns", "password-gen", "ping", "ptr", "rrsig", "smtp", "soa",
-        "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
+        "samba-browse", "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
         "whatismyip", "whois",
     )
     println("NorTools")

@@ -60,6 +60,7 @@ kt_jvm_library(
         "//tools/network/ping",
         "//tools/network/tcp",
         "//tools/network/trace",
+        "//tools/zeroconf/samba-browse",
         "//tools/util/dns-health",
         "//tools/util/dns-propagation",
         "//tools/util/email-extract",

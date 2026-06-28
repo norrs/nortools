@@ -59,6 +59,10 @@
   {"name": "no.norrs.nortools.web.TraceResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.TraceVisualHop",             "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.TraceVisualResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SambaBrowseResponse",        "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SambaBrowseShareResponse",   "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SambaBrowseDiscoveryResponse","allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
+  {"name": "no.norrs.nortools.web.SambaBrowseDiscoveredHost",   "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
   {"name": "no.norrs.nortools.web.RpkiRouteValidationResponse","allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},
 
   {"name": "no.norrs.nortools.web.WhoisResponse",              "allPublicConstructors": true, "allPublicMethods": true, "allPublicFields": true, "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true},

@@ -6,6 +6,8 @@ kt_jvm_library(
     visibility = ["//visibility:public"],
     deps = [
         "//lib/dns",
+        "@maven//:com_hierynomus_smbj",
+        "@maven//:com_rapid7_client_dcerpc",
     ],
 )
 

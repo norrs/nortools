@@ -34,6 +34,8 @@ class WebApiRoutesTest {
             "GET /api/ping-stream/{host}",
             "GET /api/ping/{host}",
             "GET /api/rpki-route/{ip}",
+            "GET /api/samba-browse/discover",
+            "GET /api/samba-browse/{host}",
             "GET /api/reverse/{ip}",
             "GET /api/spf-generator",
             "GET /api/spf/{domain}",

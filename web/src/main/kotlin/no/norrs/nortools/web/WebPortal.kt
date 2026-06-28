@@ -53,6 +53,8 @@ fun startServer(
 
             // Network tools
             get("/api/tcp/{host}/{port}") { ctx -> tcpCheck(ctx) }
+            get("/api/samba-browse/discover") { ctx -> sambaBrowseDiscover(ctx) }
+            get("/api/samba-browse/{host}") { ctx -> sambaBrowse(ctx) }
             get("/api/http/{url}") { ctx -> httpCheck(ctx) }
             get("/api/https/{host}") { ctx -> httpsCheck(ctx) }
             get("/api/network-interfaces") { ctx -> networkInterfaces(ctx) }
@@ -139,6 +141,7 @@ private fun registerJavalinVueRoutes() {
     get("/help/dns-record-types", VueComponent("help-dns-record-types-page"))
     get("/dmarc", VueComponent("dmarc-page"))
     get("/tcp", VueComponent("tcp-page"))
+    get("/samba-browse", VueComponent("samba-browse-page"))
     get("/http", VueComponent("http-page"))
     get("/https", VueComponent("https-page"))
     get("/network-interfaces", VueComponent("network-interfaces-page"))
@@ -189,6 +192,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/help-dns-record-types-page.vue",
         "vue/components/dmarc-page.vue",
         "vue/components/tcp-page.vue",
+        "vue/components/samba-browse-page.vue",
         "vue/components/http-page.vue",
         "vue/components/https-page.vue",
         "vue/components/network-interfaces-page.vue",
