@@ -38,8 +38,6 @@ ROUTES = [
     ("11-reverse-dns", "Reverse DNS", "reverse_dns"),
     ("12-dns-health", "DNS Health", "dns_health"),
     ("13-domain-health", "Domain Health", "domain_health"),
-    ("14-zeroconf-discovery", "ZeroConf Discovery", "zeroconf"),
-    ("15-samba-browse", "Samba Browse", "samba_browse"),
 ]
 
 RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
@@ -58,8 +56,6 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "reverse_dns": (["ptr records (", "status"], False, 30.0),
     "dns_health": (["nameservers", "soa"], True, 30.0),
     "domain_health": (["report", "json"], True, 30.0),
-    "zeroconf": (["zeroconf discovery", "devices"], True, 30.0),
-    "samba_browse": (["local smb discovery", "scan now"], True, 30.0),
 }
 MIN_ROUTE_SIGNAL_TIMEOUT_SECONDS = 30.0
 
@@ -1235,14 +1231,6 @@ def perform_route_action(route_key: str, display: str, window_id: str) -> None:
             text="example.com",
         )
         time.sleep(8.0)
-    elif route_key == "zeroconf":
-        # The dashboard starts discovery automatically. Capture the inventory
-        # harness without requiring specific LAN devices in CI.
-        time.sleep(4.0)
-    elif route_key == "samba_browse":
-        # Samba Browse starts the same SMB sweep used by ZeroConf Discovery.
-        # Let the scan begin, but do not require a reachable local SMB host.
-        time.sleep(6.0)
 
 
 def run() -> int:
