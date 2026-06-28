@@ -1,22 +1,14 @@
 package no.norrs.nortools.web
 
-import com.hierynomus.smbj.SMBClient
-import com.hierynomus.smbj.SmbConfig
-import com.hierynomus.smbj.auth.AuthenticationContext
-import com.hierynomus.mssmb2.SMB2Dialect
-import com.rapid7.client.dcerpc.mssrvs.ServerService
-import com.rapid7.client.dcerpc.mssrvs.dto.NetShareInfo0
-import com.rapid7.client.dcerpc.mssrvs.dto.NetShareInfo1
-import com.rapid7.client.dcerpc.transport.SMBTransportFactories
 import no.norrs.nortools.lib.network.HttpClient
 import no.norrs.nortools.lib.network.TcpClient
 import no.norrs.nortools.lib.zeroconf.NetbiosNameServiceClient
+import no.norrs.nortools.lib.zeroconf.SmbShareBrowser
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.URI
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 data class ZeroconfDeviceDetail(
     val generatedAt: String,
@@ -172,132 +164,26 @@ object ZeroconfHostInspector {
     }
 
     private fun inspectSmb(host: String, timeout: Duration): ZeroconfSmbHostDetail {
-        var client: SMBClient? = null
-        var connection: com.hierynomus.smbj.connection.Connection? = null
-        var session: com.hierynomus.smbj.session.Session? = null
-        try {
-            val config = SmbConfig.builder()
-                .withDialects(
-                    SMB2Dialect.SMB_3_1_1,
-                    SMB2Dialect.SMB_3_0_2,
-                    SMB2Dialect.SMB_3_0,
-                    SMB2Dialect.SMB_2_1,
-                    SMB2Dialect.SMB_2_0_2,
+        val result = SmbShareBrowser(timeout = timeout).browse(host)
+        return ZeroconfSmbHostDetail(
+            host = result.host,
+            attempted = result.attempted,
+            dialect = result.dialect,
+            signingRequired = result.signingRequired,
+            signingEnabled = result.signingEnabled,
+            encryptionSupported = result.encryptionSupported,
+            serverGuid = result.serverGuid,
+            authenticationMode = result.authenticationMode,
+            authenticationStatus = result.authenticationStatus,
+            shares = result.shares.map { share ->
+                ZeroconfSmbShare(
+                    name = share.name,
+                    type = share.type,
+                    comment = share.comment,
                 )
-                .withTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                .withSoTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                .build()
-            client = SMBClient(config)
-            connection = runCatching { client.connect(host) }.getOrElse { error ->
-                return ZeroconfSmbHostDetail(
-                    host = host,
-                    attempted = true,
-                    error = error.message ?: "SMB connection failed",
-                )
-            }
-
-            val connectionInfo = connection.connectionContext
-            val dialect = connection.negotiatedProtocol.dialect.name
-            val signingRequired = connectionInfo.isServerRequiresSigning()
-            val signingEnabled = connectionInfo.isServerSigningEnabled()
-            val serverGuid = connectionInfo.serverGuid?.toString()
-            val encryptionSupported = connectionInfo.supportsEncryption()
-
-            val attempts = listOf(
-                "anonymous" to AuthenticationContext.anonymous(),
-                "guest" to AuthenticationContext.guest(),
-                "empty-user" to AuthenticationContext("", CharArray(0), ""),
-                "guest-empty-password" to AuthenticationContext("guest", CharArray(0), ""),
-                "guest-workgroup" to AuthenticationContext("guest", CharArray(0), "WORKGROUP"),
-            )
-
-            var lastError: String? = null
-            for ((mode, auth) in attempts) {
-                try {
-                    session = connection.authenticate(auth)
-                    val shares = enumerateShares(session)
-                    return ZeroconfSmbHostDetail(
-                        host = host,
-                        attempted = true,
-                        dialect = dialect,
-                        signingRequired = signingRequired,
-                        signingEnabled = signingEnabled,
-                        encryptionSupported = encryptionSupported,
-                        serverGuid = serverGuid,
-                        authenticationMode = mode,
-                        authenticationStatus = when {
-                            session.isAnonymous -> "anonymous"
-                            session.isGuest -> "guest"
-                            else -> "authenticated"
-                        },
-                        shares = shares,
-                        note = if (shares.isEmpty()) "Connected, but no shares were returned." else null,
-                    )
-                } catch (error: Throwable) {
-                    lastError = error.message ?: error::class.java.simpleName
-                } finally {
-                    runCatching { session?.logoff() }
-                    session = null
-                }
-            }
-
-            return ZeroconfSmbHostDetail(
-                host = host,
-                attempted = true,
-                dialect = dialect,
-                signingRequired = signingRequired,
-                signingEnabled = signingEnabled,
-                encryptionSupported = encryptionSupported,
-                serverGuid = serverGuid,
-                authenticationStatus = "denied",
-                note = "Anonymous and guest SMB sessions were not accepted.",
-                error = lastError,
-            )
-        } catch (error: Throwable) {
-            return ZeroconfSmbHostDetail(
-                host = host,
-                attempted = true,
-                error = error.message ?: error::class.java.simpleName,
-            )
-        } finally {
-            runCatching { session?.logoff() }
-            runCatching { connection?.close(true) }
-            runCatching { client?.close() }
-        }
-    }
-
-    private fun enumerateShares(session: com.hierynomus.smbj.session.Session): List<ZeroconfSmbShare> {
-        val transport = SMBTransportFactories.SRVSVC.getTransport(session)
-        val service = ServerService(transport)
-        return runCatching {
-            service.getShares1().map(::toSmbShare)
-        }.getOrElse {
-            service.getShares0().map(::toSmbShare)
-        }.filterNot { share -> share.name.isBlank() }
-            .sortedWith(compareBy<ZeroconfSmbShare> { it.name.lowercase() })
-    }
-
-    private fun toSmbShare(share: NetShareInfo0): ZeroconfSmbShare =
-        ZeroconfSmbShare(name = share.netName ?: "", type = "Unknown")
-
-    private fun toSmbShare(share: NetShareInfo1): ZeroconfSmbShare {
-        val typeValue = share.type
-        val baseType = when (typeValue and 0xFF) {
-            0 -> "Disk"
-            1 -> "Printer"
-            2 -> "Device"
-            3 -> "IPC"
-            else -> "Unknown"
-        }
-        val flags = buildList {
-            if ((typeValue and 0x80000000.toInt()) != 0) add("Special")
-            if ((typeValue and 0x40000000) != 0) add("Temporary")
-        }
-        val renderedType = if (flags.isEmpty()) baseType else "$baseType (${flags.joinToString(", ")})"
-        return ZeroconfSmbShare(
-            name = share.netName ?: "",
-            type = renderedType,
-            comment = share.remark ?: "",
+            },
+            note = result.note,
+            error = result.error,
         )
     }
 

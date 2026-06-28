@@ -279,6 +279,10 @@ bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC
 bazelisk run //tools/zeroconf/netbios-ns -- --query MYPC --suffix 32 --target 192.168.1.255
 bazelisk run //tools/zeroconf/netbios-ns -- --node-status 192.168.1.25
 bazelisk run //tools/zeroconf/netbios-ns -- --listen --timeout 10 --max-packets 25
+
+# Samba / SMB browsing - negotiate SMB and enumerate available shares
+bazelisk run //tools/zeroconf/samba-browse -- 192.168.1.25
+bazelisk run //tools/zeroconf/samba-browse -- --username guest --password "" 192.168.1.25
 ```
 
 ### WHOIS / Registration Tools
