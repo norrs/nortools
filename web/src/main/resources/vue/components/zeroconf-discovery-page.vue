@@ -475,6 +475,11 @@
       </div>
 
       <form @submit.prevent="runManual" class="lookup-form">
+        <select v-if="mode === 'query' && protocol === 'mdns'" v-model="mdnsPreset" class="input target-input" @change="applyMdnsPreset">
+          <option value="">Custom mDNS name</option>
+          <option value="__known_services">All known service types</option>
+          <option v-for="service in mdnsKnownServices" :key="service.type" :value="service.type">{{ service.title }} - {{ service.type }}</option>
+        </select>
         <input v-if="mode === 'query'" v-model.trim="name" class="input target-input" :placeholder="queryPlaceholder" />
         <input v-if="mode === 'query' && protocol === 'netbios'" v-model.trim="target" class="input target-input" placeholder="255.255.255.255" />
         <input v-if="mode === 'query' && protocol === 'netbios'" v-model.number="suffix" class="input input-sm" type="number" min="0" max="255" />
@@ -495,11 +500,25 @@ const zeroconfServiceReference = [
   { protocol: "mDNS", type: "_ipps._tcp.local", title: "Secure IPP Printer", description: "TLS-protected IPP printer endpoint.", observed: 0 },
   { protocol: "mDNS", type: "_printer._tcp.local", title: "LPD Printer", description: "Older printer advertisement still seen on some devices.", observed: 0 },
   { protocol: "mDNS", type: "_scanner._tcp.local", title: "Scanner", description: "Scanner service, often emitted by multifunction printers.", observed: 0 },
+  { protocol: "mDNS", type: "_uscan._tcp.local", title: "AirScan Scanner", description: "Modern driverless scanner endpoint used by eSCL/AirScan-capable devices.", observed: 0 },
   { protocol: "mDNS", type: "_http._tcp.local", title: "HTTP Admin", description: "Embedded web UI, admin page, or local application endpoint.", observed: 0 },
+  { protocol: "mDNS", type: "_http-alt._tcp.local", title: "Alternate HTTP", description: "HTTP service on a non-standard port.", observed: 0 },
+  { protocol: "mDNS", type: "_ssh._tcp.local", title: "SSH", description: "Secure Shell remote login or administration endpoint.", observed: 0 },
+  { protocol: "mDNS", type: "_sftp-ssh._tcp.local", title: "SFTP", description: "SSH File Transfer Protocol endpoint.", observed: 0 },
+  { protocol: "mDNS", type: "_rfb._tcp.local", title: "VNC Remote Desktop", description: "Remote Framebuffer service, commonly used by VNC remote desktop servers.", observed: 0 },
+  { protocol: "mDNS", type: "_afpovertcp._tcp.local", title: "Apple File Sharing", description: "Apple Filing Protocol file sharing over TCP.", observed: 0 },
+  { protocol: "mDNS", type: "_smb._tcp.local", title: "SMB File Sharing", description: "Samba or SMB/CIFS file sharing advertised through DNS-SD.", observed: 0 },
+  { protocol: "mDNS", type: "_device-info._tcp.local", title: "Device Info", description: "DNS-SD metadata record with model and device-class hints.", observed: 0 },
+  { protocol: "mDNS", type: "_workstation._tcp.local", title: "Workstation", description: "Generic host identity advertised by Avahi and similar mDNS responders.", observed: 0 },
   { protocol: "mDNS", type: "_airplay._tcp.local", title: "AirPlay", description: "Apple media display or playback receiver.", observed: 0 },
   { protocol: "mDNS", type: "_raop._tcp.local", title: "AirPlay Audio", description: "Remote Audio Output Protocol speaker or receiver.", observed: 0 },
+  { protocol: "mDNS", type: "_companion-link._tcp.local", title: "Apple Companion Link", description: "Apple continuity, remote control, and device companion service.", observed: 0 },
+  { protocol: "mDNS", type: "_mediaremotetv._tcp.local", title: "Apple TV Remote", description: "Apple TV media remote control endpoint.", observed: 0 },
+  { protocol: "mDNS", type: "_sleep-proxy._udp.local", title: "Sleep Proxy", description: "Bonjour Sleep Proxy wake-on-demand service.", observed: 0 },
   { protocol: "mDNS", type: "_googlecast._tcp.local", title: "Google Cast", description: "Chromecast or Cast receiver.", observed: 0 },
   { protocol: "mDNS", type: "_hap._tcp.local", title: "HomeKit", description: "Apple HomeKit accessory endpoint.", observed: 0 },
+  { protocol: "mDNS", type: "_hue._tcp.local", title: "Hue Bridge", description: "Philips Hue bridge discovery.", observed: 0 },
+  { protocol: "mDNS", type: "_spotify-connect._tcp.local", title: "Spotify Connect", description: "Spotify playback target.", observed: 0 },
   { protocol: "SSDP", type: "urn:schemas-upnp-org:device:MediaRenderer:1", title: "UPnP Media Renderer", description: "DLNA playback device such as a TV, receiver, or speaker.", observed: 0 },
   { protocol: "SSDP", type: "urn:schemas-upnp-org:device:MediaServer:1", title: "UPnP Media Server", description: "DLNA media library or content source.", observed: 0 },
   { protocol: "SSDP", type: "urn:schemas-upnp-org:device:InternetGatewayDevice:1", title: "Internet Gateway", description: "Router or gateway control service.", observed: 0 },
@@ -530,6 +549,7 @@ app.component("zeroconf-discovery-page", {
       name: "",
       recordType: "PTR",
       scopeFilter: "",
+      mdnsPreset: "",
       target: "255.255.255.255",
       suffix: 32,
       host: "",
@@ -584,6 +604,11 @@ app.component("zeroconf-discovery-page", {
         if (knownA !== knownB) return knownB - knownA
         return a.type.localeCompare(b.type)
       })
+    },
+    mdnsKnownServices() {
+      return zeroconfServiceReference
+        .filter(service => service.protocol === "mDNS")
+        .sort((a, b) => a.title.localeCompare(b.title))
     },
     events() {
       return Array.isArray(this.snapshot?.events) ? this.snapshot.events : []
@@ -640,6 +665,7 @@ app.component("zeroconf-discovery-page", {
       return steps
     },
     canRun() {
+      if (this.mode === "query" && this.protocol === "mdns" && this.mdnsPreset === "__known_services") return true
       if (this.mode === "query") return this.protocol === "wsd" || this.name.length > 0
       if (this.mode === "node-status") return this.protocol === "netbios" && this.host.length > 0
       return this.mode === "listen"
@@ -654,6 +680,7 @@ app.component("zeroconf-discovery-page", {
     actionLabel() {
       if (this.mode === "listen") return "Start Listener"
       if (this.mode === "node-status") return "Read Node Status"
+      if (this.protocol === "mdns" && this.mdnsPreset === "__known_services") return "Sweep Service Types"
       if (this.protocol === "ssdp") return "Search Services"
       if (this.protocol === "wsd") return "Probe Devices"
       return "Query Name"
@@ -892,6 +919,39 @@ app.component("zeroconf-discovery-page", {
         if (!silent) this.descriptionLoadingUrl = ""
       }
     },
+    applyMdnsPreset() {
+      if (this.protocol !== "mdns" || this.mode !== "query") return
+      if (this.mdnsPreset && this.mdnsPreset !== "__known_services") {
+        this.name = this.mdnsPreset
+        this.recordType = "PTR"
+      }
+    },
+    async runMdnsKnownServiceSweep(params) {
+      const serviceTypes = [...new Set(this.mdnsKnownServices.map(service => service.type))]
+      const queries = []
+      const records = []
+      const rows = []
+      for (const serviceType of serviceTypes) {
+        const queryParams = new URLSearchParams(params)
+        queryParams.set("type", "PTR")
+        const response = await fetch(`/api/zeroconf/mdns/query/${encodeURIComponent(serviceType)}?${queryParams}`)
+        if (!response.ok) throw new Error(`mDNS ${serviceType} error: ${response.status}`)
+        const result = await response.json()
+        queries.push({ serviceType, status: result.status, responseCount: result.responseCount || 0 })
+        ;(result.records || []).forEach(record => records.push(record))
+        ;(result.rows || []).forEach(row => rows.push({ serviceType, ...row }))
+      }
+      return {
+        protocol: "mDNS",
+        mode: "service-type-sweep",
+        status: records.length ? "ok" : "no-responses",
+        queryCount: serviceTypes.length,
+        responseCount: records.length,
+        queries,
+        rows,
+        records,
+      }
+    },
     async runManual() {
       this.manualLoading = true
       this.manualResult = null
@@ -901,6 +961,10 @@ app.component("zeroconf-discovery-page", {
         params.set("timeout", String(this.timeout || 5))
         let url = ""
         if (this.protocol === "mdns" && this.mode === "query") {
+          if (this.mdnsPreset === "__known_services") {
+            this.manualResult = await this.runMdnsKnownServiceSweep(params)
+            return
+          }
           params.set("type", this.recordType || "PTR")
           url = `/api/zeroconf/mdns/query/${encodeURIComponent(this.name)}?${params}`
         } else if (this.protocol === "llmnr" && this.mode === "query") {
