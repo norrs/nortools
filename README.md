@@ -51,14 +51,14 @@ Planning:
   </tr>
   <tr>
     <td><strong>Domain Health</strong></td>
-    <td></td>
-    <td></td>
+    <td><strong>ZeroConf Discovery</strong></td>
+    <td><strong>Samba Browse</strong></td>
     <td></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/13-domain-health.png" alt="Domain Health" width="220" /></td>
-    <td></td>
-    <td></td>
+    <td><img src="docs/screenshots/14-zeroconf-discovery.png" alt="ZeroConf Discovery" width="220" /></td>
+    <td><img src="docs/screenshots/15-samba-browse.png" alt="Samba Browse" width="220" /></td>
     <td></td>
   </tr>
 </table>
