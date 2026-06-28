@@ -119,7 +119,7 @@ object ZeroconfHostInspector {
             }
 
         val primaryIpv4 = device.addresses.firstOrNull(::isIpv4Address)
-            ?: device.locations.flatMap(::splitLocationUrls).mapNotNull(::locationHost).firstOrNull(::isIpv4Address)
+            ?: device.locations.flatMap(::splitXAddrs).mapNotNull(::locationHost).firstOrNull(::isIpv4Address)
         val primarySmbHost = primaryIpv4
             ?: primaryNetworkHost(device)
         val smbCandidate = isSmbCandidate(device)
@@ -277,13 +277,8 @@ object ZeroconfHostInspector {
             .sortedWith(compareBy<ZeroconfSmbShare> { it.name.lowercase() })
     }
 
-    private fun toSmbShare(share: NetShareInfo0): ZeroconfSmbShare {
-        return ZeroconfSmbShare(
-            name = share.netName ?: "",
-            type = "Unknown",
-            comment = "",
-        )
-    }
+    private fun toSmbShare(share: NetShareInfo0): ZeroconfSmbShare =
+        ZeroconfSmbShare(name = share.netName ?: "", type = "Unknown")
 
     private fun toSmbShare(share: NetShareInfo1): ZeroconfSmbShare {
         val typeValue = share.type
@@ -310,7 +305,7 @@ object ZeroconfHostInspector {
         val candidates = linkedMapOf<String, WebCandidate>()
 
         device.locations
-            .flatMap(::splitLocationUrls)
+            .flatMap(::splitXAddrs)
             .forEach { location ->
                 candidates[location] = WebCandidate(
                     label = "Advertised URL",
@@ -329,10 +324,7 @@ object ZeroconfHostInspector {
             val schemes = inferredHttpSchemes(service, port)
             schemes.forEach { scheme ->
                 val url = buildUrl(scheme, host, port)
-                val label = when (scheme) {
-                    "https" -> "HTTPS interface"
-                    else -> "HTTP interface"
-                }
+                val label = if (scheme == "https") "HTTPS interface" else "HTTP interface"
                 candidates[url] = WebCandidate(label = label, url = url, source = "${service.protocol}:${service.type}")
             }
         }
@@ -393,31 +385,19 @@ object ZeroconfHostInspector {
         }
     }
 
-    private fun buildUrl(scheme: String, host: String, port: Int): String {
-        val defaultPort = (scheme == "https" && port == 443) || (scheme == "http" && port == 80)
-        return if (defaultPort) "$scheme://$host/" else "$scheme://$host:$port/"
-    }
+    private fun buildUrl(scheme: String, host: String, port: Int): String =
+        if ((scheme == "https" && port == 443) || (scheme == "http" && port == 80)) "$scheme://$host/" else "$scheme://$host:$port/"
 
     private fun normalizeServiceHost(value: String?): String? {
         val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        if (raw.startsWith("uuid:", ignoreCase = true)) return null
-        if (raw.startsWith("urn:", ignoreCase = true)) return null
+        if (raw.startsWith("uuid:", ignoreCase = true) || raw.startsWith("urn:", ignoreCase = true)) return null
         return raw.removePrefix("http://").removePrefix("https://").substringBefore('/').substringBefore(':').ifBlank { null }
     }
-
-    private fun locationHost(value: String): String? =
-        runCatching { URI(value).host }.getOrNull()?.takeIf { it.isNotBlank() }
 
     private fun primaryNetworkHost(device: ZeroconfDashboardDevice): String? =
         device.addresses.firstOrNull()
             ?: device.hostnames.firstOrNull()
-            ?: device.locations.flatMap(::splitLocationUrls).mapNotNull(::locationHost).firstOrNull()
-
-    private fun splitLocationUrls(value: String): List<String> =
-        value.split(Regex("\\s+"))
-            .map { it.trim() }
-            .filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
-            .filter { runCatching { URI(it) }.isSuccess }
+            ?: device.locations.flatMap(::splitXAddrs).mapNotNull(::locationHost).firstOrNull()
 
     private fun isSmbCandidate(device: ZeroconfDashboardDevice): Boolean {
         val category = device.category.lowercase()

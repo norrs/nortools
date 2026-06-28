@@ -25,6 +25,11 @@ fun startServer(
         if (hasWebjars) {
             cfg.staticFiles.enableWebjars()
         }
+        cfg.staticFiles.add { staticFiles ->
+            staticFiles.hostedPath = "/vue"
+            staticFiles.directory = File(vueRootDir, "vue").absolutePath
+            staticFiles.location = Location.EXTERNAL
+        }
 
         cfg.registerPlugin(
             JavalinVuePlugin { vue ->
@@ -167,6 +172,8 @@ private fun materializeVueRootDirFromClasspath(): File? {
     val root = Files.createTempDirectory("nortools-javalin-vue").toFile()
     val files = listOf(
         "vue/layout.html",
+        "vue/styles/zeroconf-discovery.css",
+        "vue/scripts/zeroconf-service-reference.js",
         "vue/components/home-page.vue",
         "vue/components/dns-lookup-page.vue",
         "vue/components/dnssec-lookup-page.vue",
