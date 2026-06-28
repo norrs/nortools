@@ -14,115 +14,14 @@ import no.norrs.nortools.lib.zeroconf.WsDiscoveryMessage
 import no.norrs.nortools.lib.zeroconf.WsDiscoveryMetadata
 import no.norrs.nortools.lib.zeroconf.WsDiscoverySoapCodec
 import java.net.HttpURLConnection
-import java.net.Inet4Address
-import java.net.InetAddress
-import java.net.InetSocketAddress
 import java.net.URI
-import java.net.NetworkInterface
-import java.net.Socket
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-
-data class ZeroconfDashboardSnapshot(
-    val generatedAt: String,
-    val running: Boolean,
-    val scanning: Boolean,
-    val lastCycleStartedAt: String?,
-    val lastCycleFinishedAt: String?,
-    val deviceCount: Int,
-    val serviceCount: Int,
-    val devices: List<ZeroconfDashboardDevice>,
-    val hostnames: List<ZeroconfHostnameResolution>,
-    val serviceCatalog: List<ZeroconfServiceTypeInfo>,
-    val events: List<ZeroconfDashboardEvent>,
-    val protocolStats: List<ZeroconfProtocolStat>,
-    val warnings: List<String>,
-)
-
-data class ZeroconfDashboardDevice(
-    val id: String,
-    val displayName: String,
-    val category: String,
-    val addresses: List<String>,
-    val hostnames: List<String>,
-    val protocols: List<String>,
-    val services: List<ZeroconfDashboardService>,
-    val dnsRecords: List<ZeroconfDnsRecordView>,
-    val txtRecords: List<ZeroconfTxtRecordView>,
-    val locations: List<String>,
-    val documents: List<ZeroconfDiscoveryDocument>,
-    val firstSeen: String,
-    val lastSeen: String,
-    val evidenceCount: Int,
-    val confidence: String,
-    val details: Map<String, String>,
-)
-
-data class ZeroconfDashboardService(
-    val protocol: String,
-    val type: String,
-    val name: String,
-    val target: String,
-    val location: String,
-    val port: Int? = null,
-    val description: String = "",
-)
-
-data class ZeroconfDiscoveryDocument(
-    val index: Int,
-    val protocol: String,
-    val label: String,
-    val contentType: String,
-    val sizeBytes: Int,
-)
-
-data class ZeroconfDnsRecordView(
-    val hostname: String,
-    val type: String,
-    val value: String,
-    val ttl: Long,
-)
-
-data class ZeroconfTxtRecordView(
-    val service: String,
-    val key: String,
-    val value: String,
-)
-
-data class ZeroconfHostnameResolution(
-    val hostname: String,
-    val addresses: List<String>,
-    val protocols: List<String>,
-    val records: List<ZeroconfDnsRecordView>,
-)
-
-data class ZeroconfServiceTypeInfo(
-    val protocol: String,
-    val type: String,
-    val title: String,
-    val description: String,
-    val observed: Int,
-)
-
-data class ZeroconfDashboardEvent(
-    val seenAt: String,
-    val protocol: String,
-    val summary: String,
-)
-
-data class ZeroconfProtocolStat(
-    val protocol: String,
-    val status: String,
-    val observations: Int,
-    val lastObservations: Int,
-    val lastSeen: String?,
-)
 
 object ZeroconfDiscoveryMonitor {
     private val timeout = Duration.ofSeconds(2)
@@ -315,11 +214,7 @@ object ZeroconfDiscoveryMonitor {
         useful.filter { it.type == "PTR" && it.name.equals("_services._dns-sd._udp.local.", ignoreCase = true) }
             .forEach { record ->
                 val type = cleanDnsName(record.data)
-                val known = dnsSdServiceInfo(type)
-                val info = serviceTypes.getOrPut("mdns:$type") {
-                    MutableServiceTypeInfo("mDNS", type, known.first, known.second)
-                }
-                info.observedKeys += type
+                rememberServiceType("mDNS", "mdns", type, ::dnsSdServiceInfo).observedKeys += type
                 rememberEvent("mDNS", "Service type $type")
             }
 
@@ -334,21 +229,19 @@ object ZeroconfDiscoveryMonitor {
                 val serviceType = cleanDnsName(record.name)
                 val instance = cleanDnsName(record.data)
                 instances += instance
-                val known = dnsSdServiceInfo(serviceType)
-                val info = serviceTypes.getOrPut("mdns:$serviceType") {
-                    MutableServiceTypeInfo("mDNS", serviceType, known.first, known.second)
-                }
-                info.observedKeys += instance
+                rememberServiceType("mDNS", "mdns", serviceType, ::dnsSdServiceInfo).observedKeys += instance
             }
         instances += srvByInstance.keys
         instances += txtByInstance.keys
 
         addressRecords.forEach { record ->
             val host = cleanDnsName(record.name)
-            val resolution = hostnameRecords.getOrPut("mdns:$host") { MutableHostnameResolution(host) }
-            resolution.protocols += "mDNS"
-            resolution.addresses += record.data
-            resolution.records += ZeroconfDnsRecordView(host, record.type, record.data, record.ttl)
+            rememberHostnameResolution(
+                hostname = host,
+                protocol = "mDNS",
+                addresses = listOf(record.data),
+                record = ZeroconfDnsRecordView(host, record.type, record.data, record.ttl),
+            )
         }
 
         for (instance in instances) {
@@ -407,10 +300,18 @@ object ZeroconfDiscoveryMonitor {
         val key = "llmnr:${record.name.lowercase()}:${record.data.lowercase()}"
         val device = device(key, record.name, "Host")
         device.protocols += "LLMNR"
-        device.hostnames += cleanDnsName(record.name)
+        val hostname = cleanDnsName(record.name)
+        device.hostnames += hostname
         device.services += ZeroconfDashboardService("LLMNR", record.type, record.name, record.data, "")
         if (record.type == "A" || record.type == "AAAA") device.addresses += record.data.trim('"')
-        device.dnsRecords += ZeroconfDnsRecordView(cleanDnsName(record.name), record.type, record.data, record.ttl)
+        val dnsRecord = ZeroconfDnsRecordView(hostname, record.type, record.data, record.ttl)
+        device.dnsRecords += dnsRecord
+        rememberHostnameResolution(
+            hostname = hostname,
+            protocol = "LLMNR",
+            addresses = if (record.type == "A" || record.type == "AAAA") listOf(record.data.trim('"')) else emptyList(),
+            record = dnsRecord,
+        )
         device.details["LLMNR ${record.type}"] = record.data
         device.touch()
         rememberEvent("LLMNR", "${record.type} ${record.name} -> ${record.data}")
@@ -438,11 +339,8 @@ object ZeroconfDiscoveryMonitor {
         )
         val serviceType = message.notificationType ?: message.searchTarget
         if (serviceType != null) {
-            val known = upnpServiceInfo(serviceType)
-            val info = serviceTypes.getOrPut("ssdp:$serviceType") {
-                MutableServiceTypeInfo("SSDP", serviceType, known.first, known.second)
-            }
-            info.observedKeys += listOfNotNull(message.uniqueServiceName, message.location, message.startLine).joinToString("|")
+            rememberServiceType("SSDP", "ssdp", serviceType, ::upnpServiceInfo).observedKeys +=
+                listOfNotNull(message.uniqueServiceName, message.location, message.startLine).joinToString("|")
         }
         message.server?.let { device.details["SSDP Server"] = it }
         device.touch()
@@ -522,9 +420,25 @@ object ZeroconfDiscoveryMonitor {
         }
         xAddrLocations.forEach { location ->
             device.locations += location
-            locationHost(location)?.let { host -> device.addresses += host }
+            locationHost(location)?.let { host ->
+                device.addresses += host
+                if (!looksLikeIpAddress(host)) device.hostnames += host
+            }
         }
-        metadata?.computerName?.let { device.hostnames += it }
+        val xAddrHosts = xAddrLocations.mapNotNull(::locationHost)
+        val xAddrAddresses = xAddrHosts.filter(::looksLikeIpAddress)
+        val wsdHostnames = (listOfNotNull(metadata?.computerName) + xAddrHosts.filterNot(::looksLikeIpAddress))
+            .map(::cleanDnsName)
+            .filter { it.isNotBlank() }
+            .distinct()
+        wsdHostnames.forEach { hostname ->
+            device.hostnames += hostname
+            rememberHostnameResolution(
+                hostname = hostname,
+                protocol = "WS-Discovery",
+                addresses = xAddrAddresses,
+            )
+        }
         metadata?.friendlyName?.let { device.details["WSD Friendly Name"] = it }
         metadata?.manufacturer?.let { device.details["WSD Manufacturer"] = it }
         metadata?.modelName?.let { device.details["WSD Model"] = it }
@@ -544,11 +458,8 @@ object ZeroconfDiscoveryMonitor {
             )
         }
         message.types?.split(Regex("\\s+"))?.filter { it.isNotBlank() }?.forEach { type ->
-            val known = wsdTypeInfo(type)
-            val info = serviceTypes.getOrPut("wsd:$type") {
-                MutableServiceTypeInfo("WS-Discovery", type, known.first, known.second)
-            }
-            info.observedKeys += message.endpointReference ?: message.xAddrs ?: message.messageId ?: type
+            rememberServiceType("WS-Discovery", "wsd", type, ::wsdTypeInfo).observedKeys +=
+                message.endpointReference ?: message.xAddrs ?: message.messageId ?: type
         }
         message.scopes?.let { device.details["WSD Scopes"] = it }
         message.metadataVersion?.let { device.details["WSD Metadata"] = it }
@@ -564,12 +475,22 @@ object ZeroconfDiscoveryMonitor {
         device.protocols += "NetBIOS"
         device.hostnames += name
         device.addresses += response.sourceAddress
+        rememberHostnameResolution(
+            hostname = name,
+            protocol = "NetBIOS",
+            addresses = listOf(response.sourceAddress),
+        )
         response.names.forEach { nbName ->
             device.services += ZeroconfDashboardService("NetBIOS", "NBSTAT", nbName.name, "0x${nbName.suffix.toString(16)}", "")
         }
         response.addresses.forEach { address ->
             device.services += ZeroconfDashboardService("NetBIOS", "NB", address.name, address.address, "")
             device.addresses += address.address
+            rememberHostnameResolution(
+                hostname = address.name,
+                protocol = "NetBIOS",
+                addresses = listOf(address.address),
+            )
         }
         device.touch()
         rememberEvent("NetBIOS", "$name from ${response.sourceAddress}")
@@ -582,7 +503,21 @@ object ZeroconfDiscoveryMonitor {
         val device = device(key, displayName, "Windows / SMB host")
         device.protocols += "SMB"
         device.addresses += hit.address
-        hit.hostname?.let { device.hostnames += it }
+        hit.hostname?.let {
+            device.hostnames += it
+            rememberHostnameResolution(
+                hostname = it,
+                protocol = "SMB",
+                addresses = listOf(hit.address),
+            )
+            if (hit.wsdTcpOpen) {
+                rememberHostnameResolution(
+                    hostname = it,
+                    protocol = "WS-Discovery",
+                    addresses = listOf(hit.address),
+                )
+            }
+        }
         device.services += ZeroconfDashboardService(
             protocol = "SMB",
             type = "microsoft-ds",
@@ -610,74 +545,34 @@ object ZeroconfDiscoveryMonitor {
         rememberEvent("SMB Sweep", "$displayName ${hit.address}")
     }
 
-    private fun scanLocalSmbHosts(): List<SmbSweepHit> {
-        val candidates = localPrivateIpv4Candidates()
-        if (candidates.isEmpty()) return emptyList()
-        val executor = Executors.newFixedThreadPool(32) { runnable ->
-            Thread(runnable, "smb-sweep-worker").apply { isDaemon = true }
+    private fun rememberHostnameResolution(
+        hostname: String,
+        protocol: String,
+        addresses: List<String> = emptyList(),
+        record: ZeroconfDnsRecordView? = null,
+    ) {
+        val cleanHostname = cleanDnsName(hostname).takeIf { it.isNotBlank() && !looksLikeIpAddress(it) } ?: return
+        val resolution = hostnameRecords.getOrPut("hostname:${cleanHostname.lowercase()}") {
+            MutableHostnameResolution(cleanHostname)
         }
-        return try {
-            executor.invokeAll(
-                candidates.map { address ->
-                    Callable {
-                        if (!isTcpOpen(address, 445, 250)) return@Callable null
-                        SmbSweepHit(
-                            address = address,
-                            hostname = reverseHostname(address),
-                            wsdTcpOpen = isTcpOpen(address, 3702, 250),
-                        )
-                    }
-                },
-                8,
-                TimeUnit.SECONDS,
-            ).mapNotNull { future ->
-                runCatching { future.get() }.getOrNull()
-            }
-        } finally {
-            executor.shutdownNow()
+        resolution.protocols += protocol
+        addresses
+            .map { it.trim().trim('"') }
+            .filter { it.isNotBlank() && looksLikeIpAddress(it) }
+            .forEach { resolution.addresses += it }
+        record?.let { resolution.records += it }
+    }
+
+    private fun rememberServiceType(
+        protocol: String,
+        namespace: String,
+        type: String,
+        lookup: (String) -> Pair<String, String>,
+    ): MutableServiceTypeInfo =
+        serviceTypes.getOrPut("$namespace:$type") {
+            val known = lookup(type)
+            MutableServiceTypeInfo(protocol, type, known.first, known.second)
         }
-    }
-
-    private fun localPrivateIpv4Candidates(): List<String> {
-        val ranges = linkedSetOf<String>()
-        NetworkInterface.getNetworkInterfaces().asSequence()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { iface -> iface.interfaceAddresses.asSequence() }
-            .mapNotNull { address -> address.address as? Inet4Address }
-            .map { it.hostAddress }
-            .filter(::isPrivateIpv4)
-            .forEach { address ->
-                val parts = address.split('.').mapNotNull { it.toIntOrNull() }
-                if (parts.size == 4) {
-                    for (host in 1..254) {
-                        val candidate = "${parts[0]}.${parts[1]}.${parts[2]}.$host"
-                        if (candidate != address) ranges += candidate
-                    }
-                }
-            }
-        return ranges.toList()
-    }
-
-    private fun isPrivateIpv4(address: String): Boolean {
-        val parts = address.split('.').mapNotNull { it.toIntOrNull() }
-        if (parts.size != 4) return false
-        return parts[0] == 10 ||
-            (parts[0] == 172 && parts[1] in 16..31) ||
-            (parts[0] == 192 && parts[1] == 168)
-    }
-
-    private fun isTcpOpen(address: String, port: Int, timeoutMs: Int): Boolean =
-        runCatching {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(address, port), timeoutMs)
-            }
-            true
-        }.getOrDefault(false)
-
-    private fun reverseHostname(address: String): String? =
-        runCatching { InetAddress.getByName(address).canonicalHostName }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() && it != address }
 
     @Synchronized
     private fun updateStats(protocol: String, observations: Int, status: String = "ok") {
@@ -722,277 +617,4 @@ object ZeroconfDiscoveryMonitor {
                 existing.category = category
             }
         }
-
-    private fun categoryRank(category: String): Int =
-        when (category) {
-            "Printer", "Printer / Scanner" -> 90
-            "Media", "Smart Home", "Camera", "Router" -> 80
-            "Windows / SMB host", "Computer", "Host" -> 70
-            "Web service" -> 50
-            else -> 10
-        }
-
-    private fun cleanLabel(value: String): String =
-        value.trim()
-            .trim('"')
-            .removeSuffix(".")
-            .replace("\\032", " ")
-            .replace("\\(", "(")
-            .replace("\\)", ")")
-            .ifBlank { "Unknown device" }
-
-    private fun cleanDnsName(value: String): String = cleanLabel(value)
-
-    private fun mdnsSrvTarget(data: String): String? =
-        data.trim().split(Regex("\\s+")).lastOrNull()?.takeIf { it.contains('.') }
-
-    private data class ParsedSrv(val priority: Int, val weight: Int, val port: Int, val target: String)
-
-    private fun parseSrvData(data: String): ParsedSrv? {
-        val parts = data.trim().split(Regex("\\s+"))
-        if (parts.size < 4) return null
-        return ParsedSrv(
-            priority = parts[0].toIntOrNull() ?: 0,
-            weight = parts[1].toIntOrNull() ?: 0,
-            port = parts[2].toIntOrNull() ?: 0,
-            target = cleanDnsName(parts.drop(3).joinToString(" ")),
-        )
-    }
-
-    private fun parseTxt(data: String): List<Pair<String, String>> {
-        val quoted = Regex(""""([^"]*)"""").findAll(data).map { it.groupValues[1] }.toList()
-        val tokens = quoted.ifEmpty { data.split(Regex("\\s+")).filter { it.isNotBlank() } }
-        return tokens.map { token ->
-            val idx = token.indexOf('=')
-            if (idx < 0) token to "" else token.substring(0, idx) to token.substring(idx + 1)
-        }
-    }
-
-    private fun serviceTypeFromInstance(instance: String): String {
-        val idx = instance.indexOf("._")
-        return if (idx >= 0) instance.substring(idx + 1) else instance
-    }
-
-    private fun serviceInstanceName(instance: String, serviceType: String): String =
-        instance.removeSuffix(".$serviceType").removeSuffix(serviceType).trim('.')
-
-    private fun locationHost(location: String): String? =
-        runCatching { URI(location).host }.getOrNull()?.takeIf { it.isNotBlank() }
-
-    private fun locationPort(location: String): Int? =
-        runCatching { URI(location).port }.getOrNull()?.takeIf { it > 0 }
-
-    private fun splitXAddrs(xAddrs: String?): List<String> =
-        xAddrs
-            ?.split(Regex("\\s+"))
-            ?.map { it.trim() }
-            ?.filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
-            ?.filter { runCatching { URI(it) }.isSuccess }
-            ?.distinct()
-            ?: emptyList()
-
-    private fun extractUuid(value: String): String? =
-        Regex("""uuid:[a-zA-Z0-9._-]+""").find(value)?.value?.lowercase()
-
-    private fun inferDnsSdCategory(serviceType: String, instance: String): String {
-        val text = "$serviceType $instance".lowercase()
-        return when {
-            "_smb" in text -> "Windows / SMB host"
-            "_device-info" in text -> "Device"
-            "_ipp" in text || "_printer" in text -> "Printer"
-            "_airplay" in text || "_raop" in text || "_spotify" in text || "_googlecast" in text -> "Media"
-            "_hap" in text || "_homekit" in text -> "Smart Home"
-            "_http" in text -> "Web service"
-            else -> "DNS-SD service"
-        }
-    }
-
-    private fun dnsSdServiceInfo(type: String): Pair<String, String> {
-        val normalized = type.lowercase().removeSuffix(".")
-        return when {
-            normalized == "_smb._tcp.local" -> "SMB File Sharing" to "Samba or SMB/CIFS file sharing advertised through DNS-SD."
-            normalized == "_device-info._tcp.local" -> "Device Info" to "DNS-SD metadata record with model and device-class hints."
-            normalized == "_ipp._tcp.local" -> "IPP Printer" to "Internet Printing Protocol. AirPrint and Mopria printers commonly expose queues here."
-            normalized == "_ipps._tcp.local" -> "Secure IPP Printer" to "Encrypted IPP printing over TLS."
-            normalized == "_printer._tcp.local" -> "LPD Printer" to "Legacy printer service discovery."
-            normalized == "_scanner._tcp.local" || normalized == "_uscan._tcp.local" -> "Scanner" to "Scanner discovery, often paired with multifunction printers."
-            normalized == "_http._tcp.local" -> "HTTP Service" to "Embedded web interface or device administration endpoint."
-            normalized == "_http-alt._tcp.local" -> "Alternate HTTP Service" to "HTTP service on a non-standard port."
-            normalized == "_airplay._tcp.local" -> "AirPlay" to "Apple media playback or display target."
-            normalized == "_raop._tcp.local" -> "AirPlay Audio" to "Remote Audio Output Protocol used by AirPlay speakers and receivers."
-            normalized == "_spotify-connect._tcp.local" -> "Spotify Connect" to "Spotify playback target."
-            normalized == "_googlecast._tcp.local" -> "Google Cast" to "Chromecast or Google Cast media receiver."
-            normalized == "_hap._tcp.local" -> "HomeKit" to "Apple HomeKit accessory service."
-            normalized == "_hue._tcp.local" -> "Hue Bridge" to "Philips Hue bridge discovery."
-            else -> type to "DNS-SD service type advertised on the local link."
-        }
-    }
-
-    private fun mdnsSeedServiceTypes(): List<String> =
-        listOf(
-            "_smb._tcp.local",
-            "_device-info._tcp.local",
-            "_http._tcp.local",
-            "_http-alt._tcp.local",
-            "_ipp._tcp.local",
-            "_ipps._tcp.local",
-        )
-
-    private fun upnpServiceInfo(type: String): Pair<String, String> {
-        val normalized = type.lowercase()
-        return when {
-            "mediarenderer" in normalized -> "UPnP Media Renderer" to "DLNA/UPnP playback target such as a receiver, TV, or speaker."
-            "mediaserver" in normalized -> "UPnP Media Server" to "DLNA/UPnP content library source."
-            "internetgatewaydevice" in normalized -> "Internet Gateway Device" to "Router or gateway service exposed through UPnP IGD."
-            "rootdevice" in normalized -> "UPnP Root Device" to "Top-level UPnP device advertisement."
-            else -> type.ifBlank { "UPnP device" } to "UPnP/SSDP advertised device or service."
-        }
-    }
-
-    private fun wsdTypeInfo(type: String): Pair<String, String> {
-        val normalized = type.lowercase()
-        return when {
-            "print" in normalized -> "WSD Printer" to "Windows Web Services for Devices printer endpoint."
-            "scanner" in normalized || "scan" in normalized -> "WSD Scanner" to "Windows Web Services for Devices scanner endpoint."
-            "computer" in normalized -> "Windows Computer" to "Computer advertised through WS-Discovery."
-            "networkvideotransmitter" in normalized || "onvif" in normalized -> "ONVIF Camera" to "Network camera or video device using WS-Discovery."
-            else -> type.ifBlank { "WSD device" } to "SOAP-over-UDP WS-Discovery device type."
-        }
-    }
-
-    private fun inferSsdpCategory(message: SsdpMessage): String {
-        val text = listOf(message.notificationType, message.searchTarget, message.server, message.uniqueServiceName)
-            .filterNotNull()
-            .joinToString(" ")
-            .lowercase()
-        return when {
-            "mediarenderer" in text || "mediaserver" in text || "dlna" in text -> "Media"
-            "printer" in text || "scanner" in text -> "Printer / Scanner"
-            "hue" in text || "bridge" in text -> "Smart Home"
-            "internetgatewaydevice" in text || "wanipconnection" in text -> "Router"
-            else -> "UPnP device"
-        }
-    }
-
-    private fun inferWsdCategory(message: WsDiscoveryMessage, metadata: WsDiscoveryMetadata? = null): String {
-        val text = listOf(message.types, message.scopes, message.xAddrs, metadata?.computerName, metadata?.friendlyName)
-            .filterNotNull()
-            .joinToString(" ")
-            .lowercase()
-        return when {
-            "print" in text || "scanner" in text -> "Printer / Scanner"
-            "camera" in text || "onvif" in text -> "Camera"
-            "computer" in text -> "Computer"
-            else -> "WSD device"
-        }
-    }
-}
-
-private data class EnrichedWsdMessage(
-    val message: WsDiscoveryMessage,
-    val metadata: WsDiscoveryMetadata?,
-)
-
-private data class MutableDiscoveryDocument(
-    val protocol: String,
-    val label: String,
-    val contentType: String,
-    val content: String,
-) {
-    fun toDocument(index: Int): ZeroconfDiscoveryDocument =
-        ZeroconfDiscoveryDocument(
-            index = index,
-            protocol = protocol,
-            label = label,
-            contentType = contentType,
-            sizeBytes = content.toByteArray(Charsets.UTF_8).size,
-        )
-}
-
-private data class SmbSweepHit(
-    val address: String,
-    val hostname: String?,
-    val wsdTcpOpen: Boolean,
-)
-
-private class MutableDashboardDevice(
-    val id: String,
-    var displayName: String,
-    var category: String,
-) {
-    val addresses = linkedSetOf<String>()
-    val hostnames = linkedSetOf<String>()
-    val protocols = linkedSetOf<String>()
-    val services = linkedSetOf<ZeroconfDashboardService>()
-    val dnsRecords = linkedSetOf<ZeroconfDnsRecordView>()
-    val txtRecords = linkedSetOf<ZeroconfTxtRecordView>()
-    val locations = linkedSetOf<String>()
-    val documents = mutableListOf<MutableDiscoveryDocument>()
-    val details = linkedMapOf<String, String>()
-    val firstSeen: String = Instant.now().toString()
-    var lastSeen: String = firstSeen
-    var evidenceCount: Int = 0
-
-    fun touch() {
-        lastSeen = Instant.now().toString()
-        evidenceCount += 1
-    }
-
-    fun toDevice(): ZeroconfDashboardDevice =
-        ZeroconfDashboardDevice(
-            id = id,
-            displayName = displayName,
-            category = category,
-            addresses = addresses.toList().sorted(),
-            hostnames = hostnames.toList().sorted(),
-            protocols = protocols.toList().sorted(),
-            services = services.toList().takeLast(20),
-            dnsRecords = dnsRecords.toList().takeLast(30),
-            txtRecords = txtRecords.toList().sortedWith(compareBy({ it.service }, { it.key })),
-            locations = locations.toList().sorted(),
-            documents = documents.mapIndexed { index, document -> document.toDocument(index) },
-            firstSeen = firstSeen,
-            lastSeen = lastSeen,
-            evidenceCount = evidenceCount,
-            confidence = when {
-                protocols.size >= 2 -> "high"
-                evidenceCount >= 3 -> "medium"
-                else -> "low"
-            },
-            details = details.toMap(),
-        )
-}
-
-private class MutableHostnameResolution(
-    val hostname: String,
-) {
-    val addresses = linkedSetOf<String>()
-    val protocols = linkedSetOf<String>()
-    val records = linkedSetOf<ZeroconfDnsRecordView>()
-
-    fun toResolution(): ZeroconfHostnameResolution =
-        ZeroconfHostnameResolution(
-            hostname = hostname,
-            addresses = addresses.toList().sorted(),
-            protocols = protocols.toList().sorted(),
-            records = records.toList(),
-        )
-}
-
-private class MutableServiceTypeInfo(
-    val protocol: String,
-    val type: String,
-    val title: String,
-    val description: String,
-) {
-    val observedKeys = linkedSetOf<String>()
-
-    fun toInfo(): ZeroconfServiceTypeInfo =
-        ZeroconfServiceTypeInfo(
-            protocol = protocol,
-            type = type,
-            title = title,
-            description = description,
-            observed = observedKeys.size,
-        )
 }

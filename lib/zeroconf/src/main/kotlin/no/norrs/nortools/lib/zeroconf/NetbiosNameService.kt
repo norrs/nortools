@@ -66,7 +66,7 @@ class NetbiosNameServiceClient(
     fun nodeStatus(host: String): List<NetbiosResponse> =
         sendQuestion(name = "*", suffix = 0x00, type = NetbiosQuestionType.NBSTAT, target = host)
 
-    fun listen(bindAddress: String = "0.0.0.0", maxPackets: Int = 25): List<NetbiosResponse> {
+    fun listen(bindAddress: String? = "0.0.0.0", maxPackets: Int = 25): List<NetbiosResponse> {
         val socket = DatagramSocket(null)
         socket.reuseAddress = true
         socket.soTimeout = timeout.toMillis().toInt()

@@ -60,7 +60,7 @@ class SsdpClient(
     }
 
     fun listen(
-        bindAddress: String = "0.0.0.0",
+        bindAddress: String? = "0.0.0.0",
         maxPackets: Int = 25,
     ): SsdpResult {
         val session = BoundedUdpDiscovery(protocol = "SSDP", timeout = timeout)

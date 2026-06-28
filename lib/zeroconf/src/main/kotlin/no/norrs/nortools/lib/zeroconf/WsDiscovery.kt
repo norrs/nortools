@@ -114,7 +114,7 @@ class WsDiscoveryClient(
     }
 
     fun listen(
-        bindAddress: String = "0.0.0.0",
+        bindAddress: String? = "0.0.0.0",
         ipFamily: IpFamily = IpFamily.IPV4,
         maxPackets: Int = 25,
     ): WsDiscoveryResult {

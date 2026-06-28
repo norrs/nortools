@@ -18,24 +18,20 @@
         <button class="btn" @click="forceRefresh" :disabled="refreshing">{{ refreshing ? 'Scanning...' : 'Scan Now' }}</button>
       </div>
     </div>
-
     <section class="summary-grid">
       <div class="summary-card"><span>Devices</span><strong>{{ snapshot?.deviceCount || 0 }}</strong></div>
       <div class="summary-card"><span>Services</span><strong>{{ snapshot?.serviceCount || 0 }}</strong></div>
       <div class="summary-card"><span>Hostnames</span><strong>{{ hostnames.length }}</strong></div>
       <div class="summary-card"><span>Status</span><strong :class="snapshot?.scanning ? 'warn' : 'ok'">{{ snapshot?.scanning ? 'Scanning' : 'Listening' }}</strong></div>
     </section>
-
     <section class="protocol-strip">
       <div v-for="stat in protocolStats" :key="stat.protocol" class="protocol-pill" :class="stat.status">
         <strong>{{ stat.protocol }}</strong>
         <span>{{ stat.observations }} total / {{ stat.lastObservations || 0 }} last scan</span>
       </div>
     </section>
-
     <div v-if="error" class="callout bad-callout">{{ error }}</div>
     <div v-for="warning in visibleWarnings" :key="warning" class="callout">{{ warning }}</div>
-
     <section class="resolution-map">
       <div class="panel-title">
         <h3>DNS-SD Resolution Map</h3>
@@ -68,7 +64,6 @@
         </div>
       </div>
     </section>
-
     <section class="explainer-grid">
       <div class="explainer-panel">
         <div class="panel-title">
@@ -87,7 +82,6 @@
         </div>
         <div v-else class="empty-state">Service explanations appear as DNS-SD, SSDP, and WSD types are observed.</div>
       </div>
-
       <div class="explainer-panel">
         <div class="panel-title">
           <h3>Hostname Resolution</h3>
@@ -106,7 +100,6 @@
         <div v-else class="empty-state">A/AAAA name bindings will appear here.</div>
       </div>
     </section>
-
     <section class="filter-band">
       <input v-model.trim="filter" class="input search-input" placeholder="Filter devices, services, addresses, protocols" />
       <select v-model="categoryFilter" class="input select-input">
@@ -118,7 +111,6 @@
         <option v-for="protocol in protocols" :key="protocol" :value="protocol">{{ protocol }}</option>
       </select>
     </section>
-
     <section class="inventory-layout">
       <div class="device-list">
         <button
@@ -143,7 +135,6 @@
         </button>
         <div v-if="!filteredDevices.length" class="empty-state">No devices discovered yet. Leave the page open or run Scan Now.</div>
       </div>
-
       <aside class="detail-panel">
         <template v-if="selectedDevice">
           <div class="detail-head">
@@ -153,19 +144,16 @@
           <div class="tag-row">
             <span v-for="protocol in selectedDevice.protocols" :key="protocol" class="tag">{{ protocol }}</span>
           </div>
-
           <div class="detail-section">
             <h4>Addresses</h4>
             <p v-if="!selectedDevice.addresses.length" class="muted">No address evidence yet.</p>
             <code v-for="address in selectedDevice.addresses" :key="address">{{ address }}</code>
           </div>
-
           <div class="detail-section">
             <h4>Hostnames</h4>
             <p v-if="!selectedDevice.hostnames?.length" class="muted">No hostname binding observed.</p>
             <code v-for="hostname in selectedDevice.hostnames || []" :key="hostname">{{ hostname }}</code>
           </div>
-
           <div class="detail-section">
             <h4>Resolution Path</h4>
             <div v-if="selectedResolutionSteps.length" class="resolution-flow compact">
@@ -179,7 +167,6 @@
             </div>
             <p v-else class="muted">No decoded service chain yet.</p>
           </div>
-
           <div class="detail-section">
             <h4>Services</h4>
             <table v-if="selectedDevice.services.length" class="mini-table">
@@ -475,6 +462,11 @@
       </div>
 
       <form @submit.prevent="runManual" class="lookup-form">
+        <select v-if="mode === 'query' && protocol === 'mdns'" v-model="mdnsPreset" class="input target-input" @change="applyMdnsPreset">
+          <option value="">Custom mDNS name</option>
+          <option value="__known_services">All known service types</option>
+          <option v-for="service in mdnsKnownServices" :key="service.type" :value="service.type">{{ service.title }} - {{ service.type }}</option>
+        </select>
         <input v-if="mode === 'query'" v-model.trim="name" class="input target-input" :placeholder="queryPlaceholder" />
         <input v-if="mode === 'query' && protocol === 'netbios'" v-model.trim="target" class="input target-input" placeholder="255.255.255.255" />
         <input v-if="mode === 'query' && protocol === 'netbios'" v-model.number="suffix" class="input input-sm" type="number" min="0" max="255" />
@@ -490,21 +482,44 @@
 </template>
 
 <script>
-const zeroconfServiceReference = [
-  { protocol: "mDNS", type: "_ipp._tcp.local", title: "IPP Printer", description: "Modern printer queue used by AirPrint, Mopria, CUPS, and many Windows/macOS flows.", observed: 0 },
-  { protocol: "mDNS", type: "_ipps._tcp.local", title: "Secure IPP Printer", description: "TLS-protected IPP printer endpoint.", observed: 0 },
-  { protocol: "mDNS", type: "_printer._tcp.local", title: "LPD Printer", description: "Older printer advertisement still seen on some devices.", observed: 0 },
-  { protocol: "mDNS", type: "_scanner._tcp.local", title: "Scanner", description: "Scanner service, often emitted by multifunction printers.", observed: 0 },
-  { protocol: "mDNS", type: "_http._tcp.local", title: "HTTP Admin", description: "Embedded web UI, admin page, or local application endpoint.", observed: 0 },
-  { protocol: "mDNS", type: "_airplay._tcp.local", title: "AirPlay", description: "Apple media display or playback receiver.", observed: 0 },
-  { protocol: "mDNS", type: "_raop._tcp.local", title: "AirPlay Audio", description: "Remote Audio Output Protocol speaker or receiver.", observed: 0 },
-  { protocol: "mDNS", type: "_googlecast._tcp.local", title: "Google Cast", description: "Chromecast or Cast receiver.", observed: 0 },
-  { protocol: "mDNS", type: "_hap._tcp.local", title: "HomeKit", description: "Apple HomeKit accessory endpoint.", observed: 0 },
-  { protocol: "SSDP", type: "urn:schemas-upnp-org:device:MediaRenderer:1", title: "UPnP Media Renderer", description: "DLNA playback device such as a TV, receiver, or speaker.", observed: 0 },
-  { protocol: "SSDP", type: "urn:schemas-upnp-org:device:MediaServer:1", title: "UPnP Media Server", description: "DLNA media library or content source.", observed: 0 },
-  { protocol: "SSDP", type: "urn:schemas-upnp-org:device:InternetGatewayDevice:1", title: "Internet Gateway", description: "Router or gateway control service.", observed: 0 },
-  { protocol: "WS-Discovery", type: "dn:NetworkVideoTransmitter", title: "ONVIF Camera", description: "Network camera or video transmitter discovered with SOAP-over-UDP.", observed: 0 },
-  { protocol: "WS-Discovery", type: "wsdp:Device", title: "WSD Device", description: "Generic Web Services for Devices endpoint.", observed: 0 },
+const zeroconfServiceReference = window.zeroconfServiceReference || []
+const serviceSort = (a, b) => {
+  if ((b.observed || 0) !== (a.observed || 0)) return (b.observed || 0) - (a.observed || 0)
+  const knownDelta = (b.title !== b.type ? 1 : 0) - (a.title !== a.type ? 1 : 0)
+  return knownDelta || a.type.localeCompare(b.type)
+}
+const fetchJson = async (url, label) => {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${label}: ${r.status}`)
+  return r.json()
+}
+const queryPlaceholders = {
+  mdns: "_services._dns-sd._udp.local",
+  llmnr: "printer.local",
+  ssdp: "ssdp:all",
+  wsd: "wsdp:Device or dn:NetworkVideoTransmitter",
+}
+const recordTypeHints = { A: "IPv4 address", AAAA: "IPv6 address", PTR: "points service type to instance", SRV: "target host and port", TXT: "capability metadata" }
+const txtHints = {
+  txtvers: "TXT schema version",
+  ty: "human-readable model",
+  product: "device product string",
+  rp: "resource path",
+  pdl: "printer languages",
+  urf: "AirPrint capabilities",
+  qtotal: "queue count",
+  adminurl: "admin web page",
+  uuid: "stable device id",
+  note: "location note",
+  color: "color support",
+  duplex: "duplex support",
+  tls: "TLS support",
+  scan: "scan support",
+}
+const descriptionLabels = [
+  ["friendlyName", "Friendly name"], ["deviceType", "Device type"], ["manufacturer", "Manufacturer"], ["modelName", "Model"],
+  ["modelDescription", "Model description"], ["modelNumber", "Model number"], ["serialNumber", "Serial"], ["UDN", "UDN"],
+  ["presentationURL", "Presentation URL"],
 ]
 
 app.component("zeroconf-discovery-page", {
@@ -530,6 +545,7 @@ app.component("zeroconf-discovery-page", {
       name: "",
       recordType: "PTR",
       scopeFilter: "",
+      mdnsPreset: "",
       target: "255.255.255.255",
       suffix: 32,
       host: "",
@@ -565,25 +581,18 @@ app.component("zeroconf-discovery-page", {
     },
     serviceCatalog() {
       const services = Array.isArray(this.snapshot?.serviceCatalog) ? this.snapshot.serviceCatalog : []
-      return [...services].sort((a, b) => {
-        const knownA = a.title !== a.type ? 1 : 0
-        const knownB = b.title !== b.type ? 1 : 0
-        if (knownA !== knownB) return knownB - knownA
-        if ((b.observed || 0) !== (a.observed || 0)) return (b.observed || 0) - (a.observed || 0)
-        return a.type.localeCompare(b.type)
-      })
+      return [...services].sort(serviceSort)
     },
     serviceGuide() {
       const merged = new Map()
       zeroconfServiceReference.forEach(service => merged.set(`${service.protocol}:${service.type}`, { ...service }))
       this.serviceCatalog.forEach(service => merged.set(`${service.protocol}:${service.type}`, { ...service }))
-      return [...merged.values()].sort((a, b) => {
-        if ((b.observed || 0) !== (a.observed || 0)) return (b.observed || 0) - (a.observed || 0)
-        const knownA = a.title !== a.type ? 1 : 0
-        const knownB = b.title !== b.type ? 1 : 0
-        if (knownA !== knownB) return knownB - knownA
-        return a.type.localeCompare(b.type)
-      })
+      return [...merged.values()].sort(serviceSort)
+    },
+    mdnsKnownServices() {
+      return zeroconfServiceReference
+        .filter(service => service.protocol === "mDNS")
+        .sort((a, b) => a.title.localeCompare(b.title))
     },
     events() {
       return Array.isArray(this.snapshot?.events) ? this.snapshot.events : []
@@ -640,20 +649,18 @@ app.component("zeroconf-discovery-page", {
       return steps
     },
     canRun() {
+      if (this.mode === "query" && this.protocol === "mdns" && this.mdnsPreset === "__known_services") return true
       if (this.mode === "query") return this.protocol === "wsd" || this.name.length > 0
       if (this.mode === "node-status") return this.protocol === "netbios" && this.host.length > 0
       return this.mode === "listen"
     },
     queryPlaceholder() {
-      if (this.protocol === "mdns") return "_services._dns-sd._udp.local"
-      if (this.protocol === "llmnr") return "printer.local"
-      if (this.protocol === "ssdp") return "ssdp:all"
-      if (this.protocol === "wsd") return "wsdp:Device or dn:NetworkVideoTransmitter"
-      return "MYPC"
+      return queryPlaceholders[this.protocol] || "MYPC"
     },
     actionLabel() {
       if (this.mode === "listen") return "Start Listener"
       if (this.mode === "node-status") return "Read Node Status"
+      if (this.protocol === "mdns" && this.mdnsPreset === "__known_services") return "Sweep Service Types"
       if (this.protocol === "ssdp") return "Search Services"
       if (this.protocol === "wsd") return "Probe Devices"
       return "Query Name"
@@ -684,9 +691,7 @@ app.component("zeroconf-discovery-page", {
     async loadSnapshot() {
       this.loading = true
       try {
-        const r = await fetch("/api/zeroconf/dashboard")
-        if (!r.ok) throw new Error(`Dashboard error: ${r.status}`)
-        this.snapshot = await r.json()
+        this.snapshot = await fetchJson("/api/zeroconf/dashboard", "Dashboard error")
         this.error = ""
         if (this.autoDescriptions) this.hydrateKnownDescriptions()
       } catch (e) {
@@ -698,9 +703,7 @@ app.component("zeroconf-discovery-page", {
     async forceRefresh() {
       this.refreshing = true
       try {
-        const r = await fetch("/api/zeroconf/dashboard/refresh")
-        if (!r.ok) throw new Error(`Refresh error: ${r.status}`)
-        this.snapshot = await r.json()
+        this.snapshot = await fetchJson("/api/zeroconf/dashboard/refresh", "Refresh error")
         if (this.autoDescriptions) this.hydrateKnownDescriptions()
         setTimeout(this.loadSnapshot, 2500)
       } catch (e) {
@@ -752,34 +755,10 @@ app.component("zeroconf-discovery-page", {
       return location ? this.descriptions[location]?.description || null : null
     },
     recordTypeHint(type) {
-      const hints = {
-        A: "IPv4 address",
-        AAAA: "IPv6 address",
-        PTR: "points service type to instance",
-        SRV: "target host and port",
-        TXT: "capability metadata",
-      }
-      return hints[type] || "DNS record"
+      return recordTypeHints[type] || "DNS record"
     },
     txtHint(key) {
-      const normalized = String(key || "").toLowerCase()
-      const hints = {
-        txtvers: "TXT schema version",
-        ty: "human-readable model",
-        product: "device product string",
-        rp: "resource path",
-        pdl: "printer languages",
-        urf: "AirPrint capabilities",
-        qtotal: "queue count",
-        adminurl: "admin web page",
-        uuid: "stable device id",
-        note: "location note",
-        color: "color support",
-        duplex: "duplex support",
-        tls: "TLS support",
-        scan: "scan support",
-      }
-      return hints[normalized] || "service metadata"
+      return txtHints[String(key || "").toLowerCase()] || "service metadata"
     },
     deviceServiceLines(device) {
       const services = Array.isArray(device?.services) ? device.services : []
@@ -837,9 +816,7 @@ app.component("zeroconf-discovery-page", {
         const params = new URLSearchParams()
         if (this.smbIntrospection) params.set("includeSmb", "true")
         const suffix = params.toString() ? `?${params.toString()}` : ""
-        const r = await fetch(`/api/zeroconf/device/${encodeURIComponent(id)}/details${suffix}`)
-        if (!r.ok) throw new Error(`Host detail error: ${r.status}`)
-        const result = await r.json()
+        const result = await fetchJson(`/api/zeroconf/device/${encodeURIComponent(id)}/details${suffix}`, "Host detail error")
         if (result.status === "error") throw new Error(result.error || "Could not inspect host")
         this.detailCache = { ...this.detailCache, [cacheKey]: result }
       } catch (e) {
@@ -852,18 +829,7 @@ app.component("zeroconf-discovery-page", {
       return this.isExternalUrl(location)
     },
     descriptionRows(description) {
-      const labels = [
-        ["friendlyName", "Friendly name"],
-        ["deviceType", "Device type"],
-        ["manufacturer", "Manufacturer"],
-        ["modelName", "Model"],
-        ["modelDescription", "Model description"],
-        ["modelNumber", "Model number"],
-        ["serialNumber", "Serial"],
-        ["UDN", "UDN"],
-        ["presentationURL", "Presentation URL"],
-      ]
-      return labels
+      return descriptionLabels
         .map(([key, label]) => ({ label, value: description?.[key] }))
         .filter(row => row.value)
     },
@@ -876,9 +842,7 @@ app.component("zeroconf-discovery-page", {
         this.descriptionError = ""
       }
       try {
-        const r = await fetch(`/api/zeroconf/description?url=${encodeURIComponent(location)}`)
-        if (!r.ok) throw new Error(`Description error: ${r.status}`)
-        const result = await r.json()
+        const result = await fetchJson(`/api/zeroconf/description?url=${encodeURIComponent(location)}`, "Description error")
         if (result.status !== "ok") throw new Error(result.error || "Could not read device description")
         this.descriptions = { ...this.descriptions, [location]: result }
       } catch (e) {
@@ -892,6 +856,37 @@ app.component("zeroconf-discovery-page", {
         if (!silent) this.descriptionLoadingUrl = ""
       }
     },
+    applyMdnsPreset() {
+      if (this.protocol !== "mdns" || this.mode !== "query") return
+      if (this.mdnsPreset && this.mdnsPreset !== "__known_services") {
+        this.name = this.mdnsPreset
+        this.recordType = "PTR"
+      }
+    },
+    async runMdnsKnownServiceSweep(params) {
+      const serviceTypes = [...new Set(this.mdnsKnownServices.map(service => service.type))]
+      const queries = []
+      const records = []
+      const rows = []
+      for (const serviceType of serviceTypes) {
+        const queryParams = new URLSearchParams(params)
+        queryParams.set("type", "PTR")
+        const result = await fetchJson(`/api/zeroconf/mdns/query/${encodeURIComponent(serviceType)}?${queryParams}`, `mDNS ${serviceType} error`)
+        queries.push({ serviceType, status: result.status, responseCount: result.responseCount || 0 })
+        ;(result.records || []).forEach(record => records.push(record))
+        ;(result.rows || []).forEach(row => rows.push({ serviceType, ...row }))
+      }
+      return {
+        protocol: "mDNS",
+        mode: "service-type-sweep",
+        status: records.length ? "ok" : "no-responses",
+        queryCount: serviceTypes.length,
+        responseCount: records.length,
+        queries,
+        rows,
+        records,
+      }
+    },
     async runManual() {
       this.manualLoading = true
       this.manualResult = null
@@ -901,6 +896,10 @@ app.component("zeroconf-discovery-page", {
         params.set("timeout", String(this.timeout || 5))
         let url = ""
         if (this.protocol === "mdns" && this.mode === "query") {
+          if (this.mdnsPreset === "__known_services") {
+            this.manualResult = await this.runMdnsKnownServiceSweep(params)
+            return
+          }
           params.set("type", this.recordType || "PTR")
           url = `/api/zeroconf/mdns/query/${encodeURIComponent(this.name)}?${params}`
         } else if (this.protocol === "llmnr" && this.mode === "query") {
@@ -930,9 +929,7 @@ app.component("zeroconf-discovery-page", {
         } else {
           url = `/api/zeroconf/netbios/listen?${params}`
         }
-        const r = await fetch(url)
-        if (!r.ok) throw new Error(`API error: ${r.status} ${r.statusText}`)
-        this.manualResult = await r.json()
+        this.manualResult = await fetchJson(url, "API error")
       } catch (e) {
         this.manualResult = { status: "error", error: e instanceof Error ? e.message : "Unexpected error" }
       } finally {
@@ -942,112 +939,3 @@ app.component("zeroconf-discovery-page", {
   },
 })
 </script>
-
-<style>
-.zeroconf-page { padding: 1rem 0; color: #111827; }
-.zeroconf-page .page-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; }
-.zeroconf-page .desc { color: #64748b; font-size: 0.9rem; margin: 0.25rem 0 0; }
-.zeroconf-page .head-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
-.zeroconf-page .toggle-chip { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid #d1d5db; border-radius: 999px; background: #fff; padding: 0.45rem 0.7rem; font-size: 0.78rem; color: #334155; }
-.zeroconf-page .toggle-chip input { margin: 0; }
-.zeroconf-page .btn { border: 0; background: #0f172a; color: #fff; border-radius: 6px; padding: 0.55rem 0.95rem; cursor: pointer; }
-.zeroconf-page .btn-secondary { background: #e5e7eb; color: #111827; }
-.zeroconf-page .btn:disabled { opacity: .6; cursor: default; }
-.zeroconf-page .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; margin-bottom: 0.8rem; }
-.zeroconf-page .summary-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.65rem 0.75rem; display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; background: #fff; }
-.zeroconf-page .summary-card span { font-size: 0.74rem; color: #64748b; font-weight: 600; }
-.zeroconf-page .summary-card strong { font-size: 1rem; color: #0f172a; }
-.zeroconf-page .ok { color: #166534; }
-.zeroconf-page .warn { color: #92400e; }
-.zeroconf-page .protocol-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.8rem; }
-.zeroconf-page .protocol-pill { border: 1px solid #e5e7eb; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 0.55rem 0.65rem; background: #fff; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.zeroconf-page .protocol-pill.ok { border-left-color: #16a34a; }
-.zeroconf-page .protocol-pill.warning { border-left-color: #f59e0b; }
-.zeroconf-page .protocol-pill strong { font-size: 0.82rem; color: #111827; }
-.zeroconf-page .protocol-pill span { font-size: 0.74rem; color: #64748b; }
-.zeroconf-page .resolution-map { border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; padding: 0.85rem; margin-bottom: 0.8rem; }
-.zeroconf-page .resolution-flow { display: flex; gap: 0.45rem; align-items: stretch; }
-.zeroconf-page .resolution-flow.compact { flex-wrap: wrap; }
-.zeroconf-page .flow-step { border: 1px solid #dbeafe; border-left: 4px solid #2563eb; background: #eff6ff; border-radius: 8px; padding: 0.55rem; min-width: 130px; flex: 1 1 130px; }
-.zeroconf-page .flow-step strong { display: block; font-size: 0.78rem; color: #1e3a8a; margin-bottom: 0.22rem; }
-.zeroconf-page .flow-step span { display: block; color: #334155; font-size: 0.78rem; overflow-wrap: anywhere; }
-.zeroconf-page .flow-arrow { align-self: center; justify-self: center; color: #64748b; font-weight: 700; }
-.zeroconf-page .explainer-grid { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 0.8rem; margin-bottom: 0.8rem; }
-.zeroconf-page .explainer-panel { border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; padding: 0.85rem; min-width: 0; }
-.zeroconf-page .panel-title span { color: #64748b; font-size: 0.78rem; }
-.zeroconf-page .service-type-list { display: grid; gap: 0.5rem; }
-.zeroconf-page .service-type-row { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.55rem; display: grid; grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 1.4fr) auto; gap: 0.55rem; align-items: start; }
-.zeroconf-page .service-type-row.observed { border-left: 4px solid #16a34a; }
-.zeroconf-page .service-type-row strong { display: block; font-size: 0.84rem; margin-bottom: 0.25rem; }
-.zeroconf-page .service-type-row code { padding: 0.2rem 0.35rem; font-size: 0.74rem; }
-.zeroconf-page .service-type-row p { margin: 0; color: #475569; font-size: 0.78rem; line-height: 1.35; }
-.zeroconf-page .service-type-row span { color: #64748b; font-size: 0.74rem; white-space: nowrap; }
-.zeroconf-page .filter-band { display: grid; grid-template-columns: minmax(220px, 1fr) 180px 180px; gap: 0.55rem; margin-bottom: 0.8rem; }
-.zeroconf-page .input { width: 100%; padding: 0.55rem 0.65rem; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
-.zeroconf-page .inventory-layout { display: grid; grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.2fr); gap: 0.8rem; align-items: start; }
-.zeroconf-page .device-list { display: flex; flex-direction: column; gap: 0.45rem; }
-.zeroconf-page .device-row { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.65rem; background: #fff; text-align: left; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 0.45rem 0.7rem; }
-.zeroconf-page .device-row.active { border-color: #0f172a; box-shadow: inset 3px 0 0 #0f172a; }
-.zeroconf-page .device-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.zeroconf-page .device-main strong { font-size: 0.92rem; overflow-wrap: anywhere; }
-.zeroconf-page .device-main span, .zeroconf-page .device-meta { color: #64748b; font-size: 0.78rem; }
-.zeroconf-page .device-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 0.6rem; overflow-wrap: anywhere; }
-.zeroconf-page .device-services { grid-column: 1 / -1; display: grid; gap: 0.22rem; margin-top: 0.1rem; }
-.zeroconf-page .device-services span { color: #334155; font-size: 0.74rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.22rem 0.38rem; overflow-wrap: anywhere; }
-.zeroconf-page .confidence { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0; border-radius: 999px; padding: 0.18rem 0.45rem; background: #f1f5f9; color: #475569; height: fit-content; }
-.zeroconf-page .confidence.high { background: #dcfce7; color: #166534; }
-.zeroconf-page .confidence.medium { background: #fef3c7; color: #92400e; }
-.zeroconf-page .detail-panel, .zeroconf-page .events-panel, .zeroconf-page .advanced-panel { border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; padding: 0.85rem; }
-.zeroconf-page .detail-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; margin-bottom: 0.6rem; }
-.zeroconf-page h3, .zeroconf-page h4 { margin: 0; }
-.zeroconf-page .detail-head h3 { font-size: 1rem; overflow-wrap: anywhere; }
-.zeroconf-page .detail-head span, .zeroconf-page .muted { color: #64748b; font-size: 0.82rem; }
-.zeroconf-page .tag-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
-.zeroconf-page .tag { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 0.2rem 0.5rem; font-size: 0.74rem; }
-.zeroconf-page .detail-section { border-top: 1px solid #e5e7eb; padding-top: 0.7rem; margin-top: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; }
-.zeroconf-page .section-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; }
-.zeroconf-page code { display: block; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem 0.45rem; overflow-wrap: anywhere; }
-.zeroconf-page .kv { display: flex; justify-content: space-between; gap: 0.7rem; font-size: 0.82rem; }
-.zeroconf-page .kv span { color: #64748b; }
-.zeroconf-page .location-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.45rem; align-items: center; }
-.zeroconf-page .location-row a { color: #1d4ed8; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem 0.45rem; overflow-wrap: anywhere; }
-.zeroconf-page .description-card { border: 1px solid #dbeafe; border-radius: 8px; background: #eff6ff; padding: 0.55rem; display: grid; gap: 0.35rem; }
-.zeroconf-page .description-card .kv strong { text-align: right; overflow-wrap: anywhere; }
-.zeroconf-page .description-services { border-top: 1px solid #bfdbfe; padding-top: 0.45rem; display: grid; gap: 0.3rem; }
-.zeroconf-page .description-services > strong { font-size: 0.78rem; color: #1e3a8a; }
-.zeroconf-page .meaning-row { margin: 0; display: grid; grid-template-columns: minmax(120px, 0.45fr) minmax(160px, 1fr); gap: 0.55rem; font-size: 0.82rem; color: #475569; }
-.zeroconf-page .meaning-row strong { color: #111827; overflow-wrap: anywhere; }
-.zeroconf-page .inspection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
-.zeroconf-page .inspection-panel { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.65rem; background: #f8fafc; }
-.zeroconf-page .inspection-list { display: grid; gap: 0.45rem; }
-.zeroconf-page .inspection-row { border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; padding: 0.5rem; display: grid; gap: 0.3rem; }
-.zeroconf-page .inspection-row strong { display: block; font-size: 0.82rem; }
-.zeroconf-page .inspection-row a { color: #1d4ed8; overflow-wrap: anywhere; }
-.zeroconf-page .inspection-meta { display: flex; flex-wrap: wrap; gap: 0.45rem; color: #64748b; font-size: 0.74rem; }
-.zeroconf-page .mini-table, .zeroconf-page .result-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-.zeroconf-page .mini-table th, .zeroconf-page .mini-table td, .zeroconf-page .result-table th, .zeroconf-page .result-table td { border-bottom: 1px solid #e5e7eb; padding: 0.45rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.zeroconf-page .mini-table th, .zeroconf-page .result-table th { color: #475569; background: #f8fafc; font-weight: 600; }
-.zeroconf-page .events-panel, .zeroconf-page .advanced-panel { margin-top: 0.9rem; }
-.zeroconf-page .panel-title { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 0.65rem; }
-.zeroconf-page .link-button { border: 0; background: transparent; color: #1d4ed8; cursor: pointer; padding: 0.25rem; }
-.zeroconf-page .callout { margin-bottom: 0.75rem; border-radius: 6px; padding: 0.55rem 0.65rem; font-size: 0.83rem; background: #fff7ed; color: #92400e; border: 1px solid #fed7aa; }
-.zeroconf-page .bad-callout { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.zeroconf-page .empty-state { color: #64748b; font-size: 0.86rem; padding: 0.7rem 0; }
-.zeroconf-page .control-band { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 0.65rem; margin-bottom: 0.8rem; }
-.zeroconf-page .field { display: flex; flex-direction: column; gap: 0.25rem; }
-.zeroconf-page label { font-size: 0.74rem; color: #64748b; font-weight: 600; }
-.zeroconf-page .lookup-form { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-.zeroconf-page .target-input { flex: 1; min-width: 220px; }
-.zeroconf-page .input-sm { flex: 0 0 110px; }
-.zeroconf-page .json-pre { margin: 0; background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.8rem; }
-@media (max-width: 1000px) {
-  .zeroconf-page .summary-grid, .zeroconf-page .protocol-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .zeroconf-page .inventory-layout, .zeroconf-page .filter-band, .zeroconf-page .explainer-grid, .zeroconf-page .inspection-grid { grid-template-columns: 1fr; }
-  .zeroconf-page .resolution-flow { flex-direction: column; }
-  .zeroconf-page .flow-arrow { display: none; }
-  .zeroconf-page .service-type-row, .zeroconf-page .meaning-row { grid-template-columns: 1fr; }
-  .zeroconf-page .location-row { grid-template-columns: 1fr; }
-  .zeroconf-page .page-head { flex-direction: column; }
-  .zeroconf-page .head-actions { justify-content: flex-start; }
-}
-</style>
