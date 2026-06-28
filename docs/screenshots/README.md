@@ -11,6 +11,14 @@ This folder stores Linux desktop UI screenshots captured from release artifacts.
 - `05-subnet-calculator.png`
 - `06-password-generator.png`
 - `07-about.png`
+- `08-traceroute.png`
+- `09-interfaces-routing.png`
+- `10-whois-lookup.png`
+- `11-reverse-dns.png`
+- `12-dns-health.png`
+- `13-domain-health.png`
+- `14-zeroconf-discovery.png`
+- `15-samba-browse.png`
 
 ## Generation
 
