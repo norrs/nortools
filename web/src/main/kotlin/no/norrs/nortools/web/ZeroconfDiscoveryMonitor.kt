@@ -345,10 +345,12 @@ object ZeroconfDiscoveryMonitor {
 
         addressRecords.forEach { record ->
             val host = cleanDnsName(record.name)
-            val resolution = hostnameRecords.getOrPut("mdns:$host") { MutableHostnameResolution(host) }
-            resolution.protocols += "mDNS"
-            resolution.addresses += record.data
-            resolution.records += ZeroconfDnsRecordView(host, record.type, record.data, record.ttl)
+            rememberHostnameResolution(
+                hostname = host,
+                protocol = "mDNS",
+                addresses = listOf(record.data),
+                record = ZeroconfDnsRecordView(host, record.type, record.data, record.ttl),
+            )
         }
 
         for (instance in instances) {
@@ -407,10 +409,18 @@ object ZeroconfDiscoveryMonitor {
         val key = "llmnr:${record.name.lowercase()}:${record.data.lowercase()}"
         val device = device(key, record.name, "Host")
         device.protocols += "LLMNR"
-        device.hostnames += cleanDnsName(record.name)
+        val hostname = cleanDnsName(record.name)
+        device.hostnames += hostname
         device.services += ZeroconfDashboardService("LLMNR", record.type, record.name, record.data, "")
         if (record.type == "A" || record.type == "AAAA") device.addresses += record.data.trim('"')
-        device.dnsRecords += ZeroconfDnsRecordView(cleanDnsName(record.name), record.type, record.data, record.ttl)
+        val dnsRecord = ZeroconfDnsRecordView(hostname, record.type, record.data, record.ttl)
+        device.dnsRecords += dnsRecord
+        rememberHostnameResolution(
+            hostname = hostname,
+            protocol = "LLMNR",
+            addresses = if (record.type == "A" || record.type == "AAAA") listOf(record.data.trim('"')) else emptyList(),
+            record = dnsRecord,
+        )
         device.details["LLMNR ${record.type}"] = record.data
         device.touch()
         rememberEvent("LLMNR", "${record.type} ${record.name} -> ${record.data}")
@@ -522,9 +532,25 @@ object ZeroconfDiscoveryMonitor {
         }
         xAddrLocations.forEach { location ->
             device.locations += location
-            locationHost(location)?.let { host -> device.addresses += host }
+            locationHost(location)?.let { host ->
+                device.addresses += host
+                if (!looksLikeIpAddress(host)) device.hostnames += host
+            }
         }
-        metadata?.computerName?.let { device.hostnames += it }
+        val xAddrHosts = xAddrLocations.mapNotNull(::locationHost)
+        val xAddrAddresses = xAddrHosts.filter(::looksLikeIpAddress)
+        val wsdHostnames = (listOfNotNull(metadata?.computerName) + xAddrHosts.filterNot(::looksLikeIpAddress))
+            .map(::cleanDnsName)
+            .filter { it.isNotBlank() }
+            .distinct()
+        wsdHostnames.forEach { hostname ->
+            device.hostnames += hostname
+            rememberHostnameResolution(
+                hostname = hostname,
+                protocol = "WS-Discovery",
+                addresses = xAddrAddresses,
+            )
+        }
         metadata?.friendlyName?.let { device.details["WSD Friendly Name"] = it }
         metadata?.manufacturer?.let { device.details["WSD Manufacturer"] = it }
         metadata?.modelName?.let { device.details["WSD Model"] = it }
@@ -564,12 +590,22 @@ object ZeroconfDiscoveryMonitor {
         device.protocols += "NetBIOS"
         device.hostnames += name
         device.addresses += response.sourceAddress
+        rememberHostnameResolution(
+            hostname = name,
+            protocol = "NetBIOS",
+            addresses = listOf(response.sourceAddress),
+        )
         response.names.forEach { nbName ->
             device.services += ZeroconfDashboardService("NetBIOS", "NBSTAT", nbName.name, "0x${nbName.suffix.toString(16)}", "")
         }
         response.addresses.forEach { address ->
             device.services += ZeroconfDashboardService("NetBIOS", "NB", address.name, address.address, "")
             device.addresses += address.address
+            rememberHostnameResolution(
+                hostname = address.name,
+                protocol = "NetBIOS",
+                addresses = listOf(address.address),
+            )
         }
         device.touch()
         rememberEvent("NetBIOS", "$name from ${response.sourceAddress}")
@@ -582,7 +618,21 @@ object ZeroconfDiscoveryMonitor {
         val device = device(key, displayName, "Windows / SMB host")
         device.protocols += "SMB"
         device.addresses += hit.address
-        hit.hostname?.let { device.hostnames += it }
+        hit.hostname?.let {
+            device.hostnames += it
+            rememberHostnameResolution(
+                hostname = it,
+                protocol = "SMB",
+                addresses = listOf(hit.address),
+            )
+            if (hit.wsdTcpOpen) {
+                rememberHostnameResolution(
+                    hostname = it,
+                    protocol = "WS-Discovery",
+                    addresses = listOf(hit.address),
+                )
+            }
+        }
         device.services += ZeroconfDashboardService(
             protocol = "SMB",
             type = "microsoft-ds",
@@ -678,6 +728,24 @@ object ZeroconfDiscoveryMonitor {
         runCatching { InetAddress.getByName(address).canonicalHostName }
             .getOrNull()
             ?.takeIf { it.isNotBlank() && it != address }
+
+    private fun rememberHostnameResolution(
+        hostname: String,
+        protocol: String,
+        addresses: List<String> = emptyList(),
+        record: ZeroconfDnsRecordView? = null,
+    ) {
+        val cleanHostname = cleanDnsName(hostname).takeIf { it.isNotBlank() && !looksLikeIpAddress(it) } ?: return
+        val resolution = hostnameRecords.getOrPut("hostname:${cleanHostname.lowercase()}") {
+            MutableHostnameResolution(cleanHostname)
+        }
+        resolution.protocols += protocol
+        addresses
+            .map { it.trim().trim('"') }
+            .filter { it.isNotBlank() && looksLikeIpAddress(it) }
+            .forEach { resolution.addresses += it }
+        record?.let { resolution.records += it }
+    }
 
     @Synchronized
     private fun updateStats(protocol: String, observations: Int, status: String = "ok") {
@@ -790,6 +858,11 @@ object ZeroconfDiscoveryMonitor {
             ?.filter { runCatching { URI(it) }.isSuccess }
             ?.distinct()
             ?: emptyList()
+
+    private fun looksLikeIpAddress(value: String): Boolean {
+        val clean = value.trim().trim('[', ']')
+        return Regex("""\d{1,3}(?:\.\d{1,3}){3}""").matches(clean) || ':' in clean
+    }
 
     private fun extractUuid(value: String): String? =
         Regex("""uuid:[a-zA-Z0-9._-]+""").find(value)?.value?.lowercase()

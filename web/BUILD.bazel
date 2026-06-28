@@ -57,6 +57,7 @@ kt_jvm_test(
         "--select-class=no.norrs.nortools.web.ReflectConfigArchTest",
         "--select-class=no.norrs.nortools.web.WebApiRoutesTest",
         "--select-class=no.norrs.nortools.web.WebApiDeterministicEndpointsTest",
+        "--select-class=no.norrs.nortools.web.ZeroconfDiscoveryMonitorTest",
         "--select-class=no.norrs.nortools.web.UpdaterSerializationTest",
         "--disable-banner",
     ],
