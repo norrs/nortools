@@ -142,6 +142,17 @@ class WebApiDeterministicEndpointsTest {
     }
 
     @Test
+    fun `zeroconf stylesheet is served as a static asset`() {
+        val response = get("/vue/styles/zeroconf-discovery.css")
+        assertEquals(200, response.statusCode())
+        assertTrue(response.body().contains(".zeroconf-page .summary-grid"))
+        assertTrue(
+            response.headers().firstValue("content-type").orElse("").contains("text/css"),
+            "Expected zeroconf stylesheet to be served with a CSS content type",
+        )
+    }
+
+    @Test
     fun `zeroconf netbios endpoint reports unsupported ipv6 without network scan`() {
         val response = get("/api/zeroconf/netbios/query/MYPC?ipFamily=ipv6")
         assertEquals(200, response.statusCode())

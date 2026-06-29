@@ -5,6 +5,7 @@ import io.javalin.apibuilder.ApiBuilder.after
 import io.javalin.apibuilder.ApiBuilder.before
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
+import io.javalin.http.Context
 import io.javalin.http.staticfiles.Location
 import io.javalin.plugin.bundled.JavalinVuePlugin
 import io.javalin.vue.VueComponent
@@ -125,6 +126,9 @@ fun main() {
 }
 
 private fun registerJavalinVueRoutes() {
+    get("/vue/styles/zeroconf-discovery.css") { ctx ->
+        serveVueClasspathResource(ctx, "styles/zeroconf-discovery.css", "text/css; charset=utf-8")
+    }
     get("/", VueComponent("home-page"))
     get("/dns", VueComponent("dns-lookup-page"))
     get("/dnssec", VueComponent("dnssec-lookup-page"))
@@ -162,13 +166,40 @@ private fun registerJavalinVueRoutes() {
     get("/about", VueComponent("about-page"))
 }
 
+private fun serveVueClasspathResource(ctx: Context, relativePath: String, contentType: String) {
+    val normalized = relativePath.trimStart('/')
+    val loader = Thread.currentThread().contextClassLoader
+    val stream = sequenceOf(
+        "vue/$normalized",
+        "web/src/main/resources/vue/$normalized",
+    ).mapNotNull { loader.getResourceAsStream(it) }.firstOrNull()
+
+    if (stream == null) {
+        ctx.status(404)
+        return
+    }
+
+    ctx.contentType(contentType)
+    ctx.result(stream)
+}
+
 private fun findVueRootDir(): File? {
     val candidates = listOfNotNull(
         System.getenv("RUNFILES_DIR")?.let { File(it, "_main/web/src/main/resources") },
         File("web/src/main/resources"),
         File(System.getProperty("user.dir"), "web/src/main/resources"),
     )
-    return candidates.firstOrNull { it.isDirectory && it.resolve("vue/layout.html").exists() }?.canonicalFile
+    return candidates.firstOrNull { it.isDirectory && it.hasRequiredVueResources() }?.canonicalFile
+}
+
+internal fun File.hasRequiredVueResources(): Boolean {
+    val required = listOf(
+        "vue/layout.html",
+        "vue/styles/zeroconf-discovery.css",
+        "vue/scripts/zeroconf-service-reference.js",
+        "vue/components/zeroconf-discovery-page.vue",
+    )
+    return required.all { resolve(it).isFile }
 }
 
 private fun materializeVueRootDirFromClasspath(): File? {
