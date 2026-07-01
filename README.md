@@ -92,6 +92,17 @@ Release notes folder:
 
 - See `release-notes/README.md` for expected naming and content.
 
+Windows installer updater helper:
+
+- Windows releases publish two artifacts:
+  - `nortools-windows-x64-<tag>.zip`: portable/manual archive.
+  - `nortools-windows-x64-<tag>-setup.exe`: NSIS installer used by the in-app updater.
+- `nortools-updater.exe` is bundled inside the Windows ZIP and installed beside `nortools.exe`.
+- During a Windows in-app update, NorTools copies `nortools-updater.exe` to a temporary executable, starts it, and exits.
+- The helper waits for the old NorTools process to stop, runs the downloaded installer, then relaunches `nortools-gui.exe`.
+- NSIS installers are run silently with `/S`. The generated setup also accepts Krema's built-in `/SILENT /NORESTART` arguments.
+- Updater logs are written to `%LOCALAPPDATA%\NorTools\logs\nortools-updater.log`.
+
 Desktop screenshot refresh after release:
 
 - `release-desktop-all.yml` now runs screenshot refresh after the Linux native release step.
