@@ -67,7 +67,7 @@ class ReflectConfigArchTest {
             "build.krema.core.plugin.builtin.UpdaterPlugin\$CheckResult",
             "build.krema.core.plugin.builtin.UpdaterPlugin\$DownloadResult",
             "no.norrs.nortools.desktop.NorToolsUpdaterCommands",
-            "no.norrs.nortools.desktop.WindowsMsiInstallRequest",
+            "no.norrs.nortools.desktop.WindowsInstallerRunRequest",
         )
 
     private fun webSourceFiles(): List<Path> {

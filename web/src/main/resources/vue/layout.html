@@ -287,8 +287,9 @@
           this.updater.status = "Installing update and restarting..."
           try {
             const platform = String(await window.krema.invoke("os:platform") || "").toLowerCase()
-            if (platform === "windows" && this.updater.downloadPath.toLowerCase().endsWith(".msi")) {
-              await window.krema.invoke("nortools:installWindowsMsiAndRestart", { msiPath: this.updater.downloadPath })
+            const downloadPath = this.updater.downloadPath.toLowerCase()
+            if (platform === "windows" && (downloadPath.endsWith(".exe") || downloadPath.endsWith(".msi"))) {
+              await window.krema.invoke("nortools:runWindowsInstallerAndRestart", { installerPath: this.updater.downloadPath })
             } else {
               await window.krema.invoke("updater:installAndRestart")
             }

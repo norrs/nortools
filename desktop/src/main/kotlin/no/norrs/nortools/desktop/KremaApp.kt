@@ -57,6 +57,7 @@ import no.norrs.nortools.tools.whois.whois.WhoisLookupCommand
 import no.norrs.nortools.web.startServer
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import kotlin.io.path.absolutePathString
 import java.util.Properties
 import kotlin.system.exitProcess
@@ -105,26 +106,27 @@ fun main(args: Array<String>) {
     server.stop()
 }
 
-data class WindowsMsiInstallRequest(
-    val msiPath: String? = null,
+data class WindowsInstallerRunRequest(
+    val installerPath: String? = null,
 )
 
 class NorToolsUpdaterCommands {
-    @KremaCommand("nortools:installWindowsMsiAndRestart")
-    fun installWindowsMsiAndRestart(request: WindowsMsiInstallRequest): Boolean {
+    @KremaCommand("nortools:runWindowsInstallerAndRestart")
+    fun runWindowsInstallerAndRestart(request: WindowsInstallerRunRequest): Boolean {
         val os = System.getProperty("os.name").lowercase()
         if (!os.contains("win")) {
-            throw IllegalStateException("Windows MSI install is only supported on Windows")
+            throw IllegalStateException("Windows installer updates are only supported on Windows")
         }
 
-        val msiPath = request.msiPath?.trim()?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("msiPath is required")
-        val msi = Path.of(msiPath).toAbsolutePath().normalize()
-        if (!Files.isRegularFile(msi)) {
-            throw IllegalArgumentException("Downloaded MSI not found: $msi")
+        val installerPath = request.installerPath?.trim()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("installerPath is required")
+        val installer = Path.of(installerPath).toAbsolutePath().normalize()
+        if (!Files.isRegularFile(installer)) {
+            throw IllegalArgumentException("Downloaded installer not found: $installer")
         }
-        if (!msi.fileName.toString().endsWith(".msi", ignoreCase = true)) {
-            throw IllegalArgumentException("Downloaded update is not a Windows MSI: $msi")
+        val installerName = installer.fileName.toString()
+        if (!installerName.endsWith(".exe", ignoreCase = true) && !installerName.endsWith(".msi", ignoreCase = true)) {
+            throw IllegalArgumentException("Downloaded update is not a Windows installer: $installer")
         }
 
         val appExe = currentExecutable()
@@ -135,6 +137,8 @@ class NorToolsUpdaterCommands {
         if (!Files.isRegularFile(helper)) {
             throw IllegalStateException("NorTools updater helper is missing: $helper")
         }
+        val tempHelper = Files.createTempFile("nortools-updater-", ".exe")
+        Files.copy(helper, tempHelper, StandardCopyOption.REPLACE_EXISTING)
 
         val launch = when {
             Files.isRegularFile(appDir.resolve("nortools-gui.exe")) -> appDir.resolve("nortools-gui.exe")
@@ -143,11 +147,11 @@ class NorToolsUpdaterCommands {
         }
 
         ProcessBuilder(
-            helper.absolutePathString(),
+            tempHelper.absolutePathString(),
             "--pid",
             ProcessHandle.current().pid().toString(),
-            "--msi",
-            msi.absolutePathString(),
+            "--installer",
+            installer.absolutePathString(),
             "--launch",
             launch.absolutePathString(),
             "--working-dir",

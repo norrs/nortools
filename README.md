@@ -84,7 +84,7 @@ Desktop release tags (`v*`) now drive updater manifests automatically:
    - `nortools-update-darwin-x86_64.json`
    - `nortools-update-darwin-aarch64.json`
    - `nortools-update-windows-x86_64.json`
-   - Windows updater manifests point at the `.msi` release asset. The `.zip` remains available as a portable/manual download.
+   - Windows updater manifests point at the NSIS `.exe` setup release asset. The `.zip` remains available as a portable/manual download.
 6. Krema updater endpoint is:
    - `https://github.com/norrs/nortools/releases/latest/download/nortools-update-{{target}}.json`
 

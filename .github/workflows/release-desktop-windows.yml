@@ -31,15 +31,10 @@ jobs:
           }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "artifact_name=nortools-windows-x64-$tag.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "msi_name=nortools-windows-x64-$tag.msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "setup_name=nortools-windows-x64-$tag-setup.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
-
-      - name: Setup .NET SDK for WiX
-        uses: actions/setup-dotnet@v5.4.0
-        with:
-          dotnet-version: "8.0.x"
 
       - name: Setup GraalVM JDK 25 + native-image
         uses: graalvm/setup-graalvm@v1.5.6
@@ -89,12 +84,11 @@ jobs:
         run: |
           bazelisk build //desktop:native-windows-x64
 
-      - name: Setup WiX
+      - name: Setup NSIS
         shell: pwsh
         run: |
-          dotnet tool install --global wix
-          & "$env:USERPROFILE\.dotnet\tools\wix.exe" eula accept wix7
-          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          choco install nsis -y --no-progress
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Locate archive
         id: locate
@@ -113,49 +107,42 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           $archive = "release/${{ steps.meta.outputs.artifact_name }}"
           Copy-Item "${{ steps.locate.outputs.artifact }}" $archive -Force
-          $msi = "release/${{ steps.meta.outputs.msi_name }}"
+          $setup = "release/${{ steps.meta.outputs.setup_name }}"
           $runNumber = [int]($env:GITHUB_RUN_NUMBER)
-          $msiPatch = $runNumber % 65535
-          if ($msiPatch -eq 0) { $msiPatch = 1 }
-          $msiVersion = "0.0.$msiPatch"
-          ./script/release/build_windows_msi.ps1 -ZipFile $archive -Output $msi -ProductVersion $msiVersion
+          $setupPatch = $runNumber % 65535
+          if ($setupPatch -eq 0) { $setupPatch = 1 }
+          $setupVersion = "0.0.$setupPatch"
+          ./script/release/build_windows_nsis.ps1 -ZipFile $archive -Output $setup -ProductVersion $setupVersion
 
           $archiveHash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           $checksumFile = "$archive.sha256"
           "$archiveHash  ${{ steps.meta.outputs.artifact_name }}" | Out-File -FilePath $checksumFile -Encoding ascii
-          $msiHash = (Get-FileHash -Path $msi -Algorithm SHA256).Hash.ToLowerInvariant()
-          $msiChecksumFile = "$msi.sha256"
-          "$msiHash  ${{ steps.meta.outputs.msi_name }}" | Out-File -FilePath $msiChecksumFile -Encoding ascii
+          $setupHash = (Get-FileHash -Path $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          $setupChecksumFile = "$setup.sha256"
+          "$setupHash  ${{ steps.meta.outputs.setup_name }}" | Out-File -FilePath $setupChecksumFile -Encoding ascii
           "archive=$archive" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "checksum=$checksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "msi=$msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "msi_checksum=$msiChecksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "setup=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "setup_checksum=$setupChecksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Validate MSI
+      - name: Smoke install setup
         shell: pwsh
         run: |
-          wix msi validate "${{ steps.package.outputs.msi }}"
-
-      - name: Smoke install MSI
-        shell: pwsh
-        run: |
-          $msi = (Resolve-Path "${{ steps.package.outputs.msi }}").Path
-          $log = (Join-Path (Resolve-Path release).Path "msi-smoke-install.log")
-          $p = Start-Process -FilePath msiexec.exe `
-            -ArgumentList @("/i", $msi, "/qn", "/norestart", "/L*v", $log) `
+          $setup = (Resolve-Path "${{ steps.package.outputs.setup }}").Path
+          $p = Start-Process -FilePath $setup `
+            -ArgumentList @("/S") `
             -Wait `
             -PassThru
 
-          if ($p.ExitCode -notin @(0, 3010)) {
-            Get-Content $log -ErrorAction SilentlyContinue
-            throw "MSI smoke install failed with exit code $($p.ExitCode). Log: $log"
+          if ($p.ExitCode -ne 0) {
+            throw "NSIS setup smoke install failed with exit code $($p.ExitCode)."
           }
 
           $installDir = Join-Path $env:LOCALAPPDATA "Programs\NorTools"
           foreach ($required in @("nortools.exe", "nortools-gui.exe", "nortools-updater.exe")) {
             $path = Join-Path $installDir $required
             if (-not (Test-Path $path)) {
-              throw "MSI smoke install did not create expected file: $path"
+              throw "NSIS setup smoke install did not create expected file: $path"
             }
           }
 
@@ -166,9 +153,8 @@ jobs:
           path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
-            ${{ steps.package.outputs.msi }}
-            ${{ steps.package.outputs.msi_checksum }}
-            release/msi-smoke-install.log
+            ${{ steps.package.outputs.setup }}
+            ${{ steps.package.outputs.setup_checksum }}
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v3.0.1
@@ -177,6 +163,6 @@ jobs:
           files: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
-            ${{ steps.package.outputs.msi }}
-            ${{ steps.package.outputs.msi_checksum }}
+            ${{ steps.package.outputs.setup }}
+            ${{ steps.package.outputs.setup_checksum }}
           fail_on_unmatched_files: true

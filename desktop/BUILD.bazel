@@ -13,8 +13,8 @@ cc_binary(
 )
 
 cc_binary(
-    name = "windows_msi_updater",
-    srcs = ["windows_msi_updater.cc"],
+    name = "windows_installer_updater",
+    srcs = ["windows_installer_updater.cc"],
     linkopts = [
         "/SUBSYSTEM:WINDOWS",
         "user32.lib",
@@ -473,7 +473,7 @@ genrule(
         ":graal_configs",
         "build_native_windows.ps1",
         ":windows_gui_launcher",
-        ":windows_msi_updater",
+        ":windows_installer_updater",
     ],
     tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-windows-x64.zip"],
@@ -547,7 +547,7 @@ genrule(
         rm -rf "$$WORKDIR"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)" -UpdaterHelper "$(location :windows_msi_updater)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)" -UpdaterHelper "$(location :windows_installer_updater)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)"
     """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [

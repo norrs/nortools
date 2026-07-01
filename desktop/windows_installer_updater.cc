@@ -118,7 +118,7 @@ std::wstring MakeTimestamp() {
 
 struct LogPaths {
   std::wstring updater_log;
-  std::wstring msi_log;
+  std::wstring installer_log;
 };
 
 LogPaths GetLogPaths() {
@@ -133,7 +133,7 @@ LogPaths GetLogPaths() {
   std::wstring timestamp = MakeTimestamp();
   return {
       JoinPath(log_dir, L"nortools-updater.log"),
-      JoinPath(log_dir, L"nortools-msi-update-" + timestamp + L".log"),
+      JoinPath(log_dir, L"nortools-installer-update-" + timestamp + L".log"),
   };
 }
 
@@ -232,11 +232,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   LocalFree(argv);
 
   std::wstring pid_arg = GetArgValue(args, L"--pid");
-  std::wstring msi = GetArgValue(args, L"--msi");
+  std::wstring installer = GetArgValue(args, L"--installer");
+  if (installer.empty()) {
+    installer = GetArgValue(args, L"--msi");
+  }
   std::wstring launch = GetArgValue(args, L"--launch");
   std::wstring working_dir = GetArgValue(args, L"--working-dir");
 
-  if (msi.empty() || launch.empty()) {
+  if (installer.empty() || launch.empty()) {
     MessageBoxW(nullptr,
                 L"Missing updater arguments.",
                 L"NorTools Updater",
@@ -252,14 +255,19 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   WaitForPid(pid);
 
   LogPaths logs = GetLogPaths();
-  std::wstring msiexec = L"msiexec.exe";
-  std::wstring command = L"msiexec.exe /i " + QuoteArg(msi) + L" /passive /norestart";
-  if (!logs.msi_log.empty()) {
-    command += L" /L*v " + QuoteArg(logs.msi_log);
+  std::wstring application = installer;
+  std::wstring command = QuoteArg(installer) + L" /S";
+  if (installer.size() >= 4 &&
+      _wcsicmp(installer.c_str() + installer.size() - 4, L".msi") == 0) {
+    application = L"msiexec.exe";
+    command = L"msiexec.exe /i " + QuoteArg(installer) + L" /passive /norestart";
+    if (!logs.installer_log.empty()) {
+      command += L" /L*v " + QuoteArg(logs.installer_log);
+    }
   }
   AppendLogLine(logs.updater_log, L"Running: " + command);
-  DWORD exit_code = RunAndWait(msiexec, command, working_dir);
-  AppendLogLine(logs.updater_log, L"msiexec exit code: " + std::to_wstring(exit_code));
+  DWORD exit_code = RunAndWait(application, command, working_dir);
+  AppendLogLine(logs.updater_log, L"installer exit code: " + std::to_wstring(exit_code));
   if (exit_code == 0 || exit_code == 3010) {
     AppendLogLine(logs.updater_log, L"Launching: " + launch);
     StartDetached(launch, working_dir);
