@@ -2,6 +2,7 @@
 
 #include <shellapi.h>
 
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -80,6 +81,105 @@ DWORD RunAndWait(const std::wstring& application,
   return exit_code;
 }
 
+std::wstring JoinPath(const std::wstring& left, const std::wstring& right) {
+  if (left.empty()) {
+    return right;
+  }
+  if (left.back() == L'\\' || left.back() == L'/') {
+    return left + right;
+  }
+  return left + L"\\" + right;
+}
+
+std::wstring GetLocalAppData() {
+  wchar_t buffer[MAX_PATH]{};
+  DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
+  if (size == 0 || size >= MAX_PATH) {
+    return L"";
+  }
+  return std::wstring(buffer, size);
+}
+
+void EnsureDirectory(const std::wstring& path) {
+  if (path.empty()) {
+    return;
+  }
+  CreateDirectoryW(path.c_str(), nullptr);
+}
+
+std::wstring MakeTimestamp() {
+  std::time_t now = std::time(nullptr);
+  std::tm tm{};
+  localtime_s(&tm, &now);
+  wchar_t buffer[32]{};
+  wcsftime(buffer, 32, L"%Y%m%d-%H%M%S", &tm);
+  return buffer;
+}
+
+struct LogPaths {
+  std::wstring updater_log;
+  std::wstring msi_log;
+};
+
+LogPaths GetLogPaths() {
+  std::wstring local_app_data = GetLocalAppData();
+  if (local_app_data.empty()) {
+    return {};
+  }
+  std::wstring app_dir = JoinPath(local_app_data, L"NorTools");
+  std::wstring log_dir = JoinPath(app_dir, L"logs");
+  EnsureDirectory(app_dir);
+  EnsureDirectory(log_dir);
+  std::wstring timestamp = MakeTimestamp();
+  return {
+      JoinPath(log_dir, L"nortools-updater.log"),
+      JoinPath(log_dir, L"nortools-msi-update-" + timestamp + L".log"),
+  };
+}
+
+void AppendLogLine(const std::wstring& path, const std::wstring& line) {
+  if (path.empty()) {
+    return;
+  }
+  HANDLE file = CreateFileW(
+      path.c_str(),
+      FILE_APPEND_DATA,
+      FILE_SHARE_READ,
+      nullptr,
+      OPEN_ALWAYS,
+      FILE_ATTRIBUTE_NORMAL,
+      nullptr);
+  if (file == INVALID_HANDLE_VALUE) {
+    return;
+  }
+
+  std::wstring wide_line = MakeTimestamp() + L" " + line + L"\r\n";
+  int utf8_size = WideCharToMultiByte(
+      CP_UTF8,
+      0,
+      wide_line.data(),
+      static_cast<int>(wide_line.size()),
+      nullptr,
+      0,
+      nullptr,
+      nullptr);
+  if (utf8_size > 0) {
+    std::string utf8(static_cast<size_t>(utf8_size), '\0');
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        wide_line.data(),
+        static_cast<int>(wide_line.size()),
+        utf8.data(),
+        utf8_size,
+        nullptr,
+        nullptr);
+    DWORD written = 0;
+    WriteFile(file, utf8.data(), static_cast<DWORD>(utf8.size()), &written, nullptr);
+  }
+  CloseHandle(file);
+}
+
 void StartDetached(const std::wstring& executable, const std::wstring& working_dir) {
   STARTUPINFOW si{};
   si.cb = sizeof(si);
@@ -151,10 +251,17 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
   WaitForPid(pid);
 
+  LogPaths logs = GetLogPaths();
   std::wstring msiexec = L"msiexec.exe";
   std::wstring command = L"msiexec.exe /i " + QuoteArg(msi) + L" /passive /norestart";
+  if (!logs.msi_log.empty()) {
+    command += L" /L*v " + QuoteArg(logs.msi_log);
+  }
+  AppendLogLine(logs.updater_log, L"Running: " + command);
   DWORD exit_code = RunAndWait(msiexec, command, working_dir);
+  AppendLogLine(logs.updater_log, L"msiexec exit code: " + std::to_wstring(exit_code));
   if (exit_code == 0 || exit_code == 3010) {
+    AppendLogLine(logs.updater_log, L"Launching: " + launch);
     StartDetached(launch, working_dir);
   }
   return static_cast<int>(exit_code);
