@@ -104,7 +104,7 @@ TARGETS=(
   "linux-x86_64:nortools-linux-amd64-${TAG}.tar.gz"
   "darwin-x86_64:nortools-macos-x64-${TAG}.tar.gz"
   "darwin-aarch64:nortools-macos-arm64-${TAG}.tar.gz"
-  "windows-x86_64:nortools-windows-x64-${TAG}.zip"
+  "windows-x86_64:nortools-windows-x64-${TAG}.msi"
 )
 
 for entry in "${TARGETS[@]}"; do

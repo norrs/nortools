@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$GraalConfigs,
     [string]$GuiLauncher = "",
+    [string]$UpdaterHelper = "",
     [string]$RoutinatorBinary = ""
 )
 
@@ -191,6 +192,12 @@ if ($GuiLauncher -and (Test-Path $GuiLauncher)) {
     $launcherDest = Join-Path $workdir "nortools-gui.exe"
     Copy-Item -Path $GuiLauncher -Destination $launcherDest -Force
     $zipInputs += $launcherDest
+}
+
+if ($UpdaterHelper -and (Test-Path $UpdaterHelper)) {
+    $helperDest = Join-Path $workdir "nortools-updater.exe"
+    Copy-Item -Path $UpdaterHelper -Destination $helperDest -Force
+    $zipInputs += $helperDest
 }
 
 if ($RoutinatorBinary -and (Test-Path $RoutinatorBinary)) {

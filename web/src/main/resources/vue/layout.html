@@ -25,6 +25,7 @@
             date: "",
             mandatory: false,
             size: 0,
+            downloadPath: "",
             downloading: false,
             downloadProgress: 0,
             ready: false,
@@ -243,6 +244,7 @@
             } else {
               // If event delivery is delayed/missed, keep UI consistent with command result.
               this.updater.ready = true
+              this.updater.downloadPath = String(result.path || "")
               this.updater.downloading = false
               this.updater.error = ""
               this.updater.status = "Update downloaded. Ready to install."
@@ -284,16 +286,19 @@
           this.updater.installing = true
           this.updater.status = "Installing update and restarting..."
           try {
-            await window.krema.invoke("updater:installAndRestart")
+            const platform = String(await window.krema.invoke("os:platform") || "").toLowerCase()
+            if (platform === "windows" && this.updater.downloadPath.toLowerCase().endsWith(".msi")) {
+              await window.krema.invoke("nortools:installWindowsMsiAndRestart", { msiPath: this.updater.downloadPath })
+            } else {
+              await window.krema.invoke("updater:installAndRestart")
+            }
           } catch (e) {
             this.updater.installing = false
-            // In some packaging modes install succeeds but automatic relaunch fails.
-            // Treat this as installed and instruct manual relaunch instead of hard failure.
-            this.updater.installed = true
-            this.updater.ready = false
-            this.updater.available = false
-            this.updater.error = ""
-            this.updater.status = "Update installed. Automatic restart did not complete; please relaunch NorTools manually."
+            this.updater.installed = false
+            this.updater.ready = true
+            this.updater.available = true
+            this.updater.error = this.updaterErrorMessage(e, "Failed to install update")
+            this.updater.status = "Update install failed."
           }
         },
       },

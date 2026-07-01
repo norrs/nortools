@@ -31,9 +31,15 @@ jobs:
           }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "artifact_name=nortools-windows-x64-$tag.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "msi_name=nortools-windows-x64-$tag.msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Setup .NET SDK for WiX
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
 
       - name: Setup GraalVM JDK 25 + native-image
         uses: graalvm/setup-graalvm@v1
@@ -83,6 +89,12 @@ jobs:
         run: |
           bazelisk build //desktop:native-windows-x64
 
+      - name: Setup WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
       - name: Locate archive
         id: locate
         shell: pwsh
@@ -100,11 +112,23 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           $archive = "release/${{ steps.meta.outputs.artifact_name }}"
           Copy-Item "${{ steps.locate.outputs.artifact }}" $archive -Force
-          $hash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $msi = "release/${{ steps.meta.outputs.msi_name }}"
+          $runNumber = [int]($env:GITHUB_RUN_NUMBER)
+          $msiPatch = $runNumber % 65535
+          if ($msiPatch -eq 0) { $msiPatch = 1 }
+          $msiVersion = "0.0.$msiPatch"
+          ./script/release/build_windows_msi.ps1 -ZipFile $archive -Output $msi -ProductVersion $msiVersion
+
+          $archiveHash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           $checksumFile = "$archive.sha256"
-          "$hash  ${{ steps.meta.outputs.artifact_name }}" | Out-File -FilePath $checksumFile -Encoding ascii
+          "$archiveHash  ${{ steps.meta.outputs.artifact_name }}" | Out-File -FilePath $checksumFile -Encoding ascii
+          $msiHash = (Get-FileHash -Path $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+          $msiChecksumFile = "$msi.sha256"
+          "$msiHash  ${{ steps.meta.outputs.msi_name }}" | Out-File -FilePath $msiChecksumFile -Encoding ascii
           "archive=$archive" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "checksum=$checksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "msi=$msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "msi_checksum=$msiChecksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -113,6 +137,8 @@ jobs:
           path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.package.outputs.msi }}
+            ${{ steps.package.outputs.msi_checksum }}
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
@@ -121,4 +147,6 @@ jobs:
           files: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.package.outputs.msi }}
+            ${{ steps.package.outputs.msi_checksum }}
           fail_on_unmatched_files: true

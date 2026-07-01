@@ -1,6 +1,7 @@
 package no.norrs.nortools.desktop
 
 import build.krema.core.Krema
+import build.krema.core.KremaCommand
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
 import no.norrs.nortools.tools.blocklist.blacklist.BlacklistCheckCommand
@@ -54,6 +55,9 @@ import no.norrs.nortools.tools.whois.arin.ArinLookupCommand
 import no.norrs.nortools.tools.whois.asn.AsnLookupCommand
 import no.norrs.nortools.tools.whois.whois.WhoisLookupCommand
 import no.norrs.nortools.web.startServer
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.absolutePathString
 import java.util.Properties
 import kotlin.system.exitProcess
 
@@ -92,12 +96,90 @@ fun main(args: Array<String>) {
         .debug(devMode)
         .devUrl(serverUrl)
         .updaterConfig(buildUpdaterConfig(devMode))
+        .commands(NorToolsUpdaterCommands())
 
     println("[NorTools] Opening desktop window")
     app.run()
 
     // Shut down the server when the window closes
     server.stop()
+}
+
+data class WindowsMsiInstallRequest(
+    val msiPath: String? = null,
+)
+
+class NorToolsUpdaterCommands {
+    @KremaCommand("nortools:installWindowsMsiAndRestart")
+    fun installWindowsMsiAndRestart(request: WindowsMsiInstallRequest): Boolean {
+        val os = System.getProperty("os.name").lowercase()
+        if (!os.contains("win")) {
+            throw IllegalStateException("Windows MSI install is only supported on Windows")
+        }
+
+        val msiPath = request.msiPath?.trim()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("msiPath is required")
+        val msi = Path.of(msiPath).toAbsolutePath().normalize()
+        if (!Files.isRegularFile(msi)) {
+            throw IllegalArgumentException("Downloaded MSI not found: $msi")
+        }
+        if (!msi.fileName.toString().endsWith(".msi", ignoreCase = true)) {
+            throw IllegalArgumentException("Downloaded update is not a Windows MSI: $msi")
+        }
+
+        val appExe = currentExecutable()
+            ?: throw IllegalStateException("Unable to resolve current executable path")
+        val appDir = appExe.parent
+            ?: throw IllegalStateException("Unable to resolve current executable directory")
+        val helper = appDir.resolve("nortools-updater.exe")
+        if (!Files.isRegularFile(helper)) {
+            throw IllegalStateException("NorTools updater helper is missing: $helper")
+        }
+
+        val launch = when {
+            Files.isRegularFile(appDir.resolve("nortools-gui.exe")) -> appDir.resolve("nortools-gui.exe")
+            Files.isRegularFile(appDir.resolve("nortools.exe")) -> appDir.resolve("nortools.exe")
+            else -> appExe
+        }
+
+        ProcessBuilder(
+            helper.absolutePathString(),
+            "--pid",
+            ProcessHandle.current().pid().toString(),
+            "--msi",
+            msi.absolutePathString(),
+            "--launch",
+            launch.absolutePathString(),
+            "--working-dir",
+            appDir.absolutePathString(),
+        ).directory(appDir.toFile()).start()
+
+        Thread {
+            Thread.sleep(200)
+            exitProcess(0)
+        }.apply {
+            isDaemon = false
+            name = "nortools-updater-exit"
+            start()
+        }
+
+        return true
+    }
+
+    private fun currentExecutable(): Path? {
+        val command = ProcessHandle.current().info().command().orElse(null)
+        if (!command.isNullOrBlank()) {
+            return Path.of(command).toAbsolutePath().normalize()
+        }
+
+        val sunCommand = System.getProperty("sun.java.command")?.trim()
+        if (!sunCommand.isNullOrBlank()) {
+            val candidate = Path.of(sunCommand.substringBefore(' ')).toAbsolutePath().normalize()
+            if (Files.exists(candidate)) return candidate
+        }
+
+        return null
+    }
 }
 
 private data class BuildInfo(
