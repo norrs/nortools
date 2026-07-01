@@ -32,6 +32,21 @@ function New-WixId {
     return $id
 }
 
+function New-DeterministicGuid {
+    param([string]$Value)
+
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes("nortools-msi-component:$Value")
+        $hash = $md5.ComputeHash($bytes)
+        $guidBytes = New-Object byte[] 16
+        [Array]::Copy($hash, $guidBytes, 16)
+        return (New-Object Guid -ArgumentList (,$guidBytes)).ToString("D").ToUpperInvariant()
+    } finally {
+        $md5.Dispose()
+    }
+}
+
 Assert-MsiVersion -Version $ProductVersion
 
 $zipPath = (Resolve-Path $ZipFile).Path
@@ -60,10 +75,17 @@ try {
     foreach ($file in $files) {
         $base = New-WixId $file.BaseName
         $componentId = "cmp_$base"
+        $componentGuid = New-DeterministicGuid $file.Name
         $fileId = "fil_$base"
         $source = $file.FullName.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace('"', "&quot;")
-        [void]$components.AppendLine("      <Component Id=`"$componentId`" Guid=`"*`">")
-        [void]$components.AppendLine("        <File Id=`"$fileId`" Source=`"$source`" KeyPath=`"yes`" />")
+        [void]$components.AppendLine("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
+        [void]$components.AppendLine("        <File Id=`"$fileId`" Source=`"$source`" />")
+        [void]$components.AppendLine("        <RegistryValue Root=`"HKCU`"")
+        [void]$components.AppendLine("                       Key=`"Software\NorTools\InstalledFiles`"")
+        [void]$components.AppendLine("                       Name=`"$componentId`"")
+        [void]$components.AppendLine("                       Type=`"integer`"")
+        [void]$components.AppendLine("                       Value=`"1`"")
+        [void]$components.AppendLine("                       KeyPath=`"yes`" />")
         [void]$components.AppendLine("      </Component>")
     }
 
@@ -74,6 +96,8 @@ try {
       Name="NorTools"
       Manufacturer="norrs"
       Version="$ProductVersion"
+      Language="1033"
+      Codepage="65001"
       UpgradeCode="8F3AC956-56EC-4C35-AC4E-A49769C77B91"
       Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="A newer version of NorTools is already installed." />
@@ -105,6 +129,16 @@ try {
 
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
 $components
+      <Component Id="InstallFolderCleanup" Guid="*">
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveLocalProgramsFolder" Directory="LocalProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\NorTools"
+                       Name="installFolderCleanup"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
     </ComponentGroup>
 
     <Feature Id="MainFeature" Title="NorTools" Level="1">
@@ -120,7 +154,7 @@ $components
         throw "wix command not found. Install with: dotnet tool install --global wix"
     }
 
-    & $wix.Source build -acceptEula wix7 $wxs -o $outputPath
+    & $wix.Source build -acceptEula wix7 -arch x64 $wxs -o $outputPath
     if ($LASTEXITCODE -ne 0) {
         throw "wix build failed with exit code $LASTEXITCODE"
     }
