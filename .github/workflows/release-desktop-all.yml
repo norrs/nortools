@@ -43,7 +43,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-tag.outputs.tag }}
           fetch-depth: 0
@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Ensure GitHub release body is set
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           body_path: release-body.md
@@ -126,7 +126,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout default branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
 
@@ -208,7 +208,7 @@ jobs:
           find "${screenshot_dir}" -maxdepth 2 -type f -name '*.png' | sort
 
       - name: Create pull request with refreshed screenshots
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
           branch: chore/release-screenshots-${{ steps.screenshot_meta.outputs.tag }}
           delete-branch: true
@@ -237,12 +237,12 @@ jobs:
       HAS_UPDATER_PUBLIC_KEY: ${{ secrets.KREMA_UPDATER_PUBLIC_KEY_B64 != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-tag.outputs.tag }}
 
       - name: Setup JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5.4.0
         with:
           distribution: temurin
           java-version: "25"
@@ -278,7 +278,7 @@ jobs:
           done
 
       - name: Publish required updater manifest assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           files: |
@@ -290,7 +290,7 @@ jobs:
 
       - name: Publish updater public key asset
         if: ${{ env.HAS_UPDATER_PUBLIC_KEY == 'true' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           files: |

@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
 
@@ -38,7 +38,7 @@ jobs:
         uses: bazelbuild/setup-bazelisk@v3
 
       - name: Setup GraalVM JDK 25 + native-image
-        uses: graalvm/setup-graalvm@v1
+        uses: graalvm/setup-graalvm@v1.5.6
         with:
           java-version: "25"
           distribution: "graalvm"
@@ -86,7 +86,7 @@ jobs:
           echo "checksum=release/${{ steps.meta.outputs.artifact_name }}.sha256" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ steps.meta.outputs.artifact_name }}
           path: |
@@ -94,7 +94,7 @@ jobs:
             ${{ steps.package.outputs.checksum }}
 
       - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           files: |
