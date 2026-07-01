@@ -93,6 +93,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --global wix
+          & "$env:USERPROFILE\.dotnet\tools\wix.exe" eula accept wix7
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Locate archive
@@ -130,6 +131,34 @@ jobs:
           "msi=$msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "msi_checksum=$msiChecksumFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Validate MSI
+        shell: pwsh
+        run: |
+          wix msi validate "${{ steps.package.outputs.msi }}"
+
+      - name: Smoke install MSI
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path "${{ steps.package.outputs.msi }}").Path
+          $log = (Join-Path (Resolve-Path release).Path "msi-smoke-install.log")
+          $p = Start-Process -FilePath msiexec.exe `
+            -ArgumentList @("/i", $msi, "/qn", "/norestart", "/L*v", $log) `
+            -Wait `
+            -PassThru
+
+          if ($p.ExitCode -notin @(0, 3010)) {
+            Get-Content $log -ErrorAction SilentlyContinue
+            throw "MSI smoke install failed with exit code $($p.ExitCode). Log: $log"
+          }
+
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs\NorTools"
+          foreach ($required in @("nortools.exe", "nortools-gui.exe", "nortools-updater.exe")) {
+            $path = Join-Path $installDir $required
+            if (-not (Test-Path $path)) {
+              throw "MSI smoke install did not create expected file: $path"
+            }
+          }
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -139,6 +168,7 @@ jobs:
             ${{ steps.package.outputs.checksum }}
             ${{ steps.package.outputs.msi }}
             ${{ steps.package.outputs.msi_checksum }}
+            release/msi-smoke-install.log
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v3.0.1
