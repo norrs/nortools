@@ -120,7 +120,7 @@ $components
         throw "wix command not found. Install with: dotnet tool install --global wix"
     }
 
-    & $wix.Source build $wxs -o $outputPath
+    & $wix.Source build -acceptEula wix7 $wxs -o $outputPath
     if ($LASTEXITCODE -ne 0) {
         throw "wix build failed with exit code $LASTEXITCODE"
     }
