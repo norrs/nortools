@@ -46,7 +46,8 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     # Treat any of these as "result rendered" and allow extra time.
     "dns": (["records (", "no dns records returned", "api error"], False, 30.0),
     # Avoid matching the static description text "response time" before results
-    # are rendered. Wait for result-only content.
+    # are rendered. Wait for result-only content. Like DNS, this depends on
+    # external network behavior in CI, so the wait can be downgraded there.
     "http": (["headers (", "no response headers available."], False, 30.0),
     "https": (["chain diagram", "certificate details"], True, 30.0),
     "subnet": (["total hosts", "network address"], True, 30.0),
@@ -1088,10 +1089,15 @@ def wait_for_route_result_signal(
         )
         artifacts_info = f"; artifacts={[str(path) for path in artifacts]}" if artifacts else ""
         ci_mode = _env_flag("CI")
-        allow_dns_timeout = _env_flag("CAPTURE_SCREENSHOTS_ALLOW_DNS_TIMEOUT") or ci_mode
-        if route_key == "dns" and allow_dns_timeout:
+        allow_ci_network_timeout = route_key in {"dns", "http"} and (
+            ci_mode
+            or (route_key == "dns" and _env_flag("CAPTURE_SCREENSHOTS_ALLOW_DNS_TIMEOUT"))
+            or (route_key == "http" and _env_flag("CAPTURE_SCREENSHOTS_ALLOW_HTTP_TIMEOUT"))
+        )
+        if allow_ci_network_timeout:
             print(
-                f"[capture] warning: DNS AT-SPI result signal timed out after {timeout:.1f}s; continuing in CI mode"
+                f"[capture] warning: {route_key} AT-SPI result signal timed out after {timeout:.1f}s; "
+                f"continuing in CI mode"
                 f"{artifacts_info}.",
                 flush=True,
             )
