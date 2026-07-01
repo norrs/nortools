@@ -70,13 +70,14 @@ if (-not $nativeImage) {
     throw "native-image not found. Install GraalVM (e.g. mise install java graalvm-community-25.0.2) or set GRAALVM_HOME."
 }
 
-# Prefer explicitly loading VS 2022 x64 build env so native-image does not auto-select unsupported VS major versions.
-$vs17Install = $null
+# Explicitly load the x64 MSVC build env. Native-image can find cl.exe from PATH,
+# but cl.exe also needs INCLUDE/LIB from vcvars64.bat to compile helper probes.
+$vsInstall = $null
 if (Test-Path $vswhere) {
-    $vs17Install = & $vswhere -latest -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    $vsInstall = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
 }
-if ($vs17Install) {
-    $vcvars = Join-Path $vs17Install "VC\Auxiliary\Build\vcvars64.bat"
+if ($vsInstall) {
+    $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvars64.bat"
     if (Test-Path $vcvars) {
         cmd.exe /d /s /c ('call "' + $vcvars + '" >nul && set') | ForEach-Object {
             $idx = $_.IndexOf("=")
@@ -86,7 +87,15 @@ if ($vs17Install) {
                 Set-Item -Path ("Env:" + $name) -Value $value
             }
         }
+    } else {
+        throw "vcvars64.bat not found at '$vcvars'"
     }
+} else {
+    throw "Visual Studio C++ x64 toolchain not found. Install VC.Tools.x86.x64."
+}
+
+if ([string]::IsNullOrWhiteSpace($env:INCLUDE) -or [string]::IsNullOrWhiteSpace($env:LIB)) {
+    throw "MSVC build environment is incomplete after vcvars64.bat: INCLUDE and/or LIB is empty."
 }
 
 function Find-VcRuntimeDir {
@@ -97,8 +106,8 @@ function Find-VcRuntimeDir {
         $dirs += (Join-Path $env:VCToolsRedistDir "x64\Microsoft.VC142.CRT")
     }
 
-    if ($vs17Install) {
-        $dirs += (Get-ChildItem -Path (Join-Path $vs17Install "VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT") -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    if ($vsInstall) {
+        $dirs += (Get-ChildItem -Path (Join-Path $vsInstall "VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT") -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
     }
 
     foreach ($dir in $dirs) {
