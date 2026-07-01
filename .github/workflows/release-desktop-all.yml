@@ -233,6 +233,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      HAS_UPDATER_PUBLIC_KEY: ${{ secrets.KREMA_UPDATER_PUBLIC_KEY_B64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -262,7 +264,20 @@ jobs:
           set -euo pipefail
           ./script/release/generate_krema_update_manifests.sh "${{ needs.resolve-tag.outputs.tag }}" release
 
-      - name: Publish updater manifest assets
+      - name: Verify required updater manifest assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            release/nortools-update-linux-x86_64.json \
+            release/nortools-update-darwin-x86_64.json \
+            release/nortools-update-darwin-aarch64.json \
+            release/nortools-update-windows-x86_64.json
+          do
+            test -s "$file"
+          done
+
+      - name: Publish required updater manifest assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
@@ -271,5 +286,13 @@ jobs:
             release/nortools-update-darwin-x86_64.json
             release/nortools-update-darwin-aarch64.json
             release/nortools-update-windows-x86_64.json
+          fail_on_unmatched_files: true
+
+      - name: Publish updater public key asset
+        if: ${{ env.HAS_UPDATER_PUBLIC_KEY == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          files: |
             release/nortools-updater-public-key.txt
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

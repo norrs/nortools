@@ -75,6 +75,29 @@
           }
           return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
         },
+        updaterErrorMessage(error, fallback) {
+          if (error instanceof Error && error.message) return error.message
+          if (typeof error === "string" && error.trim().length) return error
+          if (error && typeof error === "object") {
+            const message = error.message || error.error || error.reason
+            if (typeof message === "string" && message.trim().length) return message
+            try {
+              return JSON.stringify(error)
+            } catch (_e) {
+              return fallback
+            }
+          }
+          return fallback
+        },
+        isMissingUpdaterManifest(error) {
+          const message = this.updaterErrorMessage(error, "").toLowerCase()
+          return message.includes("all update endpoints failed") ||
+            (message.includes("update endpoint") && (
+              message.includes("http 404") ||
+              message.includes("status 404") ||
+              message.includes("not found")
+            ))
+        },
         async initUpdater() {
           if (!this.hasKremaUpdater()) return
           this.updater.supported = true
@@ -111,7 +134,15 @@
               this.updater.downloading = false
               this.updater.installing = false
               this.updater.checking = false
-              const message = String(payload?.message || "Updater error")
+              const message = this.updaterErrorMessage(payload, "Updater error")
+              if (this.isMissingUpdaterManifest(payload)) {
+                this.updater.available = false
+                this.updater.ready = false
+                this.updater.error = ""
+                this.updater.status = "No updates available."
+                try { console.info("updater metadata is not published for this platform", payload) } catch (_ignored) {}
+                return
+              }
               // Do not let late/background updater errors overwrite a successful state.
               if (this.updater.ready || this.updater.installed) {
                 this.updater.status = `Updater warning: ${message}`
@@ -181,11 +212,15 @@
             }
           } catch (e) {
             if (!this.updater.available) {
-              const message = e instanceof Error
-                ? e.message
-                : (typeof e === "string" && e.trim().length ? e : JSON.stringify(e ?? "Failed to check for updates"))
-              this.updater.error = message
-              this.updater.status = "Update check failed."
+              if (this.isMissingUpdaterManifest(e)) {
+                this.updater.available = false
+                this.updater.ready = false
+                this.updater.error = ""
+                this.updater.status = "No updates available."
+              } else {
+                this.updater.error = this.updaterErrorMessage(e, "Failed to check for updates")
+                this.updater.status = "Update check failed."
+              }
               try { console.error("updater:check failed", e) } catch (_ignored) {}
             }
           } finally {
@@ -219,7 +254,7 @@
               this.updater.error = ""
               this.updater.status = "Update downloaded. Ready to install."
             } else {
-              this.updater.error = e instanceof Error ? e.message : "Failed to download update"
+              this.updater.error = this.updaterErrorMessage(e, "Failed to download update")
               this.updater.status = ""
             }
           }
@@ -239,7 +274,7 @@
             this.updater.status = "Update installed successfully. Please close and relaunch NorTools."
           } catch (e) {
             this.updater.installing = false
-            this.updater.error = e instanceof Error ? e.message : "Failed to install update"
+            this.updater.error = this.updaterErrorMessage(e, "Failed to install update")
             this.updater.status = ""
           }
         },
