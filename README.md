@@ -64,11 +64,29 @@ Planning:
 </table>
 
 
-## How to test the desktop app
+## Desktop Run Targets
 
-* Dev mode: `bazelisk run //desktop:desktop -- --dev`
+JVM desktop app:
 
-* Production mode: `bazelisk run //desktop:desktop`
+- Dev mode: `bazelisk run //desktop:desktop -- --dev`
+- Production mode: `bazelisk run //desktop:desktop`
+
+Native desktop builds and run targets:
+
+- Linux x64:
+  - Build archive: `bazelisk build //desktop:native-linux-x64`
+  - Run native app: `bazelisk run //desktop:run-native-linux-x64`
+- macOS x64:
+  - Build archive: `bazelisk build //desktop:native-macos-x64`
+- macOS Apple Silicon:
+  - Build archive: `bazelisk build //desktop:native-macos-arm64`
+  - Run native app: `bazelisk run //desktop:run-native-macos-arm64`
+- Windows x64:
+  - Build archive: `bazelisk build //desktop:native-windows-x64`
+  - Run console-native app: `bazelisk run //desktop:run-native-windows-x64`
+  - Run GUI-native app: `bazelisk run //desktop:run-native-windows-x64-gui`
+
+Native-image cannot cross-compile; run each native target on its matching OS.
 
 ## Desktop Auto-Update Release Flow
 
