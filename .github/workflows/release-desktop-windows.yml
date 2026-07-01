@@ -34,7 +34,7 @@ jobs:
           "setup_name=nortools-windows-x64-$tag-setup.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Setup Bazelisk
-        uses: bazelbuild/setup-bazelisk@v3
+        uses: ./.github/actions/setup-bazelisk
 
       - name: Setup GraalVM JDK 25 + native-image
         uses: graalvm/setup-graalvm@v1.5.6
@@ -42,7 +42,6 @@ jobs:
           java-version: "25"
           distribution: "graalvm"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: "true"
 
       - name: Verify Visual Studio C++ toolchain and Windows SDK
         shell: pwsh

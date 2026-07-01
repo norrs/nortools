@@ -1,0 +1,45 @@
+name: Setup Bazelisk
+description: Install Bazelisk without a Node-based GitHub Action.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        bin_dir="${RUNNER_TEMP}/bazelisk-bin"
+        mkdir -p "$bin_dir"
+
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)
+            asset="bazelisk-linux-amd64"
+            output="${bin_dir}/bazelisk"
+            ;;
+          Linux-ARM64)
+            asset="bazelisk-linux-arm64"
+            output="${bin_dir}/bazelisk"
+            ;;
+          macOS-X64)
+            asset="bazelisk-darwin-amd64"
+            output="${bin_dir}/bazelisk"
+            ;;
+          macOS-ARM64)
+            asset="bazelisk-darwin-arm64"
+            output="${bin_dir}/bazelisk"
+            ;;
+          Windows-X64)
+            asset="bazelisk-windows-amd64.exe"
+            output="${bin_dir}/bazelisk.exe"
+            ;;
+          *)
+            echo "Unsupported runner for Bazelisk: ${RUNNER_OS}-${RUNNER_ARCH}" >&2
+            exit 1
+            ;;
+        esac
+
+        curl -fsSL \
+          "https://github.com/bazelbuild/bazelisk/releases/latest/download/${asset}" \
+          -o "$output"
+        chmod +x "$output"
+        echo "$bin_dir" >> "$GITHUB_PATH"
+        "$output" version

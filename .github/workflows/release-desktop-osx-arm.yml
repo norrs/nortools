@@ -35,7 +35,7 @@ jobs:
           echo "artifact_name=nortools-macos-arm64-${tag}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bazelisk
-        uses: bazelbuild/setup-bazelisk@v3
+        uses: ./.github/actions/setup-bazelisk
 
       - name: Setup GraalVM JDK 25 + native-image
         uses: graalvm/setup-graalvm@v1.5.6
@@ -43,7 +43,6 @@ jobs:
           java-version: "25"
           distribution: "graalvm"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: "true"
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
