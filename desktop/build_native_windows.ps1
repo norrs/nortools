@@ -7,6 +7,7 @@ param(
     [string]$GraalConfigs,
     [string]$GuiLauncher = "",
     [string]$UpdaterHelper = "",
+    [string]$TitleBarIconHelper = "",
     [string]$RoutinatorBinary = "",
     [string]$IconFile = "",
     [string]$Rcedit = ""
@@ -280,6 +281,15 @@ if ($UpdaterHelper -and (Test-Path $UpdaterHelper)) {
         Set-ExecutableIcon -ExePath $helperDest -IconPath $IconFile -Required $false
     }
     $zipInputs += $helperDest
+}
+
+if ($TitleBarIconHelper -and (Test-Path $TitleBarIconHelper)) {
+    $titleBarHelperDest = Join-Path $workdir "nortools-titlebar-icon.exe"
+    Copy-Item -Path $TitleBarIconHelper -Destination $titleBarHelperDest -Force
+    if ($IconFile) {
+        Set-ExecutableIcon -ExePath $titleBarHelperDest -IconPath $IconFile -Required $false
+    }
+    $zipInputs += $titleBarHelperDest
 }
 
 if ($RoutinatorBinary -and (Test-Path $RoutinatorBinary)) {

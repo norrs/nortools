@@ -24,6 +24,18 @@ cc_binary(
     visibility = ["//visibility:public"],
 )
 
+cc_binary(
+    name = "windows_titlebar_icon_helper",
+    srcs = ["windows_titlebar_icon_helper.cc"],
+    linkopts = [
+        "/SUBSYSTEM:WINDOWS",
+        "shell32.lib",
+        "user32.lib",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+)
+
 # Desktop library (Kotlin sources compiled to a JAR)
 kt_jvm_library(
     name = "desktop_lib",
@@ -474,6 +486,7 @@ genrule(
         "build_native_windows.ps1",
         "windows/nortools.ico",
         ":windows_installer_updater",
+        ":windows_titlebar_icon_helper",
     ],
     tools = [
         "@winrun4j//:rcedit64",
@@ -550,7 +563,7 @@ genrule(
         rm -rf "$$WORKDIR"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -UpdaterHelper "$(location :windows_installer_updater)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)" -IconFile "$(location windows/nortools.ico)" -Rcedit "$(location @winrun4j//:rcedit64)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -UpdaterHelper "$(location :windows_installer_updater)" -TitleBarIconHelper "$(location :windows_titlebar_icon_helper)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)" -IconFile "$(location windows/nortools.ico)" -Rcedit "$(location @winrun4j//:rcedit64)"
     """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [

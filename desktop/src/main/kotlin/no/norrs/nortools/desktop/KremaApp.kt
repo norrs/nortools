@@ -87,6 +87,7 @@ fun main(args: Array<String>) {
     val buildInfo = resolveBuildInfo()
     println("[NorTools] Version resolved to ${buildInfo.version}")
     logBuildInfo(buildInfo)
+    launchWindowsTitleBarIconHelper()
 
     val app = Krema.app()
         .title("NorTools")
