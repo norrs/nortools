@@ -15,12 +15,7 @@ internal fun launchWindowsTitleBarIconHelper() {
     if (!Files.isRegularFile(helper) || !Files.isRegularFile(icon)) return
 
     runCatching {
-        ProcessBuilder(
-            helper.absolutePathString(),
-            ProcessHandle.current().pid().toString(),
-            icon.absolutePathString(),
-            "NorTools",
-        )
+        ProcessBuilder(helper.absolutePathString())
             .directory(installDir.toFile())
             .start()
     }.onFailure { error ->
