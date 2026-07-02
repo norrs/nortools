@@ -358,6 +358,14 @@
       border-radius: 4px;
     }
 
+    .logo-fallback {
+      display: none;
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      color: #eaf6ff;
+    }
+
     .sidebar .tool-group {
       margin-bottom: 1.5rem;
     }
@@ -535,7 +543,13 @@
     <div class="app-layout">
       <nav class="sidebar" id="sidebar-nav">
         <a href="/" class="logo" aria-label="Home">
-          <img src="/vue/assets/nortools-logo.png" alt="NorTools" />
+          <img
+            src="vue/assets/nortools-logo.png"
+            data-fallback-src="/vue/assets/nortools-logo.png"
+            alt="NorTools"
+            onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display = 'none'; this.nextElementSibling.style.display = 'inline'; }"
+          />
+          <span class="logo-fallback">NorTools</span>
         </a>
 
         <div class="tool-group">
