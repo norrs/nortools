@@ -290,6 +290,8 @@
             const downloadPath = this.updater.downloadPath.toLowerCase()
             if (platform === "windows" && (downloadPath.endsWith(".exe") || downloadPath.endsWith(".msi"))) {
               await window.krema.invoke("nortools:runWindowsInstallerAndRestart", { installerPath: this.updater.downloadPath })
+            } else if (platform === "macos" && downloadPath.endsWith(".tar.gz")) {
+              await window.krema.invoke("nortools:installMacAppAndRestart", { archivePath: this.updater.downloadPath })
             } else {
               await window.krema.invoke("updater:installAndRestart")
             }

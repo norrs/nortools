@@ -111,6 +111,10 @@ data class WindowsInstallerRunRequest(
     val installerPath: String? = null,
 )
 
+data class MacAppUpdateRunRequest(
+    val archivePath: String? = null,
+)
+
 class NorToolsUpdaterCommands {
     @KremaCommand("nortools:runWindowsInstallerAndRestart")
     fun runWindowsInstallerAndRestart(request: WindowsInstallerRunRequest): Boolean {
@@ -171,6 +175,57 @@ class NorToolsUpdaterCommands {
         return true
     }
 
+    @KremaCommand("nortools:installMacAppAndRestart")
+    fun installMacAppAndRestart(request: MacAppUpdateRunRequest): Boolean {
+        val os = System.getProperty("os.name").lowercase()
+        if (!os.contains("mac") && !os.contains("darwin")) {
+            throw IllegalStateException("macOS app bundle updates are only supported on macOS")
+        }
+
+        val archivePath = request.archivePath?.trim()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("archivePath is required")
+        val archive = Path.of(archivePath).toAbsolutePath().normalize()
+        if (!Files.isRegularFile(archive)) {
+            throw IllegalArgumentException("Downloaded update archive not found: $archive")
+        }
+        if (!archive.fileName.toString().endsWith(".tar.gz", ignoreCase = true)) {
+            throw IllegalArgumentException("Downloaded macOS update is not a .tar.gz archive: $archive")
+        }
+
+        val appExe = currentExecutable()
+            ?: throw IllegalStateException("Unable to resolve current executable path")
+        val appBundle = currentMacAppBundle(appExe)
+            ?: throw IllegalStateException("macOS updates require NorTools to be launched from NorTools.app")
+        val logDir = Path.of(System.getProperty("user.home"), "Library", "Logs", "NorTools")
+        Files.createDirectories(logDir)
+        val logFile = logDir.resolve("nortools-updater.log")
+        val script = Files.createTempFile("nortools-mac-updater-", ".sh")
+        Files.writeString(script, macUpdaterScript())
+
+        val process = ProcessBuilder("/bin/sh", script.absolutePathString())
+            .apply {
+                environment()["NORTOOLS_PID"] = ProcessHandle.current().pid().toString()
+                environment()["NORTOOLS_ARCHIVE"] = archive.absolutePathString()
+                environment()["NORTOOLS_CURRENT_APP"] = appBundle.absolutePathString()
+                environment()["NORTOOLS_LOG"] = logFile.absolutePathString()
+                environment()["NORTOOLS_SCRIPT"] = script.absolutePathString()
+            }
+            .start()
+
+        println("[NorTools] Started macOS updater helper pid=${process.pid()}, log=$logFile")
+
+        Thread {
+            Thread.sleep(200)
+            exitProcess(0)
+        }.apply {
+            isDaemon = false
+            name = "nortools-macos-updater-exit"
+            start()
+        }
+
+        return true
+    }
+
     private fun currentExecutable(): Path? {
         val command = ProcessHandle.current().info().command().orElse(null)
         if (!command.isNullOrBlank()) {
@@ -185,6 +240,75 @@ class NorToolsUpdaterCommands {
 
         return null
     }
+
+    private fun currentMacAppBundle(executable: Path): Path? {
+        var path: Path? = executable
+        while (path != null) {
+            if (path.fileName?.toString()?.endsWith(".app", ignoreCase = true) == true) {
+                return path.toAbsolutePath().normalize()
+            }
+            path = path.parent
+        }
+        return null
+    }
+
+    private fun macUpdaterScript(): String = listOf(
+        "#!/bin/sh",
+        "set -eu",
+        "",
+        "mkdir -p \"\$(dirname \"\$NORTOOLS_LOG\")\"",
+        "exec >>\"\$NORTOOLS_LOG\" 2>&1",
+        "",
+        "echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] Starting macOS app bundle update\"",
+        "echo \"Archive: \$NORTOOLS_ARCHIVE\"",
+        "echo \"Current app: \$NORTOOLS_CURRENT_APP\"",
+        "",
+        "while kill -0 \"\$NORTOOLS_PID\" 2>/dev/null; do",
+        "  sleep 0.2",
+        "done",
+        "",
+        "workdir=\"\$(mktemp -d \"\${TMPDIR:-/tmp}/nortools-mac-update.XXXXXX\")\"",
+        "cleanup() {",
+        "  rm -rf \"\$workdir\"",
+        "  rm -f \"\${NORTOOLS_SCRIPT:-}\"",
+        "}",
+        "trap cleanup EXIT",
+        "",
+        "tar -xzf \"\$NORTOOLS_ARCHIVE\" -C \"\$workdir\"",
+        "new_app=\"\$workdir/NorTools.app\"",
+        "if [ ! -d \"\$new_app\" ]; then",
+        "  new_app=\"\$(find \"\$workdir\" -maxdepth 2 -name 'NorTools.app' -type d | head -n 1)\"",
+        "fi",
+        "if [ -z \"\$new_app\" ] || [ ! -x \"\$new_app/Contents/MacOS/nortools\" ]; then",
+        "  echo \"Downloaded archive does not contain an executable NorTools.app bundle\"",
+        "  exit 1",
+        "fi",
+        "if [ ! -f \"\$new_app/Contents/Info.plist\" ]; then",
+        "  echo \"Downloaded NorTools.app is missing Contents/Info.plist\"",
+        "  exit 1",
+        "fi",
+        "if [ ! -f \"\$new_app/Contents/Resources/nortools.icns\" ]; then",
+        "  echo \"Downloaded NorTools.app is missing Contents/Resources/nortools.icns\"",
+        "  exit 1",
+        "fi",
+        "",
+        "parent_dir=\"\$(dirname \"\$NORTOOLS_CURRENT_APP\")\"",
+        "backup_app=\"\$parent_dir/NorTools.app.updating.\$(date '+%Y%m%d%H%M%S')\"",
+        "",
+        "mv \"\$NORTOOLS_CURRENT_APP\" \"\$backup_app\"",
+        "if ditto \"\$new_app\" \"\$NORTOOLS_CURRENT_APP\"; then",
+        "  rm -rf \"\$backup_app\"",
+        "  echo \"Update installed; relaunching NorTools\"",
+        "  open -n \"\$NORTOOLS_CURRENT_APP\"",
+        "  exit 0",
+        "fi",
+        "",
+        "echo \"Failed to copy updated app bundle; restoring previous app\"",
+        "rm -rf \"\$NORTOOLS_CURRENT_APP\"",
+        "mv \"\$backup_app\" \"\$NORTOOLS_CURRENT_APP\"",
+        "exit 1",
+        "",
+    ).joinToString("\n")
 }
 
 private data class BuildInfo(

@@ -81,9 +81,9 @@ Native desktop builds and run targets:
   - Build archive: `bazelisk build //desktop:native-linux-x64`
   - Run native app: `bazelisk run //desktop:run-native-linux-x64`
 - macOS x64:
-  - Build archive: `bazelisk build //desktop:native-macos-x64`
+  - Build app archive: `bazelisk build //desktop:native-macos-x64`
 - macOS Apple Silicon:
-  - Build archive: `bazelisk build //desktop:native-macos-arm64`
+  - Build app archive: `bazelisk build //desktop:native-macos-arm64`
   - Run native app: `bazelisk run //desktop:run-native-macos-arm64`
 - Windows x64:
   - Build archive: `bazelisk build //desktop:native-windows-x64`
@@ -124,6 +124,13 @@ Windows installer updater helper:
 - The helper waits for the old NorTools process to stop, runs the downloaded installer, then relaunches `nortools-gui.exe`.
 - NSIS installers are run silently with `/S`. The generated setup also accepts Krema's built-in `/SILENT /NORESTART` arguments.
 - Updater logs are written to `%LOCALAPPDATA%\NorTools\logs\nortools-updater.log`.
+
+macOS app bundle updater:
+
+- macOS releases publish `nortools-macos-x64-<tag>.tar.gz` and `nortools-macos-arm64-<tag>.tar.gz`.
+- Each macOS archive contains `NorTools.app` with `Contents/Info.plist`, `Contents/MacOS/nortools`, and `Contents/Resources/nortools.icns`.
+- During a macOS in-app update, NorTools extracts the downloaded archive, verifies that it contains an executable `NorTools.app`, replaces the currently running app bundle after the app exits, then relaunches it with `open -n`.
+- macOS updater logs are written to `~/Library/Logs/NorTools/nortools-updater.log`.
 
 Desktop screenshot refresh after release:
 

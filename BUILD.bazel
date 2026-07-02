@@ -15,6 +15,7 @@ npm_link_all_packages(name = "node_modules")
 exports_files([
     "inspiration.md",
     "RFC.md",
+    "docs/assets/nortools-icon.png",
 ])
 
 krema_toml_info(

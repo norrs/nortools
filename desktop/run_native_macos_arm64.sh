@@ -78,4 +78,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 tar -xzf "$tarball" -C "$tmpdir"
 cd "$tmpdir"
 
+if [[ -d "./NorTools.app" ]]; then
+  exec open -n -W "./NorTools.app" --args "$@"
+fi
+
 exec ./nortools "$@"

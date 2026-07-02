@@ -299,6 +299,7 @@ genrule(
     srcs = [
         ":desktop_jar_deploy.jar",
         ":graal_configs",
+        "//:docs/assets/nortools-icon.png",
     ],
     tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-macos-x64.tar.gz"],
@@ -368,10 +369,60 @@ genrule(
         chmod +x "$$WORKDIR/routinator"
         rm -rf native config
 
-        FILES="nortools"
-        if [ -f "$$WORKDIR/libwebview.dylib" ]; then FILES="$$FILES libwebview.dylib"; fi
-        if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
-        tar czf "$$OUT" -C "$$WORKDIR" $$FILES
+        APP_DIR="$$WORKDIR/NorTools.app"
+        mkdir -p "$$APP_DIR/Contents/MacOS" "$$APP_DIR/Contents/Resources"
+        mv "$$WORKDIR/nortools" "$$APP_DIR/Contents/MacOS/nortools"
+        chmod +x "$$APP_DIR/Contents/MacOS/nortools"
+        if [ -f "$$WORKDIR/libwebview.dylib" ]; then
+            mv "$$WORKDIR/libwebview.dylib" "$$APP_DIR/Contents/MacOS/libwebview.dylib"
+        fi
+        if [ -f "$$WORKDIR/routinator" ]; then
+            mv "$$WORKDIR/routinator" "$$APP_DIR/Contents/MacOS/routinator"
+        fi
+
+        ICON_PNG="$$EXECROOT/$(location //:docs/assets/nortools-icon.png)"
+        ICONSET="$$WORKDIR/nortools.iconset"
+        mkdir -p "$$ICONSET"
+        for size in 16 32 128 256 512; do
+            sips -z "$$size" "$$size" "$$ICON_PNG" --out "$$ICONSET/icon_$${size}x$${size}.png" >/dev/null
+            sips -z $$((size * 2)) $$((size * 2)) "$$ICON_PNG" --out "$$ICONSET/icon_$${size}x$${size}@2x.png" >/dev/null
+        done
+        iconutil -c icns "$$ICONSET" -o "$$APP_DIR/Contents/Resources/nortools.icns"
+
+        cat > "$$APP_DIR/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>NorTools</string>
+    <key>CFBundleExecutable</key>
+    <string>nortools</string>
+    <key>CFBundleIconFile</key>
+    <string>nortools</string>
+    <key>CFBundleIdentifier</key>
+    <string>no.norrs.nortools</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>NorTools</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>0.0.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+        tar czf "$$OUT" -C "$$WORKDIR" NorTools.app
 
         rm -rf "$$WORKDIR"
     """,
@@ -390,6 +441,7 @@ genrule(
     srcs = [
         ":desktop_jar_deploy.jar",
         ":graal_configs",
+        "//:docs/assets/nortools-icon.png",
     ],
     tools = ["//tools/whois/asn:routinator_latest_host_binary"],
     outs = ["nortools-macos-arm64.tar.gz"],
@@ -461,10 +513,60 @@ genrule(
         chmod +x "$$WORKDIR/routinator"
         rm -rf native config
 
-        FILES="nortools"
-        if [ -f "$$WORKDIR/libwebview.dylib" ]; then FILES="$$FILES libwebview.dylib"; fi
-        if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
-        tar czf "$$OUT" -C "$$WORKDIR" $$FILES
+        APP_DIR="$$WORKDIR/NorTools.app"
+        mkdir -p "$$APP_DIR/Contents/MacOS" "$$APP_DIR/Contents/Resources"
+        mv "$$WORKDIR/nortools" "$$APP_DIR/Contents/MacOS/nortools"
+        chmod +x "$$APP_DIR/Contents/MacOS/nortools"
+        if [ -f "$$WORKDIR/libwebview.dylib" ]; then
+            mv "$$WORKDIR/libwebview.dylib" "$$APP_DIR/Contents/MacOS/libwebview.dylib"
+        fi
+        if [ -f "$$WORKDIR/routinator" ]; then
+            mv "$$WORKDIR/routinator" "$$APP_DIR/Contents/MacOS/routinator"
+        fi
+
+        ICON_PNG="$$EXECROOT/$(location //:docs/assets/nortools-icon.png)"
+        ICONSET="$$WORKDIR/nortools.iconset"
+        mkdir -p "$$ICONSET"
+        for size in 16 32 128 256 512; do
+            sips -z "$$size" "$$size" "$$ICON_PNG" --out "$$ICONSET/icon_$${size}x$${size}.png" >/dev/null
+            sips -z $$((size * 2)) $$((size * 2)) "$$ICON_PNG" --out "$$ICONSET/icon_$${size}x$${size}@2x.png" >/dev/null
+        done
+        iconutil -c icns "$$ICONSET" -o "$$APP_DIR/Contents/Resources/nortools.icns"
+
+        cat > "$$APP_DIR/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>NorTools</string>
+    <key>CFBundleExecutable</key>
+    <string>nortools</string>
+    <key>CFBundleIconFile</key>
+    <string>nortools</string>
+    <key>CFBundleIdentifier</key>
+    <string>no.norrs.nortools</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>NorTools</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>0.0.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+        tar czf "$$OUT" -C "$$WORKDIR" NorTools.app
 
         rm -rf "$$WORKDIR"
     """,
