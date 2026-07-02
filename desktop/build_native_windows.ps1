@@ -205,8 +205,30 @@ foreach ($f in $GraalConfigs.Split(" ")) {
     }
 }
 
+$nativeDeployJarPath = $deployJarPath
+if ($TitleBarIconHelper -and (Test-Path $TitleBarIconHelper)) {
+    $helperHash = (Get-FileHash -Path (Resolve-Path $TitleBarIconHelper).Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $runtimeResourceDir = Join-Path $workdir "runtime-resources"
+    New-Item -ItemType Directory -Path $runtimeResourceDir -Force | Out-Null
+    $runtimePropertiesPath = Join-Path $runtimeResourceDir "nortools-runtime.properties"
+    Set-Content -Path $runtimePropertiesPath -Value "nortools.titlebarIconHelper.sha256=$helperHash" -Encoding ascii
+
+    $nativeDeployJarPath = Join-Path $workdir "desktop_jar_with_runtime_deploy.jar"
+    Copy-Item -Path $deployJarPath -Destination $nativeDeployJarPath -Force
+    Set-ItemProperty -Path $nativeDeployJarPath -Name IsReadOnly -Value $false
+
+    $jarCommand = Get-Command jar -ErrorAction SilentlyContinue
+    if (-not $jarCommand) {
+        throw "jar command not found; required to embed nortools-runtime.properties in the native image input."
+    }
+    & $jarCommand.Source uf $nativeDeployJarPath -C $runtimeResourceDir "nortools-runtime.properties"
+    if ($LASTEXITCODE -ne 0) {
+        throw ("jar failed while embedding nortools-runtime.properties with exit code " + $LASTEXITCODE)
+    }
+}
+
 $nativeArgs = @(
-    "-jar", $deployJarPath,
+    "-jar", $nativeDeployJarPath,
     "-o", (Join-Path $workdir "nortools"),
     "--enable-url-protocols=http,https",
     "--enable-native-access=ALL-UNNAMED",

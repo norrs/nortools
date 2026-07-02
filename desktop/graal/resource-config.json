@@ -9,7 +9,8 @@
       {"pattern": "org/eclipse/jetty/server/.*"},
       {"pattern": "META-INF/services/.*"},
       {"pattern": "krema-errors.js"},
-      {"pattern": "build-data.properties"}
+      {"pattern": "build-data.properties"},
+      {"pattern": "nortools-runtime.properties"}
     ]
   }
 }
