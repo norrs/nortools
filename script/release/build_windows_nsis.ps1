@@ -30,6 +30,17 @@ $outputDir = Split-Path $outputPath -Parent
 if ($outputDir) {
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 }
+$repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$iconPath = Join-Path $repoRoot "desktop\windows\nortools.ico"
+$iconDirectives = ""
+if (Test-Path $iconPath) {
+    $escapedIcon = Escape-NsisString ((Resolve-Path $iconPath).Path)
+    $iconDirectives = @"
+Icon "$escapedIcon"
+UninstallIcon "$escapedIcon"
+
+"@
+}
 
 $workdir = Join-Path $env:TEMP ("nortools-nsis-" + [guid]::NewGuid().ToString())
 $payloadDir = Join-Path $workdir "payload"
@@ -76,6 +87,7 @@ VIAddVersionKey "FileVersion" "$ProductVersion"
 VIAddVersionKey "ProductVersion" "$ProductVersion"
 VIAddVersionKey "LegalCopyright" "norrs"
 
+$iconDirectives
 SetCompressor /SOLID lzma
 ShowInstDetails nevershow
 ShowUninstDetails nevershow

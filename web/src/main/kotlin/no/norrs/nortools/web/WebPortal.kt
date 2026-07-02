@@ -208,6 +208,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/layout.html",
         "vue/styles/zeroconf-discovery.css",
         "vue/scripts/zeroconf-service-reference.js",
+        "vue/assets/nortools-logo.png",
         "vue/components/home-page.vue",
         "vue/components/dns-lookup-page.vue",
         "vue/components/dnssec-lookup-page.vue",

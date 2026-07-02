@@ -472,10 +472,13 @@ genrule(
         ":desktop_jar_deploy.jar",
         ":graal_configs",
         "build_native_windows.ps1",
-        ":windows_gui_launcher",
+        "windows/nortools.ico",
         ":windows_installer_updater",
     ],
-    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
+    tools = [
+        "@winrun4j//:rcedit64",
+        "//tools/whois/asn:routinator_latest_host_binary",
+    ],
     outs = ["nortools-windows-x64.zip"],
     cmd = """
         set -e
@@ -547,7 +550,7 @@ genrule(
         rm -rf "$$WORKDIR"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -GuiLauncher "$(location :windows_gui_launcher)" -UpdaterHelper "$(location :windows_installer_updater)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -UpdaterHelper "$(location :windows_installer_updater)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)" -IconFile "$(location windows/nortools.ico)" -Rcedit "$(location @winrun4j//:rcedit64)"
     """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [
@@ -557,6 +560,12 @@ genrule(
         "requires-native-image",
     ],
     target_compatible_with = ["@platforms//os:windows"],
+)
+
+alias(
+    name = "windows-icon-tool",
+    actual = "@winrun4j//:rcedit64",
+    visibility = ["//visibility:public"],
 )
 
 # Convenience runner: builds //desktop:native-linux-x64, extracts, and runs it

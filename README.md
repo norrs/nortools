@@ -1,4 +1,8 @@
-My network tools
+<p align="center">
+  <img src="docs/assets/nortools-wordmark.png" alt="NorTools logo" width="420" />
+</p>
+
+NorTools
 =======
 
 A comprehensive suite of network and DNS tools inspired by a lot of tools, built in Kotlin with Bazel.

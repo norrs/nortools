@@ -3,6 +3,7 @@ module(
     version = "0.1.0",
 )
 
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
 # Java rules (override bundled version for JDK 25 support + java_tools v19.0)
@@ -92,5 +93,21 @@ http_file(
     sha256 = "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d",
     urls = [
         "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64",
+    ],
+)
+
+# WinRun4J RCEDIT64.exe is used to stamp Windows icons into native executables.
+http_archive(
+    name = "winrun4j",
+    build_file_content = """
+filegroup(
+    name = "rcedit64",
+    srcs = ["winrun4j/bin/RCEDIT64.exe"],
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "1977d44ae2b14414a9711ccea4eb57816e10300abcd6082803db337e926d6f9e",
+    urls = [
+        "https://github.com/poidasmith/winrun4j/files/1822558/winrun4J-0.4.5.zip",
     ],
 )

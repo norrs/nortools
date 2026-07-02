@@ -7,7 +7,9 @@ param(
     [string]$GraalConfigs,
     [string]$GuiLauncher = "",
     [string]$UpdaterHelper = "",
-    [string]$RoutinatorBinary = ""
+    [string]$RoutinatorBinary = "",
+    [string]$IconFile = "",
+    [string]$Rcedit = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -99,6 +101,72 @@ if ([string]::IsNullOrWhiteSpace($env:INCLUDE) -or [string]::IsNullOrWhiteSpace(
     throw "MSVC build environment is incomplete after vcvars64.bat: INCLUDE and/or LIB is empty."
 }
 
+function Find-Rcedit {
+    if ($Rcedit) {
+        if (Test-Path $Rcedit) {
+            return (Resolve-Path $Rcedit).Path
+        }
+        throw "Rcedit parameter points to a missing file: $Rcedit"
+    }
+
+    $command = Get-Command RCEDIT64.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    if ($env:RCEDIT64) {
+        if (Test-Path $env:RCEDIT64) {
+            return (Resolve-Path $env:RCEDIT64).Path
+        }
+        throw "RCEDIT64 environment variable points to a missing file: $env:RCEDIT64"
+    }
+
+    return $null
+}
+
+function Set-ExecutableIcon {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExePath,
+        [Parameter(Mandatory = $true)]
+        [string]$IconPath,
+        [bool]$Required = $true
+    )
+
+    if ((Test-Path $ExePath) -and (Test-Path $IconPath)) {
+        $rcedit = Find-Rcedit
+        if (-not $rcedit) {
+            throw "RCEDIT64.exe not found. Download winrun4J-0.4.5.zip from https://github.com/poidasmith/winrun4j/releases and put RCEDIT64.exe on PATH, or set RCEDIT64 to its full path."
+        }
+
+        & $rcedit /I (Resolve-Path $ExePath).Path (Resolve-Path $IconPath).Path
+        if ($LASTEXITCODE -ne 0) {
+            if (-not $Required) {
+                Write-Warning "RCEDIT64.exe could not set icon on optional executable: $ExePath"
+                return
+            }
+            throw "RCEDIT64.exe failed with exit code $LASTEXITCODE while setting icon on $ExePath"
+        }
+    }
+}
+
+function Set-WindowsSubsystem {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExePath
+    )
+
+    $editbin = Get-Command editbin.exe -ErrorAction SilentlyContinue
+    if (-not $editbin) {
+        throw "editbin.exe not found after loading the Visual Studio C++ environment."
+    }
+
+    & $editbin.Source /NOLOGO /SUBSYSTEM:WINDOWS (Resolve-Path $ExePath).Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "editbin.exe failed with exit code $LASTEXITCODE while setting Windows subsystem on $ExePath"
+    }
+}
+
 function Find-VcRuntimeDir {
     $dirs = @()
 
@@ -156,6 +224,12 @@ if ($LASTEXITCODE -ne 0) {
     throw ("native-image failed with exit code " + $LASTEXITCODE)
 }
 
+if ($IconFile) {
+    Set-ExecutableIcon -ExePath (Join-Path $workdir "nortools.exe") -IconPath $IconFile
+    $iconDest = Join-Path $workdir "nortools.ico"
+    Copy-Item -Path $IconFile -Destination $iconDest -Force
+}
+
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [System.IO.Compression.ZipFile]::OpenRead($deployJarPath)
 foreach ($entryName in @("native/windows/x86_64/webview.dll", "native/windows/x86_64/libwinpthread-1.dll")) {
@@ -168,6 +242,9 @@ foreach ($entryName in @("native/windows/x86_64/webview.dll", "native/windows/x8
 $zip.Dispose()
 
 $zipInputs = @(Join-Path $workdir "nortools.exe")
+if (Test-Path (Join-Path $workdir "nortools.ico")) {
+    $zipInputs += (Join-Path $workdir "nortools.ico")
+}
 foreach ($extra in @("webview.dll", "libwinpthread-1.dll")) {
     $p = Join-Path $workdir $extra
     if (Test-Path $p) { $zipInputs += $p }
@@ -188,15 +265,20 @@ if ($vcRuntimeDir) {
     Write-Warning "MSVC runtime directory not found. Output zip may require VC++ Redistributable on target machines."
 }
 
-if ($GuiLauncher -and (Test-Path $GuiLauncher)) {
-    $launcherDest = Join-Path $workdir "nortools-gui.exe"
-    Copy-Item -Path $GuiLauncher -Destination $launcherDest -Force
-    $zipInputs += $launcherDest
+$launcherDest = Join-Path $workdir "nortools-gui.exe"
+Copy-Item -Path (Join-Path $workdir "nortools.exe") -Destination $launcherDest -Force
+Set-WindowsSubsystem -ExePath $launcherDest
+if ($IconFile) {
+    Set-ExecutableIcon -ExePath $launcherDest -IconPath $IconFile
 }
+$zipInputs += $launcherDest
 
 if ($UpdaterHelper -and (Test-Path $UpdaterHelper)) {
     $helperDest = Join-Path $workdir "nortools-updater.exe"
     Copy-Item -Path $UpdaterHelper -Destination $helperDest -Force
+    if ($IconFile) {
+        Set-ExecutableIcon -ExePath $helperDest -IconPath $IconFile -Required $false
+    }
     $zipInputs += $helperDest
 }
 

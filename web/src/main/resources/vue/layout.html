@@ -341,18 +341,21 @@
     .logo {
       text-decoration: none;
       color: #4fc3f7;
-      display: block;
+      display: flex;
+      align-items: center;
       position: sticky;
       top: 0;
       z-index: 2;
       background: #1a1a2e;
       margin: 0 -1rem;
-      padding: 1rem 1rem 0.75rem;
+      padding: 0.85rem 1rem 0.75rem;
     }
 
-    .logo h1 {
-      font-size: 1.4rem;
-      margin: 0;
+    .logo img {
+      display: block;
+      width: min(196px, 100%);
+      height: auto;
+      border-radius: 4px;
     }
 
     .sidebar .tool-group {
@@ -517,6 +520,10 @@
         position: static;
       }
 
+      .logo {
+        position: static;
+      }
+
       .main-content {
         padding: 1rem;
       }
@@ -528,7 +535,7 @@
     <div class="app-layout">
       <nav class="sidebar" id="sidebar-nav">
         <a href="/" class="logo" aria-label="Home">
-          <h1>NorTools</h1>
+          <img src="/vue/assets/nortools-logo.png" alt="NorTools" />
         </a>
 
         <div class="tool-group">

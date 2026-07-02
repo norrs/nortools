@@ -174,3 +174,18 @@
       of your accepting any such warranty or additional liability.
 
    END OF TERMS AND CONDITIONS
+
+Third-party build tooling notice
+--------------------------------
+
+This repository uses WinRun4J RCEDIT64.exe as a Windows build-time tool for
+stamping application icons into generated executables. Bazel downloads
+WinRun4J 0.4.5 from:
+
+    https://github.com/poidasmith/winrun4j/releases/tag/0.4.5
+
+WinRun4J source files identify Peter Smith as the author. WinRun4J 0.4.5 is
+distributed under the Common Public License 1.0. A copy of that license from
+the WinRun4J distribution is included at:
+
+    third_party/licenses/winrun4j-CPL-1.0.html
