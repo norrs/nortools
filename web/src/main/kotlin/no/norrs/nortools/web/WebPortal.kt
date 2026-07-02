@@ -129,6 +129,9 @@ private fun registerJavalinVueRoutes() {
     get("/vue/styles/zeroconf-discovery.css") { ctx ->
         serveVueClasspathResource(ctx, "styles/zeroconf-discovery.css", "text/css; charset=utf-8")
     }
+    get("/vue/assets/nortools-logo.png") { ctx ->
+        serveVueClasspathResource(ctx, "assets/nortools-logo.png", "image/png")
+    }
     get("/", VueComponent("home-page"))
     get("/dns", VueComponent("dns-lookup-page"))
     get("/dnssec", VueComponent("dnssec-lookup-page"))
