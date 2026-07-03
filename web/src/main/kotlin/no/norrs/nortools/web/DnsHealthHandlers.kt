@@ -678,6 +678,63 @@ fun dnsHealthCheck(ctx: Context) {
     addCheck(checks, "Zone", "DMARC Record Present", if (hasDmarc) "PASS" else "WARN",
         if (hasDmarc) "DMARC record found" else "No DMARC record at _dmarc.$domain")
 
+    val caaResult = resolver.lookup(domain, Type.CAA)
+    val rawCaaRecords = caaResult.records.map { it.data }
+    val parsedCaaRecords = rawCaaRecords.mapNotNull { parseCaaRecord(it) }
+    val malformedCaaRecords = rawCaaRecords.filter { parseCaaRecord(it) == null }
+    val caaIssueRecords = parsedCaaRecords.filter { it.tag == "issue" || it.tag == "issuewild" }
+    val caaIodefRecords = parsedCaaRecords.filter { it.tag == "iodef" }
+    addCheck(
+        checks,
+        "Zone",
+        "CAA Record Present",
+        if (rawCaaRecords.isNotEmpty()) "PASS" else "INFO",
+        if (rawCaaRecords.isNotEmpty()) "${rawCaaRecords.size} CAA record(s) found" else "No CAA records configured",
+    )
+    addCheck(
+        checks,
+        "Zone",
+        "CAA Record Syntax",
+        when {
+            rawCaaRecords.isEmpty() -> "INFO"
+            malformedCaaRecords.isEmpty() -> "PASS"
+            else -> "WARN"
+        },
+        if (malformedCaaRecords.isEmpty()) {
+            "Parsed ${parsedCaaRecords.size} CAA record(s)"
+        } else {
+            "${malformedCaaRecords.size} malformed CAA record(s): ${malformedCaaRecords.take(2).joinToString("; ")}"
+        },
+    )
+    addCheck(
+        checks,
+        "Zone",
+        "CAA Issue Authorization",
+        when {
+            rawCaaRecords.isEmpty() -> "INFO"
+            caaIssueRecords.any { it.value == ";" } -> "WARN"
+            caaIssueRecords.isNotEmpty() -> "PASS"
+            else -> "INFO"
+        },
+        when {
+            rawCaaRecords.isEmpty() -> "No CAA policy configured"
+            caaIssueRecords.any { it.value == ";" } -> "CAA issue policy forbids certificate issuance"
+            caaIssueRecords.isNotEmpty() -> caaIssueRecords.joinToString(", ") { "${it.tag} ${it.value}" }.take(180)
+            else -> "CAA records exist, but no issue or issuewild tags are configured"
+        },
+    )
+    addCheck(
+        checks,
+        "Zone",
+        "CAA Incident Reporting",
+        if (caaIodefRecords.isNotEmpty()) "PASS" else "INFO",
+        if (caaIodefRecords.isNotEmpty()) {
+            "IODEF contact configured: ${caaIodefRecords.joinToString(", ") { it.value }.take(160)}"
+        } else {
+            "No iodef CAA contact configured"
+        },
+    )
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Build response
     // ═══════════════════════════════════════════════════════════════════════════

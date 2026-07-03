@@ -338,36 +338,7 @@ fun domainHealth(ctx: Context) {
         )
     )
 
-    // Web checks
-    try {
-        val httpClient = HttpClient(timeout = Duration.ofSeconds(10))
-        val httpsResult = httpClient.get("https://$domain", includeBody = false)
-        checks.add(
-            DomainHealthCheck(
-                check = "HTTPS",
-                status = if (httpsResult.statusCode in 200..399) "PASS" else "WARN",
-                detail = "HTTP ${httpsResult.statusCode} (${httpsResult.responseTimeMs}ms)",
-            )
-        )
-    } catch (e: Exception) {
-        checks.add(
-            DomainHealthCheck(
-                check = "HTTPS",
-                status = "FAIL",
-                detail = "HTTPS not available: ${e.message}",
-            )
-        )
-    }
-
-    // CAA check
-    val caaResult = resolver.lookup(domain, Type.CAA)
-    checks.add(
-        DomainHealthCheck(
-            check = "CAA Record",
-            status = if (caaResult.isSuccessful && caaResult.records.isNotEmpty()) "PASS" else "INFO",
-            detail = if (caaResult.records.isNotEmpty()) "${caaResult.records.size} CAA record(s)" else "No CAA records",
-        )
-    )
+    checks.addAll(buildWebHttpsChecks(domain, resolver))
 
     val passCount = checks.count { it.status == "PASS" }
     val warnCount = checks.count { it.status == "WARN" }
@@ -391,6 +362,266 @@ fun domainHealth(ctx: Context) {
         checks = checks,
     )
     ctx.jsonResult(response)
+}
+
+private fun buildWebHttpsChecks(domain: String, resolver: DnsResolver): List<DomainHealthCheck> {
+    val checks = mutableListOf<DomainHealthCheck>()
+    val inspection = try {
+        inspectHttpsEndpoint(domain)
+    } catch (e: Exception) {
+        checks.add(DomainHealthCheck("Web / HTTPS Reachability", "FAIL", "HTTPS inspection failed: ${e.message}"))
+        return checks + buildWebCaaChecks(resolver, domain, null)
+    }
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / HTTPS Reachability",
+            status = when {
+                inspection.error != null -> "FAIL"
+                inspection.statusCode in 200..399 -> "PASS"
+                inspection.statusCode > 0 -> "WARN"
+                else -> "FAIL"
+            },
+            detail = if (inspection.error == null) {
+                "HTTP ${inspection.statusCode} from ${inspection.url} (${inspection.responseTimeMs}ms)"
+            } else {
+                "HTTPS request failed: ${inspection.error}"
+            },
+        )
+    )
+
+    val sni = inspection.tls.sni
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / TLS Handshake",
+            status = if (sni.success) "PASS" else "FAIL",
+            detail = if (sni.success) "SNI handshake completed in ${sni.handshakeTimeMs}ms" else sni.error ?: sni.validationError ?: "SNI handshake failed",
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / TLS Version",
+            status = when (sni.protocol) {
+                "TLSv1.3", "TLSv1.2" -> "PASS"
+                null -> if (sni.success) "WARN" else "FAIL"
+                else -> "WARN"
+            },
+            detail = listOfNotNull(sni.protocol, sni.cipherSuite).joinToString(" / ").ifBlank { "No TLS protocol negotiated" },
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / ALPN",
+            status = if (sni.alpn != null) "PASS" else "INFO",
+            detail = sni.alpn?.let { "Negotiated $it" } ?: "No ALPN protocol negotiated",
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / Certificate Trust Chain",
+            status = when {
+                sni.success && sni.validationError == null -> "PASS"
+                sni.validationError != null -> "FAIL"
+                else -> "WARN"
+            },
+            detail = sni.validationError ?: "Certificate chain trusted by the default JVM trust store",
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / Certificate Domain Name",
+            status = when (sni.hostnameMatched) {
+                true -> "PASS"
+                false -> "FAIL"
+                null -> "INFO"
+            },
+            detail = when (sni.hostnameMatched) {
+                true -> "Certificate matches ${inspection.host}"
+                false -> "Certificate does not match ${inspection.host}"
+                null -> "No certificate hostname data available"
+            },
+        )
+    )
+
+    val leaf = inspection.certificateChain?.firstOrNull()
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / Certificate Expiry",
+            status = when {
+                leaf == null -> "INFO"
+                leaf.expired -> "FAIL"
+                leaf.daysRemaining < 14 -> "WARN"
+                else -> "PASS"
+            },
+            detail = leaf?.let { "Expires ${it.validUntil} (${it.daysRemaining} day(s) remaining)" }
+                ?: (inspection.certificateError ?: "No certificate chain available"),
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / SNI Certificate Behavior",
+            status = if (inspection.tls.noSni.success || inspection.tls.sniChangesCertificate) "PASS" else "INFO",
+            detail = when {
+                inspection.tls.sniChangesCertificate -> "SNI and non-SNI handshakes return different leaf certificates"
+                inspection.tls.noSni.success -> "SNI and non-SNI handshakes return the same leaf certificate"
+                else -> inspection.tls.noSni.error ?: "Non-SNI handshake did not complete"
+            },
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / Redirect Chain",
+            status = when {
+                inspection.redirectChain.any { it.statusCode == -1 } -> "WARN"
+                inspection.redirectChain.size >= 8 && inspection.redirectChain.lastOrNull()?.nextUrl != null -> "WARN"
+                else -> "PASS"
+            },
+            detail = if (inspection.redirectChain.isEmpty()) "No redirect data available"
+                else inspection.redirectChain.joinToString(" -> ") { "${it.statusCode}" },
+        )
+    )
+
+    checks.addAll(buildWebCaaChecks(resolver, domain, inspection.certificateChain))
+    return checks
+}
+
+private fun buildWebCaaChecks(
+    resolver: DnsResolver,
+    domain: String,
+    certificateChain: List<CertificateInfo>?,
+): List<DomainHealthCheck> {
+    val caaResult = resolver.lookup(domain, Type.CAA)
+    val rawRecords = caaResult.records.map { it.data }
+    val parsedRecords = rawRecords.mapNotNull { parseCaaRecord(it) }
+    val issueRecords = parsedRecords.filter { it.tag == "issue" }
+    val issueWildRecords = parsedRecords.filter { it.tag == "issuewild" }
+    val iodefRecords = parsedRecords.filter { it.tag == "iodef" }
+    val malformedRecords = rawRecords.filter { parseCaaRecord(it) == null }
+    val checks = mutableListOf<DomainHealthCheck>()
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / CAA Record",
+            status = if (rawRecords.isNotEmpty()) "PASS" else "INFO",
+            detail = if (rawRecords.isNotEmpty()) "${rawRecords.size} CAA record(s)" else "No CAA records",
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / CAA Syntax",
+            status = when {
+                rawRecords.isEmpty() -> "INFO"
+                malformedRecords.isEmpty() -> "PASS"
+                else -> "WARN"
+            },
+            detail = if (malformedRecords.isEmpty()) {
+                "Parsed ${parsedRecords.size} CAA record(s)"
+            } else {
+                "${malformedRecords.size} malformed CAA record(s): ${malformedRecords.take(2).joinToString("; ")}"
+            },
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / CAA Issuer Compatibility",
+            status = assessCaaIssuerCompatibility(issueRecords, issueWildRecords, certificateChain),
+            detail = describeCaaIssuerCompatibility(issueRecords, issueWildRecords, certificateChain),
+        )
+    )
+
+    checks.add(
+        DomainHealthCheck(
+            check = "Web / CAA Incident Reporting",
+            status = if (iodefRecords.isNotEmpty()) "PASS" else "INFO",
+            detail = if (iodefRecords.isNotEmpty()) {
+                "IODEF contact configured: ${iodefRecords.joinToString(", ") { it.value }.take(160)}"
+            } else {
+                "No iodef CAA contact configured"
+            },
+        )
+    )
+
+    return checks
+}
+
+private fun assessCaaIssuerCompatibility(
+    issueRecords: List<ParsedCaaRecord>,
+    issueWildRecords: List<ParsedCaaRecord>,
+    certificateChain: List<CertificateInfo>?,
+): String {
+    if (issueRecords.isEmpty() && issueWildRecords.isEmpty()) return "INFO"
+    val leaf = certificateChain?.firstOrNull() ?: return "INFO"
+    val relevantRecords = if (leafCoversWildcard(leaf) && issueWildRecords.isNotEmpty()) issueWildRecords else issueRecords
+    if (relevantRecords.isEmpty()) return "INFO"
+    if (relevantRecords.any { it.value == ";" }) return "FAIL"
+    return if (relevantRecords.any { caaValueMatchesCertificateChain(it.value, certificateChain) }) "PASS" else "INFO"
+}
+
+private fun describeCaaIssuerCompatibility(
+    issueRecords: List<ParsedCaaRecord>,
+    issueWildRecords: List<ParsedCaaRecord>,
+    certificateChain: List<CertificateInfo>?,
+): String {
+    if (issueRecords.isEmpty() && issueWildRecords.isEmpty()) return "No issue/issuewild restrictions found"
+    val leaf = certificateChain?.firstOrNull() ?: return "No certificate chain available for CAA comparison"
+    val relevantRecords = if (leafCoversWildcard(leaf) && issueWildRecords.isNotEmpty()) issueWildRecords else issueRecords
+    if (relevantRecords.isEmpty()) return "No applicable CAA issue policy for this certificate type"
+    if (relevantRecords.any { it.value == ";" }) return "CAA explicitly forbids certificate issuance"
+    val allowed = relevantRecords.joinToString(", ") { "${it.tag} ${it.value}" }.ifBlank { "none" }
+    val chainNames = caaChainNames(certificateChain).take(5)
+    return if (relevantRecords.any { caaValueMatchesCertificateChain(it.value, certificateChain) }) {
+        "Certificate chain appears compatible with CAA policy; allowed: $allowed; chain: ${chainNames.joinToString(" -> ")}"
+    } else {
+        "Could not prove CAA compatibility from certificate chain; allowed: $allowed; chain: ${chainNames.joinToString(" -> ")}"
+    }
+}
+
+private fun leafCoversWildcard(leaf: CertificateInfo): Boolean {
+    return leaf.commonName.orEmpty().startsWith("*.") ||
+        leaf.subjectAltNames.any { it.substringAfter(':', it).startsWith("*.") }
+}
+
+private fun caaValueMatchesCertificateChain(value: String, certificateChain: List<CertificateInfo>): Boolean {
+    val caaDomain = value.substringBefore(';').trim().lowercase()
+    if (caaDomain.isBlank()) return false
+    val normalizedChain = caaChainNames(certificateChain).joinToString(" ").lowercase()
+    val caaTokens = caaDomain.split('.', '-', ' ').filter { it.length >= 4 }
+    val aliases = caaIssuerAliases(caaDomain)
+    return normalizedChain.contains(caaDomain) ||
+        caaTokens.any { normalizedChain.contains(it) } ||
+        aliases.any { normalizedChain.contains(it) }
+}
+
+private fun caaChainNames(certificateChain: List<CertificateInfo>): List<String> {
+    return certificateChain.flatMap { cert ->
+        listOfNotNull(
+            cert.commonName,
+            cert.issuerCommonName,
+            dnAttribute(cert.subject, "O"),
+            dnAttribute(cert.issuer, "O"),
+        )
+    }.filter { it.isNotBlank() }.distinct()
+}
+
+private fun caaIssuerAliases(caaDomain: String): List<String> {
+    return when (caaDomain) {
+        "pki.goog" -> listOf("google trust services", "google", "gts")
+        "letsencrypt.org" -> listOf("let's encrypt", "lets encrypt", "letsencrypt")
+        "digicert.com" -> listOf("digicert")
+        "sectigo.com", "comodoca.com" -> listOf("sectigo", "comodo")
+        "globalsign.com" -> listOf("globalsign", "global sign")
+        "amazon.com", "amazontrust.com" -> listOf("amazon", "amazon trust services")
+        "ssl.com" -> listOf("ssl corp", "ssl.com")
+        else -> emptyList()
+    }
 }
 
 private val SECURE_MAIL_CHECK_NAMES = listOf(

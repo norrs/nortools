@@ -14,9 +14,11 @@ import java.lang.foreign.MemoryLayout.PathElement
 import java.lang.foreign.SymbolLookup
 import java.lang.foreign.ValueLayout
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.URI
 import java.security.MessageDigest
+import java.security.KeyStore
 import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey
 import java.security.interfaces.RSAPublicKey
@@ -28,7 +30,13 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.naming.ldap.LdapName
-import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SNIHostName
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLParameters
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 import java.net.http.HttpClient as JHttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -60,27 +68,63 @@ fun httpCheck(ctx: Context) {
 }
 
 fun httpsCheck(ctx: Context) {
-    val host = ctx.pathParam("host")
+    ctx.jsonResult(inspectHttpsEndpoint(ctx.pathParam("host")))
+}
+
+internal fun inspectHttpsEndpoint(value: String): HttpsCheckResponse {
+    val target = parseHttpsTarget(value)
     val client = HttpClient(timeout = Duration.ofSeconds(10))
-    val result = client.get("https://$host", includeBody = false)
+    val result = client.get(target.url, includeBody = false)
     var certificateError: String? = null
     val certificateChain = try {
-        fetchCertificateChain(host, timeoutSeconds = 10)
+        fetchCertificateChain(target.authority, timeoutSeconds = 10)
     } catch (e: Exception) {
         certificateError = e.message ?: "Failed to fetch certificate chain"
         null
     }
-    val response = HttpsCheckResponse(
+    val sniProbe = probeTlsEndpoint(target, useSni = true, timeoutSeconds = 10)
+    val noSniProbe = probeTlsEndpoint(target, useSni = false, timeoutSeconds = 10)
+    val redirectChain = fetchHttpsRedirectChain(target.url, timeoutSeconds = 10)
+    return HttpsCheckResponse(
         url = result.url,
+        host = target.host,
+        port = target.port,
         statusCode = result.statusCode,
         responseTimeMs = result.responseTimeMs,
         error = result.error,
         ssl = result.sslSession?.let { SslInfo(protocol = it.protocol, cipherSuite = it.cipherSuite) },
         certificateChain = certificateChain,
         certificateError = certificateError,
+        tls = TlsDiagnostics(
+            sni = sniProbe,
+            noSni = noSniProbe,
+            sniChangesCertificate = sniProbe.leafFingerprint != null &&
+                noSniProbe.leafFingerprint != null &&
+                sniProbe.leafFingerprint != noSniProbe.leafFingerprint,
+            findings = tlsFindings(target, result.error, certificateChain, certificateError, sniProbe, noSniProbe, redirectChain),
+        ),
+        redirectChain = redirectChain,
         headers = result.headers.entries.take(20).associate { it.key to it.value.joinToString(", ") },
     )
-    ctx.jsonResult(response)
+}
+
+private data class HttpsTarget(
+    val host: String,
+    val port: Int,
+    val pathAndQuery: String,
+) {
+    val authority: String = if (port == 443) host else "$host:$port"
+    val url: String = "https://$authority$pathAndQuery"
+}
+
+private fun parseHttpsTarget(value: String): HttpsTarget {
+    val raw = value.trim().ifBlank { "example.com" }
+    val uri = URI.create(if (raw.startsWith("https://", ignoreCase = true)) raw else "https://$raw")
+    val host = uri.host ?: raw.substringBefore('/').substringBefore(':')
+    val port = uri.port.takeIf { it > 0 } ?: 443
+    val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
+    val query = uri.rawQuery?.let { "?$it" }.orEmpty()
+    return HttpsTarget(host = host, port = port, pathAndQuery = path + query)
 }
 
 fun networkInterfaces(ctx: Context) {
@@ -128,55 +172,263 @@ fun networkInterfaces(ctx: Context) {
 
 private fun fetchCertificateChain(hostname: String, timeoutSeconds: Int): List<CertificateInfo> {
     val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.of("UTC"))
-    val uri = URI.create("https://$hostname")
-    val conn = uri.toURL().openConnection() as HttpsURLConnection
-    conn.connectTimeout = timeoutSeconds * 1000
-    conn.readTimeout = timeoutSeconds * 1000
-    conn.instanceFollowRedirects = true
-
-    try {
-        conn.connect()
-        val certs = conn.serverCertificates.filterIsInstance<X509Certificate>()
+    val target = parseHttpsTarget(hostname)
+    val trustManager = CapturingTrustManager()
+    val context = SSLContext.getInstance("TLS")
+    context.init(null, arrayOf<TrustManager>(trustManager), null)
+    val plain = java.net.Socket()
+    plain.connect(InetSocketAddress(target.host, target.port), timeoutSeconds * 1000)
+    plain.soTimeout = timeoutSeconds * 1000
+    val socket = context.socketFactory.createSocket(plain, target.host, target.port, true) as SSLSocket
+    socket.use {
+        val params = socket.sslParameters ?: SSLParameters()
+        params.serverNames = listOf(SNIHostName(target.host))
+        socket.sslParameters = params
+        socket.startHandshake()
+        val certs = runCatching { socket.session.peerCertificates.filterIsInstance<X509Certificate>() }
+            .getOrElse { trustManager.chain }
         val now = Instant.now()
-        return certs.mapIndexed { index, cert ->
-            val notBefore = cert.notBefore.toInstant()
-            val notAfter = cert.notAfter.toInstant()
-            val daysRemaining = ChronoUnit.DAYS.between(now, notAfter)
-            val subject = cert.subjectX500Principal.name
-            val issuer = cert.issuerX500Principal.name
-            val publicKey = cert.publicKey
-            val keySize = when (publicKey) {
-                is RSAPublicKey -> publicKey.modulus.bitLength()
-                is ECPublicKey -> publicKey.params.curve.field.fieldSize
-                else -> null
-            }
-            CertificateInfo(
-                index = index,
-                subject = subject,
-                issuer = issuer,
-                commonName = dnAttribute(subject, "CN"),
-                issuerCommonName = dnAttribute(issuer, "CN"),
-                subjectAltNames = subjectAltNames(cert),
-                validFrom = dtf.format(notBefore),
-                validUntil = dtf.format(notAfter),
-                validFromEpochMs = notBefore.toEpochMilli(),
-                validUntilEpochMs = notAfter.toEpochMilli(),
-                daysRemaining = daysRemaining,
-                expired = now.isAfter(notAfter),
-                serialNumber = cert.serialNumber.toString(16),
-                signatureAlgorithm = cert.sigAlgName,
-                publicKeyType = publicKey.algorithm,
-                publicKeySize = keySize,
-                isCA = cert.basicConstraints >= 0,
-                keyUsage = keyUsage(cert),
-                extendedKeyUsage = extendedKeyUsage(cert),
-                sha256Fingerprint = sha256Fingerprint(cert),
-                selfSigned = subject == issuer,
+        return certs.mapIndexed { index, cert -> certificateInfo(index, cert, now, dtf) }
+    }
+}
+
+private fun certificateInfo(
+    index: Int,
+    cert: X509Certificate,
+    now: Instant,
+    dtf: DateTimeFormatter,
+): CertificateInfo {
+    val notBefore = cert.notBefore.toInstant()
+    val notAfter = cert.notAfter.toInstant()
+    val subject = cert.subjectX500Principal.name
+    val issuer = cert.issuerX500Principal.name
+    val publicKey = cert.publicKey
+    val keySize = when (publicKey) {
+        is RSAPublicKey -> publicKey.modulus.bitLength()
+        is ECPublicKey -> publicKey.params.curve.field.fieldSize
+        else -> null
+    }
+    return CertificateInfo(
+        index = index,
+        subject = subject,
+        issuer = issuer,
+        commonName = dnAttribute(subject, "CN"),
+        issuerCommonName = dnAttribute(issuer, "CN"),
+        subjectAltNames = subjectAltNames(cert),
+        validFrom = dtf.format(notBefore),
+        validUntil = dtf.format(notAfter),
+        validFromEpochMs = notBefore.toEpochMilli(),
+        validUntilEpochMs = notAfter.toEpochMilli(),
+        daysRemaining = ChronoUnit.DAYS.between(now, notAfter),
+        expired = now.isAfter(notAfter),
+        serialNumber = cert.serialNumber.toString(16),
+        signatureAlgorithm = cert.sigAlgName,
+        publicKeyType = publicKey.algorithm,
+        publicKeySize = keySize,
+        isCA = cert.basicConstraints >= 0,
+        keyUsage = keyUsage(cert),
+        extendedKeyUsage = extendedKeyUsage(cert),
+        sha256Fingerprint = sha256Fingerprint(cert),
+        selfSigned = subject == issuer,
+    )
+}
+
+private fun probeTlsEndpoint(target: HttpsTarget, useSni: Boolean, timeoutSeconds: Int): TlsProbeResult {
+    val trustManager = CapturingTrustManager()
+    val context = SSLContext.getInstance("TLS")
+    context.init(null, arrayOf<TrustManager>(trustManager), null)
+    val started = System.nanoTime()
+
+    return try {
+        val plain = java.net.Socket()
+        plain.connect(InetSocketAddress(target.host, target.port), timeoutSeconds * 1000)
+        plain.soTimeout = timeoutSeconds * 1000
+        val socket = context.socketFactory.createSocket(plain, target.host, target.port, true) as SSLSocket
+        socket.use {
+            val params = socket.sslParameters ?: SSLParameters()
+            params.applicationProtocols = arrayOf("h2", "http/1.1")
+            params.serverNames = if (useSni) listOf(SNIHostName(target.host)) else emptyList()
+            socket.sslParameters = params
+            socket.startHandshake()
+            val session = socket.session
+            val certs = runCatching { session.peerCertificates.filterIsInstance<X509Certificate>() }
+                .getOrElse { trustManager.chain.toList() }
+            val leaf = certs.firstOrNull()
+            TlsProbeResult(
+                attempted = true,
+                sni = useSni,
+                success = true,
+                protocol = session.protocol,
+                cipherSuite = session.cipherSuite,
+                alpn = socket.applicationProtocol.takeIf { it.isNotBlank() },
+                handshakeTimeMs = (System.nanoTime() - started) / 1_000_000,
+                peerHost = session.peerHost,
+                certificateCount = certs.size,
+                leafCommonName = leaf?.subjectX500Principal?.name?.let { dnAttribute(it, "CN") },
+                leafFingerprint = leaf?.let { sha256Fingerprint(it) },
+                hostnameMatched = leaf?.let { certificateMatchesHostname(it, target.host) },
+                validationError = trustManager.validationError,
+                error = null,
             )
         }
-    } finally {
-        conn.disconnect()
+    } catch (e: Exception) {
+        val leaf = trustManager.chain.firstOrNull()
+        TlsProbeResult(
+            attempted = true,
+            sni = useSni,
+            success = false,
+            protocol = null,
+            cipherSuite = null,
+            alpn = null,
+            handshakeTimeMs = (System.nanoTime() - started) / 1_000_000,
+            peerHost = null,
+            certificateCount = trustManager.chain.size,
+            leafCommonName = leaf?.subjectX500Principal?.name?.let { dnAttribute(it, "CN") },
+            leafFingerprint = leaf?.let { sha256Fingerprint(it) },
+            hostnameMatched = leaf?.let { certificateMatchesHostname(it, target.host) },
+            validationError = trustManager.validationError,
+            error = e.message ?: e::class.simpleName,
+        )
     }
+}
+
+private class CapturingTrustManager : X509TrustManager {
+    private val defaultTrustManager: X509TrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        .apply { init(null as KeyStore?) }
+        .trustManagers
+        .filterIsInstance<X509TrustManager>()
+        .first()
+
+    var chain: List<X509Certificate> = emptyList()
+        private set
+    var validationError: String? = null
+        private set
+
+    override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTrustManager.acceptedIssuers
+
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        defaultTrustManager.checkClientTrusted(chain, authType)
+    }
+
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        this.chain = chain?.toList().orEmpty()
+        try {
+            defaultTrustManager.checkServerTrusted(chain, authType)
+        } catch (e: Exception) {
+            validationError = e.message ?: e::class.simpleName
+        }
+    }
+}
+
+private fun fetchHttpsRedirectChain(startUrl: String, timeoutSeconds: Int): List<RedirectHop> {
+    val client = JHttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(timeoutSeconds.toLong()))
+        .followRedirects(JHttpClient.Redirect.NEVER)
+        .build()
+    val hops = mutableListOf<RedirectHop>()
+    var current = URI.create(startUrl)
+
+    repeat(8) {
+        val response = runCatching {
+            val request = HttpRequest.newBuilder()
+                .uri(current)
+                .timeout(Duration.ofSeconds(timeoutSeconds.toLong()))
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .build()
+            client.send(request, HttpResponse.BodyHandlers.discarding())
+        }.getOrElse {
+            runCatching {
+                val request = HttpRequest.newBuilder()
+                    .uri(current)
+                    .timeout(Duration.ofSeconds(timeoutSeconds.toLong()))
+                    .GET()
+                    .build()
+                client.send(request, HttpResponse.BodyHandlers.discarding())
+            }.getOrNull()
+        } ?: return hops
+
+        val location = response.headers().firstValue("location").orElse(null)
+        val next = location?.let { current.resolve(it).toString() }
+        hops += RedirectHop(url = current.toString(), statusCode = response.statusCode(), location = location, nextUrl = next)
+        if (response.statusCode() !in 300..399 || next.isNullOrBlank()) return hops
+        current = URI.create(next)
+    }
+
+    return hops
+}
+
+private fun tlsFindings(
+    target: HttpsTarget,
+    requestError: String?,
+    chain: List<CertificateInfo>?,
+    certificateError: String?,
+    sniProbe: TlsProbeResult,
+    noSniProbe: TlsProbeResult,
+    redirects: List<RedirectHop>,
+): List<TlsFinding> {
+    val findings = mutableListOf<TlsFinding>()
+    if (requestError != null) findings += TlsFinding("error", "HTTPS request failed", requestError)
+    if (certificateError != null) findings += TlsFinding("error", "Certificate chain fetch failed", certificateError)
+
+    val leaf = chain?.firstOrNull()
+    if (leaf != null) {
+        if (leaf.expired) {
+            findings += TlsFinding("error", "Leaf certificate is expired", "Expired ${-leaf.daysRemaining} day(s) ago.")
+        } else if (leaf.daysRemaining in 0..14) {
+            findings += TlsFinding("warning", "Leaf certificate expires soon", "Expires in ${leaf.daysRemaining} day(s).")
+        }
+        if (!certificateMatchesHostname(leaf, target.host)) {
+            findings += TlsFinding("error", "Hostname does not match certificate", "No DNS SAN or CN matches ${target.host}.")
+        }
+        if (leaf.publicKeyType == "RSA" && (leaf.publicKeySize ?: 0) in 1 until 2048) {
+            findings += TlsFinding("warning", "Weak RSA key size", "Leaf certificate uses ${leaf.publicKeySize}-bit RSA.")
+        }
+        if (leaf.signatureAlgorithm.contains("SHA1", ignoreCase = true) || leaf.signatureAlgorithm.contains("MD5", ignoreCase = true)) {
+            findings += TlsFinding("warning", "Weak signature algorithm", leaf.signatureAlgorithm)
+        }
+    }
+
+    if (!sniProbe.success) findings += TlsFinding("error", "TLS handshake with SNI failed", sniProbe.error ?: "Handshake failed.")
+    if (sniProbe.hostnameMatched == false) {
+        findings += TlsFinding("error", "SNI certificate hostname mismatch", "The SNI handshake certificate does not match ${target.host}.")
+    }
+    if (sniProbe.validationError != null) findings += TlsFinding("warning", "Trust validation warning", sniProbe.validationError)
+    if (noSniProbe.success && sniProbe.leafFingerprint != null && noSniProbe.leafFingerprint != null &&
+        sniProbe.leafFingerprint != noSniProbe.leafFingerprint
+    ) {
+        findings += TlsFinding("info", "SNI changes the served certificate", "The endpoint serves a different certificate without SNI.")
+    }
+    if (sniProbe.alpn == null && sniProbe.success) {
+        findings += TlsFinding("info", "No ALPN protocol negotiated", "The server did not select h2 or http/1.1 during TLS ALPN.")
+    }
+    if (redirects.size >= 8 && redirects.lastOrNull()?.statusCode in 300..399) {
+        findings += TlsFinding("warning", "Redirect chain limit reached", "More than 8 redirects may be present.")
+    }
+    if (findings.isEmpty()) {
+        findings += TlsFinding("ok", "No obvious HTTPS/TLS issues found", "Handshake, hostname, and certificate checks look consistent.")
+    }
+    return findings
+}
+
+private fun certificateMatchesHostname(cert: X509Certificate, host: String): Boolean {
+    val names = subjectAltNames(cert).filter { it.startsWith("DNS:", ignoreCase = true) }
+        .map { it.substringAfter(':').lowercase(Locale.ROOT) }
+        .ifEmpty { listOfNotNull(dnAttribute(cert.subjectX500Principal.name, "CN")?.lowercase(Locale.ROOT)) }
+    return names.any { dnsNameMatches(it.trimEnd('.'), host.lowercase(Locale.ROOT).trimEnd('.')) }
+}
+
+private fun certificateMatchesHostname(cert: CertificateInfo, host: String): Boolean {
+    val names = cert.subjectAltNames.filter { it.startsWith("DNS:", ignoreCase = true) }
+        .map { it.substringAfter(':').lowercase(Locale.ROOT) }
+        .ifEmpty { listOfNotNull(cert.commonName?.lowercase(Locale.ROOT)) }
+    return names.any { dnsNameMatches(it.trimEnd('.'), host.lowercase(Locale.ROOT).trimEnd('.')) }
+}
+
+private fun dnsNameMatches(pattern: String, host: String): Boolean {
+    if (pattern == host) return true
+    if (!pattern.startsWith("*.")) return false
+    val suffix = pattern.removePrefix("*.")
+    return host.endsWith(".$suffix") && host.count { it == '.' } == suffix.count { it == '.' } + 1
 }
 
 internal fun detectPlatformName(): String {
@@ -1557,13 +1809,54 @@ data class SslInfo(
 
 data class HttpsCheckResponse(
     val url: String,
+    val host: String,
+    val port: Int,
     val statusCode: Int,
     val responseTimeMs: Long,
     val error: String?,
     val ssl: SslInfo?,
     val certificateChain: List<CertificateInfo>?,
     val certificateError: String?,
+    val tls: TlsDiagnostics,
+    val redirectChain: List<RedirectHop>,
     val headers: Map<String, String>,
+)
+
+data class TlsDiagnostics(
+    val sni: TlsProbeResult,
+    val noSni: TlsProbeResult,
+    val sniChangesCertificate: Boolean,
+    val findings: List<TlsFinding>,
+)
+
+data class TlsProbeResult(
+    val attempted: Boolean,
+    val sni: Boolean,
+    val success: Boolean,
+    val protocol: String?,
+    val cipherSuite: String?,
+    val alpn: String?,
+    val handshakeTimeMs: Long,
+    val peerHost: String?,
+    val certificateCount: Int,
+    val leafCommonName: String?,
+    val leafFingerprint: String?,
+    val hostnameMatched: Boolean?,
+    val validationError: String?,
+    val error: String?,
+)
+
+data class TlsFinding(
+    val severity: String,
+    val title: String,
+    val detail: String,
+)
+
+data class RedirectHop(
+    val url: String,
+    val statusCode: Int,
+    val location: String?,
+    val nextUrl: String?,
 )
 
 data class CertificateInfo(
