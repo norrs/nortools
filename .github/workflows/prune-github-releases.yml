@@ -1,0 +1,106 @@
+name: Prune GitHub Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Number of newest GitHub releases to keep"
+        required: false
+        default: "10"
+        type: string
+      delete_tags:
+        description: "Also delete matching git tags for pruned releases"
+        required: false
+        default: false
+        type: boolean
+      print_notes:
+        description: "Print archived notes for releases that will be pruned"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    if: github.actor == 'norrs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          keep="${{ inputs.keep }}"
+          if ! [[ "${keep}" =~ ^[0-9]+$ ]]; then
+            echo "keep must be a positive integer, got: ${keep}" >&2
+            exit 2
+          fi
+          if (( keep < 1 )); then
+            echo "keep must be at least 1" >&2
+            exit 2
+          fi
+
+      - name: Archive release notes and preview prune set
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${GITHUB_REPOSITORY}"
+            --keep "${{ inputs.keep }}"
+            --reorder-archive
+          )
+          if [[ "${{ inputs.print_notes }}" == "true" ]]; then
+            args+=(--print-notes prune-candidates)
+          fi
+          python script/release/archive_github_releases.py "${args[@]}"
+
+      - name: Commit archived release notes before pruning
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- release-notes/archive.md; then
+            echo "Release notes archive is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release-notes/archive.md
+          git commit -m "docs: archive github release notes"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Prune old GitHub releases
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${GITHUB_REPOSITORY}"
+            --keep "${{ inputs.keep }}"
+            --reorder-archive
+            --prune
+          )
+          if [[ "${{ inputs.delete_tags }}" == "true" ]]; then
+            args+=(--delete-tags)
+          fi
+          python script/release/archive_github_releases.py "${args[@]}"
+
+  unauthorized:
+    if: github.actor != 'norrs'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse non-owner run
+        shell: bash
+        run: |
+          echo "This workflow may only be run by norrs." >&2
+          exit 1
