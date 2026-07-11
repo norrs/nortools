@@ -23,16 +23,24 @@ for tool in curl tar make cc; do
 done
 
 API_URL="https://api.github.com/repos/esnet/iperf/releases/latest"
-AUTH_HEADER=()
+AUTH_ARGS=()
 if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  AUTH_ARGS=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 fi
 
-LATEST_JSON="$(curl -fsSL "${AUTH_HEADER[@]}" "$API_URL")"
+if [[ ${#AUTH_ARGS[@]} -gt 0 ]]; then
+  LATEST_JSON="$(curl -fsSL "${AUTH_ARGS[@]}" "$API_URL")"
+else
+  LATEST_JSON="$(curl -fsSL "$API_URL")"
+fi
 TAG="$(printf '%s\n' "$LATEST_JSON" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
 if [[ -z "$TAG" ]]; then
   echo "Could not resolve latest iperf tag from GitHub API" >&2
   exit 1
+fi
+ARCHIVE_URL="$(printf '%s\n' "$LATEST_JSON" | sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*iperf-[^"]*\.tar\.gz\)".*/\1/p' | head -n1)"
+if [[ -z "$ARCHIVE_URL" ]]; then
+  ARCHIVE_URL="https://github.com/esnet/iperf/archive/refs/tags/${TAG}.tar.gz"
 fi
 
 WORKDIR="$(mktemp -d)"
@@ -42,7 +50,7 @@ cleanup() {
 trap cleanup EXIT
 
 ARCHIVE="$WORKDIR/iperf.tar.gz"
-curl -fsSL "https://github.com/esnet/iperf/archive/refs/tags/${TAG}.tar.gz" -o "$ARCHIVE"
+curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE"
 tar -xzf "$ARCHIVE" -C "$WORKDIR"
 
 SRC_DIR="$(find "$WORKDIR" -maxdepth 1 -type d -name 'iperf-*' | head -n1)"
@@ -76,4 +84,3 @@ cp "$BIN_PATH" "$OUT_PATH"
 chmod +x "$OUT_PATH"
 
 echo "Built iperf3 ${TAG} -> $OUT_PATH"
-
