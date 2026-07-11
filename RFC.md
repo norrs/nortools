@@ -79,7 +79,12 @@ All DNSSEC tools share the core DNSSEC RFCs:
 | Tool | Description | Relevant RFCs / Standards |
 |------|-------------|--------------------------|
 | **mdns** | mDNS query and passive listener for local DNS-style records | [RFC 6762](https://datatracker.ietf.org/doc/html/rfc6762) - Multicast DNS, [RFC 6763](https://datatracker.ietf.org/doc/html/rfc6763) - DNS-Based Service Discovery |
+| **zeroconf-discovery** *(web/desktop)* | Multi-protocol local discovery dashboard with mDNS/DNS-SD, SSDP, WS-Discovery, LLMNR, NetBIOS, interface correlation, device descriptions, and host inspection | [RFC 6762](https://datatracker.ietf.org/doc/html/rfc6762) - Multicast DNS, [RFC 6763](https://datatracker.ietf.org/doc/html/rfc6763) - DNS-Based Service Discovery, [RFC 4795](https://datatracker.ietf.org/doc/html/rfc4795) - LLMNR, [RFC 1001](https://datatracker.ietf.org/doc/html/rfc1001), [RFC 1002](https://datatracker.ietf.org/doc/html/rfc1002), [UPnP SSDP](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/), [WS-Discovery](https://docs.oasis-open.org/ws-dd/discovery/1.1/os/wsdd-discovery-1.1-spec-os.html) |
+| **llmnr** | Link-local multicast name resolution query/listen support | [RFC 4795](https://datatracker.ietf.org/doc/html/rfc4795) - Link-Local Multicast Name Resolution |
 | **netbios-ns** | NetBIOS Name Service query, node status, and passive listener | [RFC 1001](https://datatracker.ietf.org/doc/html/rfc1001) - Protocol Standard for a NetBIOS Service on a TCP/UDP Transport: Concepts and Methods, [RFC 1002](https://datatracker.ietf.org/doc/html/rfc1002) - Detailed Specifications |
+| **ssdp** | SSDP M-SEARCH/listener support with UPnP/DLNA description inspection | [UPnP SSDP](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/) |
+| **ws-discovery** | WS-Discovery probe/resolve/listener support for WSD devices such as printers and scanners | [WS-Discovery 1.1](https://docs.oasis-open.org/ws-dd/discovery/1.1/os/wsdd-discovery-1.1-spec-os.html), Devices Profile for Web Services |
+| **samba-browse** | SMB service reachability and share enumeration for discovered or manually entered hosts | [MS-SMB2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/), [MS-SRVS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-srvs/) |
 
 ---
 
@@ -162,8 +167,9 @@ The web portal's DNS Health Check performs ~49–54 checks across 9 categories. 
 | RFC 1393 | Traceroute Using an IP Option | trace |
 | RFC 1876 | Location Information in DNS | loc |
 | RFC 2782 | DNS SRV Records | srv |
+| RFC 4795 | Link-Local Multicast Name Resolution | llmnr, zeroconf-discovery |
 | RFC 6762 | Multicast DNS | mdns |
-| RFC 6763 | DNS-Based Service Discovery | mdns, future dns-sd |
+| RFC 6763 | DNS-Based Service Discovery | mdns, zeroconf-discovery |
 | RFC 2822 | Internet Message Format (obsoleted by 5322) | header-analyzer |
 | RFC 3207 | SMTP STARTTLS Extension | smtp, mailflow |
 | RFC 3596 | DNS Extensions for IPv6 | aaaa, DNS Health |

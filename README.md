@@ -10,10 +10,6 @@ Most implementations in this repository were done with assistance from various A
 
 Quick developer setup: see [developer-setup.md](developer-setup.md).
 
-Planning:
-
-- [Zero-Configuration Networking Implementation Plan](docs/zeroconf-implementation-plan.md)
-
 ## Screenshots
 
 <table>
