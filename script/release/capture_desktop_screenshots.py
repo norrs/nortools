@@ -34,10 +34,11 @@ ROUTES = [
     ("07-about", "About", "about"),
     ("08-traceroute", "Traceroute", "traceroute"),
     ("09-interfaces-routing", ("Interfaces & Routing", "Interfaces and Routing"), "interfaces"),
-    ("10-whois-lookup", "WHOIS Lookup", "whois"),
-    ("11-reverse-dns", "Reverse DNS", "reverse_dns"),
-    ("12-dns-health", "DNS Health", "dns_health"),
-    ("13-domain-health", "Domain Health", "domain_health"),
+    ("10-iperf3-throughput", "iperf3 Throughput", "iperf"),
+    ("11-whois-lookup", "WHOIS Lookup", "whois"),
+    ("12-reverse-dns", "Reverse DNS", "reverse_dns"),
+    ("13-dns-health", "DNS Health", "dns_health"),
+    ("14-domain-health", "Domain Health", "domain_health"),
 ]
 
 RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
@@ -53,6 +54,7 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     "subnet": (["total hosts", "network address"], True, 30.0),
     "traceroute": (["hop diagram", "hops to"], True, 30.0),
     "interfaces": (["routes (", "interfaces ("], True, 30.0),
+    "iperf": (["local server", "client test", "public servers"], True, 30.0),
     "whois": (["whois server", "overview"], True, 30.0),
     "reverse_dns": (["ptr records (", "status"], False, 30.0),
     "dns_health": (["nameservers", "soa"], True, 30.0),
