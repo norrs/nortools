@@ -1,0 +1,50 @@
+exports_files([
+    "build_latest_iperf3.ps1",
+    "build_latest_iperf3.sh",
+])
+
+genrule(
+    name = "iperf3_latest_host_binary",
+    srcs = [
+        "build_latest_iperf3.ps1",
+        "build_latest_iperf3.sh",
+    ],
+    outs = ["iperf3-host-bin"],
+    cmd = """
+        set -euo pipefail
+        bash "$(location build_latest_iperf3.sh)" "$(OUTS)"
+    """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -Output "$(OUTS)"
+    """,
+    local = True,
+    message = "Building latest iperf3 host binary",
+    tags = [
+        "no-remote",
+        "requires-c-toolchain",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "iperf3_latest_host_runtime_zip",
+    srcs = [
+        "build_latest_iperf3.ps1",
+        "build_latest_iperf3.sh",
+    ],
+    outs = ["iperf3-host-runtime.zip"],
+    cmd = """
+        set -euo pipefail
+        : > "$@"
+    """,
+    cmd_bat = """
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -RuntimeOutput "$(OUTS)"
+    """,
+    local = True,
+    message = "Packaging latest iperf3 host runtime",
+    tags = [
+        "no-remote",
+        "requires-c-toolchain",
+    ],
+    visibility = ["//visibility:public"],
+)

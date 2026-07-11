@@ -201,7 +201,10 @@ genrule(
         ":desktop_jar_deploy.jar",
         ":graal_configs",
     ],
-    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
+    tools = [
+        "//tools/network/iperf:iperf3_latest_host_binary",
+        "//tools/whois/asn:routinator_latest_host_binary",
+    ],
     outs = ["nortools-linux-x64.tar.gz"],
     cmd = """
         set -e
@@ -209,6 +212,7 @@ genrule(
         DEPLOY_JAR=$$(realpath $(location :desktop_jar_deploy.jar))
         OUTPUT=$$(realpath $(OUTS))
         EXECROOT=$$PWD
+        IPERF3_BIN="$$EXECROOT/$(location //tools/network/iperf:iperf3_latest_host_binary)"
         ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         # Find native-image: GRAALVM_HOME > PATH > mise install paths
@@ -269,12 +273,19 @@ genrule(
         fi
         cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
         chmod +x "$$WORKDIR/routinator"
+        if [ ! -f "$$IPERF3_BIN" ]; then
+            echo "ERROR: iperf3 binary missing at $$IPERF3_BIN" >&2
+            exit 1
+        fi
+        cp "$$IPERF3_BIN" "$$WORKDIR/iperf3"
+        chmod +x "$$WORKDIR/iperf3"
         rm -rf native config
 
         # Package into tar.gz
         FILES="nortools"
         if [ -f "$$WORKDIR/libwebview.so" ]; then FILES="$$FILES libwebview.so"; fi
         if [ -f "$$WORKDIR/routinator" ]; then FILES="$$FILES routinator"; fi
+        if [ -f "$$WORKDIR/iperf3" ]; then FILES="$$FILES iperf3"; fi
         tar czf "$$OUTPUT" -C "$$WORKDIR" $$FILES
         rm -rf "$$WORKDIR"
     """,
@@ -301,7 +312,10 @@ genrule(
         ":graal_configs",
         "//:docs/assets/nortools-icon.png",
     ],
-    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
+    tools = [
+        "//tools/network/iperf:iperf3_latest_host_binary",
+        "//tools/whois/asn:routinator_latest_host_binary",
+    ],
     outs = ["nortools-macos-x64.tar.gz"],
     cmd = """
         set -euo pipefail
@@ -310,6 +324,7 @@ genrule(
 
         DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
         EXECROOT=$$PWD
+        IPERF3_BIN="$$EXECROOT/$(location //tools/network/iperf:iperf3_latest_host_binary)"
         ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         OUT="$$PWD/$(OUTS)"
@@ -367,6 +382,12 @@ genrule(
         fi
         cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
         chmod +x "$$WORKDIR/routinator"
+        if [ ! -f "$$IPERF3_BIN" ]; then
+            echo "ERROR: iperf3 binary missing at $$IPERF3_BIN" >&2
+            exit 1
+        fi
+        cp "$$IPERF3_BIN" "$$WORKDIR/iperf3"
+        chmod +x "$$WORKDIR/iperf3"
         rm -rf native config
 
         APP_DIR="$$WORKDIR/NorTools.app"
@@ -378,6 +399,9 @@ genrule(
         fi
         if [ -f "$$WORKDIR/routinator" ]; then
             mv "$$WORKDIR/routinator" "$$APP_DIR/Contents/MacOS/routinator"
+        fi
+        if [ -f "$$WORKDIR/iperf3" ]; then
+            mv "$$WORKDIR/iperf3" "$$APP_DIR/Contents/MacOS/iperf3"
         fi
 
         ICON_PNG="$$EXECROOT/$(location //:docs/assets/nortools-icon.png)"
@@ -443,7 +467,10 @@ genrule(
         ":graal_configs",
         "//:docs/assets/nortools-icon.png",
     ],
-    tools = ["//tools/whois/asn:routinator_latest_host_binary"],
+    tools = [
+        "//tools/network/iperf:iperf3_latest_host_binary",
+        "//tools/whois/asn:routinator_latest_host_binary",
+    ],
     outs = ["nortools-macos-arm64.tar.gz"],
     cmd = """
         set -euo pipefail
@@ -452,6 +479,7 @@ genrule(
 
         DEPLOY_JAR="$(location :desktop_jar_deploy.jar)"
         EXECROOT=$$PWD
+        IPERF3_BIN="$$EXECROOT/$(location //tools/network/iperf:iperf3_latest_host_binary)"
         ROUTINATOR_BIN="$$EXECROOT/$(location //tools/whois/asn:routinator_latest_host_binary)"
 
         OUT="$$PWD/$(OUTS)"
@@ -511,6 +539,12 @@ genrule(
         fi
         cp "$$ROUTINATOR_BIN" "$$WORKDIR/routinator"
         chmod +x "$$WORKDIR/routinator"
+        if [ ! -f "$$IPERF3_BIN" ]; then
+            echo "ERROR: iperf3 binary missing at $$IPERF3_BIN" >&2
+            exit 1
+        fi
+        cp "$$IPERF3_BIN" "$$WORKDIR/iperf3"
+        chmod +x "$$WORKDIR/iperf3"
         rm -rf native config
 
         APP_DIR="$$WORKDIR/NorTools.app"
@@ -522,6 +556,9 @@ genrule(
         fi
         if [ -f "$$WORKDIR/routinator" ]; then
             mv "$$WORKDIR/routinator" "$$APP_DIR/Contents/MacOS/routinator"
+        fi
+        if [ -f "$$WORKDIR/iperf3" ]; then
+            mv "$$WORKDIR/iperf3" "$$APP_DIR/Contents/MacOS/iperf3"
         fi
 
         ICON_PNG="$$EXECROOT/$(location //:docs/assets/nortools-icon.png)"
@@ -592,6 +629,8 @@ genrule(
     ],
     tools = [
         "@winrun4j//:rcedit64",
+        "//tools/network/iperf:iperf3_latest_host_binary",
+        "//tools/network/iperf:iperf3_latest_host_runtime_zip",
         "//tools/whois/asn:routinator_latest_host_binary",
     ],
     outs = ["nortools-windows-x64.zip"],
@@ -665,7 +704,7 @@ genrule(
         rm -rf "$$WORKDIR"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -UpdaterHelper "$(location :windows_installer_updater)" -TitleBarIconHelper "$(location :windows_titlebar_icon_helper)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)" -IconFile "$(location windows/nortools.ico)" -Rcedit "$(location @winrun4j//:rcedit64)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location :build_native_windows.ps1)" -DeployJar "$(location :desktop_jar_deploy.jar)" -Output "$(OUTS)" -GraalConfigs "$(locations :graal_configs)" -UpdaterHelper "$(location :windows_installer_updater)" -TitleBarIconHelper "$(location :windows_titlebar_icon_helper)" -RoutinatorBinary "$(location //tools/whois/asn:routinator_latest_host_binary)" -Iperf3Binary "$(location //tools/network/iperf:iperf3_latest_host_binary)" -Iperf3RuntimeArchive "$(location //tools/network/iperf:iperf3_latest_host_runtime_zip)" -IconFile "$(location windows/nortools.ico)" -Rcedit "$(location @winrun4j//:rcedit64)"
     """,
     message = "Building native Windows x86_64 binary with GraalVM native-image",
     tags = [

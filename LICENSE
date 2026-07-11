@@ -189,3 +189,10 @@ distributed under the Common Public License 1.0. A copy of that license from
 the WinRun4J distribution is included at:
 
     third_party/licenses/winrun4j-CPL-1.0.html
+
+NorTools can also build and bundle iperf3 from the ESnet iperf project as a
+runtime network testing helper. iperf3 is developed by ESnet / Lawrence
+Berkeley National Laboratory and is distributed under a BSD-style license.
+A copy of the upstream iperf3 license notice is included at:
+
+    third_party/licenses/iperf3-LICENSE.txt

@@ -29,6 +29,11 @@ class WebApiRoutesTest {
             "GET /api/domain-health/{domain}",
             "GET /api/http/{url}",
             "GET /api/https/{host}",
+            "GET /api/iperf/client/jobs/{id}",
+            "GET /api/iperf/discover",
+            "GET /api/iperf/public-servers",
+            "GET /api/iperf/server/status",
+            "GET /api/iperf/status",
             "GET /api/network-interfaces",
             "GET /api/password",
             "GET /api/ping-stream/{host}",
@@ -63,6 +68,10 @@ class WebApiRoutesTest {
             "GET /api/zeroconf/wsd/listen",
             "GET /api/zeroconf/wsd/probe",
             "POST /api/email-extract",
+            "POST /api/iperf/client",
+            "POST /api/iperf/client/start",
+            "POST /api/iperf/server/start",
+            "POST /api/iperf/server/stop",
         )
 
         assertEquals(
