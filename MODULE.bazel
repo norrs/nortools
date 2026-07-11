@@ -96,6 +96,30 @@ http_file(
     ],
 )
 
+# iperf3 source archive used to build the bundled host-platform iperf3 binary.
+http_archive(
+    name = "iperf3_src",
+    build_file_content = """
+filegroup(
+    name = "configure_file",
+    srcs = ["configure"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "656e4405ebd620121de7ceca3eaf43a88f79ea1b857d041a6a0b1314801acdd8",
+    strip_prefix = "iperf-3.21",
+    urls = [
+        "https://downloads.es.net/pub/iperf/iperf-3.21.tar.gz",
+        "https://github.com/esnet/iperf/releases/download/3.21/iperf-3.21.tar.gz",
+    ],
+)
+
 # WinRun4J RCEDIT64.exe is used to stamp Windows icons into native executables.
 http_archive(
     name = "winrun4j",

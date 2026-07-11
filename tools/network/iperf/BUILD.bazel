@@ -6,19 +6,21 @@ exports_files([
 genrule(
     name = "iperf3_latest_host_binary",
     srcs = [
+        "@iperf3_src//:configure_file",
+        "@iperf3_src//:srcs",
         "build_latest_iperf3.ps1",
         "build_latest_iperf3.sh",
     ],
     outs = ["iperf3-host-bin"],
     cmd = """
         set -euo pipefail
-        bash "$(location build_latest_iperf3.sh)" "$(OUTS)"
+        bash "$(location build_latest_iperf3.sh)" "$(location @iperf3_src//:configure_file)" "$(OUTS)"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -Output "$(OUTS)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -SourceConfigure "$(location @iperf3_src//:configure_file)" -Output "$(OUTS)"
     """,
     local = True,
-    message = "Building latest iperf3 host binary",
+    message = "Building iperf3 host binary from Bazel source archive",
     tags = [
         "no-remote",
         "requires-c-toolchain",
@@ -29,6 +31,8 @@ genrule(
 genrule(
     name = "iperf3_latest_host_runtime_zip",
     srcs = [
+        "@iperf3_src//:configure_file",
+        "@iperf3_src//:srcs",
         "build_latest_iperf3.ps1",
         "build_latest_iperf3.sh",
     ],
@@ -38,10 +42,10 @@ genrule(
         : > "$@"
     """,
     cmd_bat = """
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -RuntimeOutput "$(OUTS)"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "$(location build_latest_iperf3.ps1)" -SourceConfigure "$(location @iperf3_src//:configure_file)" -RuntimeOutput "$(OUTS)"
     """,
     local = True,
-    message = "Packaging latest iperf3 host runtime",
+    message = "Packaging iperf3 host runtime from Bazel source archive",
     tags = [
         "no-remote",
         "requires-c-toolchain",

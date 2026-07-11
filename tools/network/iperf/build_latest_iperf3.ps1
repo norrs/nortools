@@ -1,15 +1,22 @@
 param(
     [string]$Output = "",
     [string]$RuntimeOutput = "",
+    [string]$SourceConfigure = "",
     [string]$Msys2Root = ""
 )
 
 $ErrorActionPreference = "Stop"
 $script:Iperf3RuntimeSearchDirs = @()
 $script:Iperf3Objdump = ""
+$script:Iperf3SourceConfigure = ""
+$script:Iperf3Version = if ($env:IPERF3_VERSION) { $env:IPERF3_VERSION } else { "3.21" }
 
 if (-not $Output -and -not $RuntimeOutput) {
     throw "Either -Output or -RuntimeOutput is required."
+}
+
+if ($SourceConfigure) {
+    $script:Iperf3SourceConfigure = (Resolve-Path $SourceConfigure).Path
 }
 
 $outputPath = ""
@@ -267,7 +274,7 @@ function Build-Msys2Iperf3 {
 
 function Build-Msys2Iperf3Locked {
     $root = Resolve-Msys2Root
-    $cacheDir = Join-Path ([System.IO.Path]::GetTempPath()) "nortools-iperf3-msys2-build-cache"
+    $cacheDir = Join-Path ([System.IO.Path]::GetTempPath()) "nortools-iperf3-msys2-build-cache-$($script:Iperf3Version)"
     $cachedBinary = Join-Path $cacheDir "iperf3.exe"
     if (Test-Path $cachedBinary) {
         $script:Iperf3RuntimeSearchDirs = @($cacheDir, (Join-Path $root "usr\bin"))
@@ -312,21 +319,40 @@ function Build-Msys2Iperf3Locked {
     New-Item -ItemType Directory -Path $workDir -Force | Out-Null
     try {
         $workDirMsys = ConvertTo-MsysPath $workDir
+        $sourceDirMsys = ""
+        if ($script:Iperf3SourceConfigure) {
+            $sourceRoot = Split-Path $script:Iperf3SourceConfigure -Parent
+            $sourceCopy = Join-Path $workDir "source"
+            New-Item -ItemType Directory -Path $sourceCopy -Force | Out-Null
+            Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
+                Copy-Item -LiteralPath $_.FullName -Destination $sourceCopy -Recurse -Force
+            }
+            $sourceDirMsys = ConvertTo-MsysPath $sourceCopy
+        }
         $buildScript = @"
 set -euo pipefail
 export MSYSTEM=MSYS
 export PATH=/usr/bin:`$PATH
 cd "$workDirMsys"
-api_url="https://api.github.com/repos/esnet/iperf/releases/latest"
-tag=`$(curl -fsSL "`$api_url" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
-if [ -z "`$tag" ]; then
-  echo "Could not resolve latest iperf tag from GitHub API" >&2
-  exit 1
+source_dir="$sourceDirMsys"
+if [ -z "`$source_dir" ]; then
+  iperf_version="$($script:Iperf3Version)"
+  archive_url="https://downloads.es.net/pub/iperf/iperf-`$iperf_version.tar.gz"
+  checksum_url="`$archive_url.sha256"
+  curl --retry 5 --retry-delay 2 --retry-all-errors -fsSL "`$archive_url" -o iperf.tar.gz
+  curl --retry 5 --retry-delay 2 --retry-all-errors -fsSL "`$checksum_url" -o iperf.tar.gz.sha256
+  expected_sha256=`$(awk '{print `$1}' iperf.tar.gz.sha256 | head -n1)
+  actual_sha256=`$(sha256sum iperf.tar.gz | awk '{print `$1}')
+  if [ "`$actual_sha256" != "`$expected_sha256" ]; then
+    echo "iperf3 source checksum mismatch for `$archive_url" >&2
+    echo "expected: `$expected_sha256" >&2
+    echo "actual:   `$actual_sha256" >&2
+    exit 1
+  fi
+  tar -xzf iperf.tar.gz
+  source_dir=`$(find . -maxdepth 1 -type d -name 'iperf-*' | head -n1)
 fi
-curl -fsSL "https://github.com/esnet/iperf/archive/refs/tags/`${tag}.tar.gz" -o iperf.tar.gz
-tar -xzf iperf.tar.gz
-src_dir=`$(find . -maxdepth 1 -type d -name 'iperf-*' | head -n1)
-cd "`$src_dir"
+cd "`$source_dir"
 if [ ! -x ./configure ]; then
   ./bootstrap.sh
 fi
