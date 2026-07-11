@@ -50,7 +50,9 @@ RESULT_SIGNALS: dict[str, tuple[list[str], bool, float]] = {
     # are rendered. Wait for result-only content. Like DNS, this depends on
     # external network behavior in CI, so the wait can be downgraded there.
     "http": (["headers (", "no response headers available."], False, 30.0),
-    "https": (["chain diagram", "certificate details"], True, 30.0),
+    # "chain diagram" is a CSS class, not accessible text. These labels are
+    # visible only after the HTTPS overview result panel renders.
+    "https": (["tls negotiation", "with sni", "without sni"], True, 30.0),
     "subnet": (["total hosts", "network address"], True, 30.0),
     "traceroute": (["hop diagram", "hops to"], True, 30.0),
     "interfaces": (["routes (", "interfaces ("], True, 30.0),
