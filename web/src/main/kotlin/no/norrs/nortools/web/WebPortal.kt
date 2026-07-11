@@ -59,6 +59,15 @@ fun startServer(
             get("/api/http/{url}") { ctx -> httpCheck(ctx) }
             get("/api/https/{host}") { ctx -> httpsCheck(ctx) }
             get("/api/network-interfaces") { ctx -> networkInterfaces(ctx) }
+            get("/api/iperf/status") { ctx -> iperfStatus(ctx) }
+            post("/api/iperf/client") { ctx -> iperfRunClient(ctx) }
+            post("/api/iperf/client/start") { ctx -> iperfStartClient(ctx) }
+            get("/api/iperf/client/jobs/{id}") { ctx -> iperfClientJob(ctx) }
+            get("/api/iperf/server/status") { ctx -> iperfServerStatus(ctx) }
+            post("/api/iperf/server/start") { ctx -> iperfServerStart(ctx) }
+            post("/api/iperf/server/stop") { ctx -> iperfServerStop(ctx) }
+            get("/api/iperf/discover") { ctx -> iperfDiscover(ctx) }
+            get("/api/iperf/public-servers") { ctx -> iperfPublicServers(ctx) }
             get("/api/ping/{host}") { ctx -> pingCheck(ctx) }
             get("/api/ping-stream/{host}") { ctx -> pingStream(ctx) }
             get("/api/trace/{host}") { ctx -> traceCheck(ctx) }
@@ -152,6 +161,7 @@ private fun registerJavalinVueRoutes() {
     get("/http", VueComponent("http-page"))
     get("/https", VueComponent("https-page"))
     get("/network-interfaces", VueComponent("network-interfaces-page"))
+    get("/iperf", VueComponent("iperf-page"))
     get("/zeroconf", VueComponent("zeroconf-discovery-page"))
     get("/ping", VueComponent("ping-page"))
     get("/traceroute", VueComponent("traceroute-page"))
@@ -231,6 +241,7 @@ private fun materializeVueRootDirFromClasspath(): File? {
         "vue/components/http-page.vue",
         "vue/components/https-page.vue",
         "vue/components/network-interfaces-page.vue",
+        "vue/components/iperf-page.vue",
         "vue/components/zeroconf-discovery-page.vue",
         "vue/components/ping-page.vue",
         "vue/components/traceroute-page.vue",

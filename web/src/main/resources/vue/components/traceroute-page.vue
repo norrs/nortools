@@ -1,12 +1,17 @@
 <template id="traceroute-page">
   <div class="tool-view traceroute-page">
     <h2>Traceroute (Visual)</h2>
-    <p class="desc">Trace the network path with ASN info and hop diagram. Choose IP lookup mode for map labeling.</p>
+    <p class="desc">Trace the network path with ASN info and hop diagram. Use Live mode to repeat traces until stopped.</p>
     <form @submit.prevent="trace" class="lookup-form">
       <input v-model="host" placeholder="Enter host (e.g. google.com)" class="input" />
+      <select v-model="mode" class="input input-mode">
+        <option value="single">Single trace</option>
+        <option value="live">Live mode</option>
+      </select>
       <button type="submit" :disabled="loading" class="btn">
-        {{ loading ? 'Tracing...' : 'Trace Route' }}
+        {{ loading ? (mode === 'live' ? 'Tracing live...' : 'Tracing...') : (mode === 'live' ? 'Start Live' : 'Trace Route') }}
       </button>
+      <button type="button" :disabled="!loading" class="btn btn-stop" @click="stopTrace">Stop</button>
     </form>
 
     <div class="lookup-mode">
@@ -31,12 +36,16 @@
     <div v-if="result" class="trace-results">
       <div class="tabs">
         <button :class="['tab', { active: activeTab === 'diagram' }]" @click="activeTab = 'diagram'">Hop Diagram</button>
+        <button v-if="traceSamples.length" :class="['tab', { active: activeTab === 'quality' }]" @click="activeTab = 'quality'">Live Stats</button>
         <button v-if="hasGeoData" :class="['tab', { active: activeTab === 'map' }]" @click="showMap()">World Map</button>
         <button :class="['tab', { active: activeTab === 'json' }]" @click="activeTab = 'json'">JSON</button>
       </div>
 
       <div v-show="activeTab === 'diagram'" class="tab-panel diagram-panel">
-        <div class="hop-summary">{{ result.hopCount }} hops to <strong>{{ result.host }}</strong></div>
+        <div class="hop-summary">
+          {{ result.hopCount }} hops to <strong>{{ result.host }}</strong>
+          <span v-if="mode === 'live' || traceRounds > 0"> · rounds: {{ traceRounds }}{{ loading ? ' · running' : '' }}</span>
+        </div>
         <div v-if="!hasGeoData && traceComplete" class="geo-unavailable">
           Geo IP data was not available for this trace. World map is unavailable.
         </div>
@@ -84,7 +93,35 @@
         </div>
       </div>
 
-      <div v-if="hasGeoData" v-show="activeTab === 'map'" class="tab-panel map-panel">
+      <div v-show="activeTab === 'quality'" class="tab-panel quality-panel">
+        <div class="quality-summary">
+          {{ traceSamples.length }} hop sample(s) across {{ traceRounds }} completed round(s)
+        </div>
+        <div class="quality-table">
+          <div class="quality-row quality-head">
+            <span>Hop</span>
+            <span>Last IP</span>
+            <span>Sent</span>
+            <span>Loss</span>
+            <span>Min</span>
+            <span>Avg</span>
+            <span>Max</span>
+            <span>Jitter</span>
+          </div>
+          <div v-for="stat in liveHopStats" :key="stat.hop" class="quality-row">
+            <span>#{{ stat.hop }}</span>
+            <span class="quality-ip">{{ stat.lastIp || '-' }}</span>
+            <span>{{ stat.sent }}</span>
+            <span :class="stat.lossPct > 0 ? 'quality-warn' : ''">{{ stat.lossPct.toFixed(1) }}%</span>
+            <span>{{ stat.minMs != null ? stat.minMs.toFixed(1) + ' ms' : '-' }}</span>
+            <span>{{ stat.avgMs != null ? stat.avgMs.toFixed(1) + ' ms' : '-' }}</span>
+            <span>{{ stat.maxMs != null ? stat.maxMs.toFixed(1) + ' ms' : '-' }}</span>
+            <span>{{ stat.jitterMs != null ? stat.jitterMs.toFixed(1) + ' ms' : '-' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeTab === 'map' && hasGeoData" class="tab-panel map-panel">
         <div id="trace-map" class="map-container"></div>
         <div v-if="!hasGeoData" class="map-empty">
           No map coordinates were returned for this trace.
@@ -104,12 +141,16 @@ app.component("traceroute-page", {
   data() {
     return {
       host: "",
+      mode: "single",
       lookupMode: "geo",
       ptrLookup: true,
       result: null,
       error: "",
       loading: false,
       traceComplete: false,
+      traceRounds: 0,
+      traceSamples: [],
+      liveTimer: null,
       activeTab: "diagram",
       mapInstance: null,
       traceSource: null,
@@ -117,7 +158,7 @@ app.component("traceroute-page", {
     }
   },
   beforeUnmount() {
-    this.closeTraceSource()
+    this.stopTrace()
     if (this.mapInstance) {
       this.mapInstance.remove()
       this.mapInstance = null
@@ -138,16 +179,40 @@ app.component("traceroute-page", {
         this.traceSource = null
       }
     },
+    stopTrace() {
+      this.loading = false
+      this.traceComplete = true
+      if (this.liveTimer) {
+        clearTimeout(this.liveTimer)
+        this.liveTimer = null
+      }
+      this.closeTraceSource()
+    },
     upsertHop(hop) {
       if (!this.result) return
       const idx = this.result.hops.findIndex((h) => h.hop === hop.hop)
       if (idx >= 0) {
-        this.result.hops[idx] = hop
+        const previous = this.result.hops[idx]
+        const sameIp = previous.ip && hop.ip && previous.ip === hop.ip
+        this.result.hops[idx] = sameIp ? { ...previous, ...hop } : hop
       } else {
         this.result.hops.push(hop)
         this.result.hops.sort((a, b) => a.hop - b.hop)
       }
       this.result.hopCount = this.result.hops.length
+    },
+    recordHopSample(hop, round) {
+      this.traceSamples.push({
+        round,
+        hop: hop.hop,
+        ip: hop.ip && hop.ip !== '*' ? hop.ip : null,
+        host: hop.host && hop.host !== '*' ? hop.host : null,
+        rttAvg: typeof hop.rttAvg === 'number' && Number.isFinite(hop.rttAvg) ? hop.rttAvg : null,
+        timestamp: new Date().toISOString(),
+      })
+      if (this.traceSamples.length > 2000) {
+        this.traceSamples.splice(0, this.traceSamples.length - 2000)
+      }
     },
     async ensureLeaflet() {
       if (window.L) {
@@ -175,16 +240,25 @@ app.component("traceroute-page", {
     },
     async trace() {
       if (!this.host) return
-      this.closeTraceSource()
+      this.stopTrace()
       this.loading = true
       this.traceComplete = false
       this.error = ''
+      this.traceRounds = 0
+      this.traceSamples = []
       this.result = { host: this.host, maxHops: 15, hopCount: 0, hops: [] }
       this.activeTab = 'diagram'
       if (this.mapInstance) {
         this.mapInstance.remove()
         this.mapInstance = null
       }
+      this.startTraceRound()
+    },
+    startTraceRound() {
+      if (!this.host || !this.loading) return
+      this.closeTraceSource()
+      this.error = ''
+      const round = this.traceRounds + 1
 
       const qs = new URLSearchParams()
       qs.set('lookupMode', this.lookupMode)
@@ -201,14 +275,24 @@ app.component("traceroute-page", {
       })
 
       this.traceSource.addEventListener('hop', (ev) => {
-        this.upsertHop(JSON.parse(ev.data))
+        const hop = JSON.parse(ev.data)
+        this.upsertHop(hop)
+        this.recordHopSample(hop, round)
       })
 
       this.traceSource.addEventListener('done', (ev) => {
         this.result = JSON.parse(ev.data)
-        this.loading = false
+        this.traceRounds = round
         this.traceComplete = true
         this.closeTraceSource()
+        if (this.activeTab === 'map') {
+          this.refreshMap()
+        }
+        if (this.mode === 'live' && this.loading) {
+          this.liveTimer = setTimeout(() => this.startTraceRound(), 1200)
+        } else {
+          this.loading = false
+        }
       })
 
       this.traceSource.addEventListener('error', (ev) => {
@@ -218,17 +302,15 @@ app.component("traceroute-page", {
         } catch {
           this.error = 'Trace stream failed'
         }
-        this.loading = false
         this.traceComplete = false
-        this.closeTraceSource()
+        this.stopTrace()
       })
 
       this.traceSource.onerror = () => {
         if (!this.loading) return
         this.error = 'Trace stream disconnected'
-        this.loading = false
         this.traceComplete = false
-        this.closeTraceSource()
+        this.stopTrace()
       }
     },
     async showMap() {
@@ -282,11 +364,52 @@ app.component("traceroute-page", {
       }
       if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] })
     },
+    refreshMap() {
+      if (this.mapInstance) {
+        this.mapInstance.remove()
+        this.mapInstance = null
+      }
+      if (this.activeTab === 'map' && this.hasGeoData) {
+        this.$nextTick(() => this.showMap())
+      }
+    },
   },
   computed: {
     hasGeoData() {
       if (!this.result || !Array.isArray(this.result.hops)) return false
       return this.result.hops.some((h) => h.lat != null && h.lon != null)
+    },
+    liveHopStats() {
+      const byHop = new Map()
+      for (const sample of this.traceSamples) {
+        if (!byHop.has(sample.hop)) {
+          byHop.set(sample.hop, { hop: sample.hop, sent: 0, replies: 0, rtts: [], lastIp: null })
+        }
+        const row = byHop.get(sample.hop)
+        row.sent += 1
+        if (sample.ip) row.lastIp = sample.ip
+        if (sample.rttAvg != null) {
+          row.replies += 1
+          row.rtts.push(sample.rttAvg)
+        }
+      }
+      return Array.from(byHop.values()).sort((a, b) => a.hop - b.hop).map((row) => {
+        const avg = row.rtts.length ? row.rtts.reduce((sum, value) => sum + value, 0) / row.rtts.length : null
+        const jitter = row.rtts.length > 1
+          ? row.rtts.slice(1).reduce((sum, value, idx) => sum + Math.abs(value - row.rtts[idx]), 0) / (row.rtts.length - 1)
+          : null
+        return {
+          hop: row.hop,
+          sent: row.sent,
+          replies: row.replies,
+          lastIp: row.lastIp,
+          lossPct: row.sent ? ((row.sent - row.replies) * 100) / row.sent : 0,
+          minMs: row.rtts.length ? Math.min(...row.rtts) : null,
+          avgMs: avg,
+          maxMs: row.rtts.length ? Math.max(...row.rtts) : null,
+          jitterMs: jitter,
+        }
+      })
     },
   },
 })
@@ -304,11 +427,17 @@ app.component("traceroute-page", {
 }
 .traceroute-page .input { flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; 
 }
+.traceroute-page .input-mode { max-width: 140px; min-width: 130px; flex: 0;
+}
 .traceroute-page .btn { padding: 0.5rem 1.5rem; background: #1a1a2e; color: white; border: none; border-radius: 4px; cursor: pointer; 
 }
 .traceroute-page .btn:hover  { background: #2a2a4e; 
 }
 .traceroute-page .btn:disabled  { opacity: 0.6; 
+}
+.traceroute-page .btn-stop { background: #991b1b;
+}
+.traceroute-page .btn-stop:hover { background: #7f1d1d;
 }
 .traceroute-page .error { color: #d32f2f; margin-bottom: 1rem; 
 }
@@ -376,5 +505,24 @@ app.component("traceroute-page", {
 }
 .traceroute-page .map-empty { margin-top: 0.8rem; color: #6b7280; font-size: 0.85rem; 
 }
+.traceroute-page .quality-summary { font-size: 0.82rem; color: #64748b; margin-bottom: 0.7rem;
+}
+.traceroute-page .quality-table { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;
+}
+.traceroute-page .quality-row { display: grid; grid-template-columns: 58px minmax(140px, 1fr) repeat(6, minmax(72px, 0.45fr)); gap: 0.5rem; align-items: center; padding: 0.55rem 0.7rem; border-top: 1px solid #f1f5f9; font-size: 0.8rem;
+}
+.traceroute-page .quality-row:first-child { border-top: none;
+}
+.traceroute-page .quality-head { background: #f8fafc; color: #475569; font-weight: 700;
+}
+.traceroute-page .quality-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475569;
+}
+.traceroute-page .quality-warn { color: #b45309; font-weight: 700;
+}
 .traceroute-page .json-pre { margin: 0; }
+@media (max-width: 820px) {
+  .traceroute-page .lookup-form { flex-wrap: wrap; }
+  .traceroute-page .quality-table { overflow-x: auto; }
+  .traceroute-page .quality-row { min-width: 760px; }
+}
 </style>

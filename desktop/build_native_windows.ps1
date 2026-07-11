@@ -9,6 +9,8 @@ param(
     [string]$UpdaterHelper = "",
     [string]$TitleBarIconHelper = "",
     [string]$RoutinatorBinary = "",
+    [string]$Iperf3Binary = "",
+    [string]$Iperf3RuntimeArchive = "",
     [string]$IconFile = "",
     [string]$Rcedit = ""
 )
@@ -318,6 +320,17 @@ if ($RoutinatorBinary -and (Test-Path $RoutinatorBinary)) {
     $routinatorDest = Join-Path $workdir "routinator.exe"
     Copy-Item -Path $RoutinatorBinary -Destination $routinatorDest -Force
     $zipInputs += $routinatorDest
+}
+
+if ($Iperf3RuntimeArchive -and (Test-Path $Iperf3RuntimeArchive)) {
+    $iperf3RuntimeDir = Join-Path $workdir "iperf3-runtime"
+    New-Item -ItemType Directory -Path $iperf3RuntimeDir -Force | Out-Null
+    Expand-Archive -Path $Iperf3RuntimeArchive -DestinationPath $iperf3RuntimeDir -Force
+    $zipInputs += Get-ChildItem -Path $iperf3RuntimeDir -File | ForEach-Object { $_.FullName }
+} elseif ($Iperf3Binary -and (Test-Path $Iperf3Binary)) {
+    $iperf3Dest = Join-Path $workdir "iperf3.exe"
+    Copy-Item -Path $Iperf3Binary -Destination $iperf3Dest -Force
+    $zipInputs += $iperf3Dest
 }
 
 if (Test-Path $outputPath) { Remove-Item $outputPath -Force }

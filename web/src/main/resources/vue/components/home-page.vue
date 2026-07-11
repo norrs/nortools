@@ -45,6 +45,7 @@ app.component("home-page", {
             { name: "HTTPS / SSL", path: "/https", icon: "🔒", description: "Check HTTPS and SSL/TLS details" },
             { name: "ZeroConf Discovery", path: "/zeroconf", icon: "📶", description: "Discover local devices over mDNS, SSDP, WS-Discovery, LLMNR, and NetBIOS" },
             { name: "Interfaces & Routing", path: "/network-interfaces", icon: "🧭", description: "Inspect interfaces, routes, and DNS settings" },
+            { name: "iperf3 Throughput", path: "/iperf", description: "Measure TCP and UDP throughput with local and discovered iperf3 servers" },
             { name: "Ping", path: "/ping", icon: "📡", description: "Ping a host to check reachability" },
             { name: "Traceroute", path: "/traceroute", icon: "🗺️", description: "Visual network path tracing" },
           ],
