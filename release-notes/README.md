@@ -26,6 +26,12 @@ Examples:
 # Archive missing release notes and show which releases would be pruned.
 GITHUB_TOKEN=... python script/release/archive_github_releases.py --repo norrs/nortools
 
+# Print the archived release notes for releases that would be pruned, without deleting anything.
+GITHUB_TOKEN=... python script/release/archive_github_releases.py --repo norrs/nortools --print-notes prune-candidates
+
+# Rewrite the archive so the newest release notes are first and the oldest are last.
+GITHUB_TOKEN=... python script/release/archive_github_releases.py --repo norrs/nortools --reorder-archive
+
 # Archive notes, keep the newest 10 GitHub releases, and delete older releases.
 GITHUB_TOKEN=... python script/release/archive_github_releases.py --repo norrs/nortools --prune
 ```

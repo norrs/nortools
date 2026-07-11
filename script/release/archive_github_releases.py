@@ -49,6 +49,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also delete matching git tags when --prune deletes releases.",
     )
+    parser.add_argument(
+        "--print-notes",
+        choices=("appended", "prune-candidates", "all"),
+        nargs="?",
+        const="appended",
+        default=None,
+        help=(
+            "Print release note bodies without pruning. With no value, prints notes "
+            "for newly appended releases. Use 'prune-candidates' to preview the "
+            "notes that are safely archived before deletion, or 'all' to print every release."
+        ),
+    )
+    parser.add_argument(
+        "--reorder-archive",
+        action="store_true",
+        help="Rewrite the archive file so archived release entries are newest first.",
+    )
     return parser.parse_args()
 
 
@@ -149,11 +166,15 @@ def release_entry(release: dict[str, Any]) -> str:
     )
 
 
+def archived_tag_order(content: str) -> list[str]:
+    return re.findall(r"<!-- nortools-release-archive:([^>]+) -->", content)
+
+
 def append_missing_releases(archive_path: Path, releases: list[dict[str, Any]]) -> list[str]:
     content = ensure_archive_file(archive_path)
     appended: list[str] = []
     with archive_path.open("a", encoding="utf-8", newline="\n") as fh:
-        for release in reversed(releases):
+        for release in releases:
             tag = str(release.get("tag_name") or "")
             if not tag or marker_for(tag) in content:
                 continue
@@ -163,6 +184,52 @@ def append_missing_releases(archive_path: Path, releases: list[dict[str, Any]]) 
             content += "\n" + entry
             appended.append(tag)
     return appended
+
+
+def split_archive(content: str) -> tuple[str, dict[str, str]]:
+    pattern = re.compile(
+        r"\n*(<!-- nortools-release-archive:(?P<tag>[^>]+) -->.*?<!-- /nortools-release-archive:(?P=tag) -->)\s*",
+        re.DOTALL,
+    )
+    entries: dict[str, str] = {}
+    first_match = pattern.search(content)
+    header = content[: first_match.start()] if first_match else content
+    for match in pattern.finditer(content):
+        entries[match.group("tag")] = match.group(1).rstrip() + "\n"
+    return header.rstrip() + "\n\n", entries
+
+
+def reorder_archive_file(archive_path: Path, releases: list[dict[str, Any]]) -> list[str]:
+    content = ensure_archive_file(archive_path)
+    header, entries = split_archive(content)
+    ordered_tags: list[str] = []
+    seen = set()
+    for release in releases:
+        tag = str(release.get("tag_name") or "")
+        if tag in entries and tag not in seen:
+            ordered_tags.append(tag)
+            seen.add(tag)
+    for tag in archived_tag_order(content):
+        if tag in entries and tag not in seen:
+            ordered_tags.append(tag)
+            seen.add(tag)
+    new_content = header + "\n".join(entries[tag].rstrip() for tag in ordered_tags) + "\n"
+    if new_content != content:
+        with archive_path.open("w", encoding="utf-8", newline="\n") as fh:
+            fh.write(new_content)
+    return ordered_tags
+
+
+def print_release_notes(title: str, releases: list[dict[str, Any]]) -> None:
+    print(title)
+    if not releases:
+        print("  (none)")
+        return
+    for release in releases:
+        tag = str(release.get("tag_name") or "untagged")
+        print("")
+        print(f"--- {tag} ---")
+        print(release_entry(release).rstrip())
 
 
 def delete_release(repo: str, release: dict[str, Any], token: str) -> None:
@@ -198,19 +265,35 @@ def main() -> int:
     releases = fetch_releases(args.repo, token)
     releases.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     appended = append_missing_releases(Path(args.archive), releases)
+    if args.reorder_archive:
+        ordered_tags = reorder_archive_file(Path(args.archive), releases)
+        print(f"Reordered archive newest-first: {len(ordered_tags)} entries")
 
     prune_candidates = releases[args.keep :]
+    appended_tags = set(appended)
     print(f"Fetched releases: {len(releases)}")
     print(f"Archived new release notes: {len(appended)}")
+    if not appended:
+        print(f"Archive already contained all fetched release notes: {args.archive}")
     for tag in appended:
         print(f"  archived {tag}")
     print(f"Retention: keeping newest {args.keep}; old releases: {len(prune_candidates)}")
+
+    if args.print_notes:
+        if args.print_notes == "appended":
+            notes_to_print = [release for release in releases if str(release.get("tag_name") or "") in appended_tags]
+            print_release_notes("Release notes appended in this run:", notes_to_print)
+        elif args.print_notes == "prune-candidates":
+            print_release_notes("Archived release notes for releases that would be pruned:", prune_candidates)
+        elif args.print_notes == "all":
+            print_release_notes("All fetched release notes:", releases)
 
     if not prune_candidates:
         return 0
 
     if not args.prune:
         print("Dry run: pass --prune to delete old GitHub releases after archiving.")
+        print("Use --print-notes prune-candidates to print archived notes for old releases before pruning.")
         for release in prune_candidates:
             print(f"  would prune {release.get('tag_name')} ({release.get('html_url')})")
         return 0
