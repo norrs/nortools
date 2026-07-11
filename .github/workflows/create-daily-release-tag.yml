@@ -10,6 +10,7 @@ on:
         type: boolean
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -34,6 +35,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Create and push daily release tag
+        id: daily_tag
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +44,22 @@ jobs:
           else
             script/tag_daily_release.sh
           fi
+
+      - name: Trigger all-platform release workflow
+        if: ${{ inputs.dry_run != true }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.daily_tag.outputs.tag }}"
+          if [[ -z "${tag}" ]]; then
+            echo "Daily release tag output was empty." >&2
+            exit 1
+          fi
+          gh workflow run release-desktop-all.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            --field "tag=${tag}"
 
   unauthorized:
     if: github.actor != 'norrs'

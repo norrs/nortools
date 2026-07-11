@@ -84,6 +84,9 @@ fi
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "[dry-run] Would create tag: ${tag}"
   echo "[dry-run] Would push tag to ${REMOTE}: ${tag}"
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+  fi
   exit 0
 fi
 
@@ -91,3 +94,6 @@ git tag "$tag"
 git push "$REMOTE" "$tag"
 
 echo "Created and pushed tag: ${tag}"
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+fi
