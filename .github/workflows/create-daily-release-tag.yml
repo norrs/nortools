@@ -1,0 +1,54 @@
+name: Create Daily Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the tag that would be created without pushing it"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  create-tag:
+    if: github.actor == 'norrs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git author
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push daily release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            script/tag_daily_release.sh --dry-run
+          else
+            script/tag_daily_release.sh
+          fi
+
+  unauthorized:
+    if: github.actor != 'norrs'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse non-owner run
+        shell: bash
+        run: |
+          echo "This workflow may only be run by norrs." >&2
+          exit 1
