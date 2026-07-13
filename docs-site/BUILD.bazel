@@ -1,0 +1,90 @@
+package(default_visibility = ["//visibility:public"])
+load("@@aspect_rules_js++npm+npm__hugo-bin__0.149.2//docs-site:package_json.bzl", hugo_bin = "bin")
+
+DOCS_SITE_SRCS = glob(
+    [
+        "content/**",
+        "data/**",
+        "hugo.toml",
+        "layouts/**",
+        "scripts/**",
+        "static/**",
+    ],
+    allow_empty = True,
+    exclude = [
+        "content/reference/cli.md",
+        "content/reference/standards.md",
+        "content/reference/ui-routes.md",
+        "content/tools/*.md",
+        "public/**",
+        "resources/**",
+        "static/assets/nortools-logo.png",
+        "static/generated/**",
+        "static/screenshots/**",
+    ],
+) + [
+    "//:README.md",
+    "//:RFC.md",
+    "//cli_native:smoke_args",
+    "//cli_native:smoke_test_names",
+    "//docs:screenshots",
+    "//web:web_portal_source",
+]
+
+sh_binary(
+    name = "dev",
+    srcs = ["scripts/dev.sh"],
+    data = DOCS_SITE_SRCS,
+)
+
+sh_binary(
+    name = "capture_command_output",
+    srcs = ["scripts/capture_command_output.sh"],
+    data = DOCS_SITE_SRCS,
+)
+
+hugo_bin.hugo_binary(
+    name = "hugo",
+)
+
+NODE_RUNTIME = "@rules_nodejs//nodejs:current_node_runtime"
+
+NODE_UNIX = "NODE=\"\"; for f in $(locations " + NODE_RUNTIME + "); do case \"$$f\" in */node|*node.exe) NODE=\"$$ROOT/$$f\";; esac; done; test -n \"$$NODE\""
+
+NODE_WINDOWS = "(for %F in ($(locations " + NODE_RUNTIME + ")) do if /I \"%~nxF\"==\"node.exe\" set \"NODE=%CD%\\%F\")"
+
+HUGO_PACKAGE = ":hugo"
+
+HUGO_UNIX = "$$ROOT/$(location " + HUGO_PACKAGE + ")"
+
+POWERSHELL = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File docs-site\\scripts\\bazel-docs.ps1"
+
+genrule(
+    name = "generate_reference",
+    srcs = DOCS_SITE_SRCS,
+    outs = ["generate_reference.marker"],
+    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && echo generated > \"$$ROOT/$@\"",
+    cmd_bat = POWERSHELL + " -Mode generate -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
+    tools = [NODE_RUNTIME],
+)
+
+genrule(
+    name = "check",
+    srcs = DOCS_SITE_SRCS,
+    outs = ["check.marker"],
+    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && echo checked > \"$$ROOT/$@\"",
+    cmd_bat = POWERSHELL + " -Mode check -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
+    tools = [NODE_RUNTIME],
+)
+
+genrule(
+    name = "docs_site",
+    srcs = DOCS_SITE_SRCS,
+    outs = ["docs_site_build.marker"],
+    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"" + HUGO_UNIX + "\" --minify && echo built > \"$$ROOT/$@\"",
+    cmd_bat = POWERSHELL + " -Mode build -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\" -HugoWrapper \"$(location " + HUGO_PACKAGE + ")\"",
+    tools = [
+        HUGO_PACKAGE,
+        NODE_RUNTIME,
+    ],
+)
