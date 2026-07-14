@@ -55,9 +55,9 @@ jobs:
         run: mise x -- bazelisk build //docs-site:docs_site
       - name: Stage Pages artifact
         run: |
-          EXECROOT="$(mise x -- bazelisk info execution_root)"
           rm -rf _site
-          cp -R "$EXECROOT/docs-site/public" _site
+          mkdir -p _site
+          tar -xzf bazel-bin/docs-site/docs_site_public.tar.gz -C _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

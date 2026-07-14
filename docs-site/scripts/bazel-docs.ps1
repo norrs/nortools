@@ -55,4 +55,17 @@ if ($Mode -eq "build") {
 Set-Location $root
 $outputPath = Join-Path $root $Output
 New-Item -ItemType Directory -Force -Path (Split-Path $outputPath -Parent) | Out-Null
-Set-Content -Path $outputPath -Value "$Mode`n" -NoNewline
+if ($Mode -eq "build") {
+    $public = Join-Path $root "docs-site\public"
+    if (-not (Test-Path $public)) {
+        throw "Unable to locate generated Hugo public directory at $public"
+    }
+    $tar = Join-Path $env:SystemRoot "System32\tar.exe"
+    if (-not (Test-Path $tar)) {
+        $tar = "tar"
+    }
+    & $tar -C $public -czf $outputPath "."
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+} else {
+    Set-Content -Path $outputPath -Value "$Mode`n" -NoNewline
+}
