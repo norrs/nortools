@@ -1,0 +1,10 @@
+{
+  "command": "ds",
+  "title": "Ds",
+  "smokeArgsFile": "native_linux_cli_smoke_ds.args",
+  "invocation": "nortools ds --json --server 1.1.1.1 cloudflare.com",
+  "capturedAt": "2026-07-12T21:58:08.185Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Key Tag\": \"2371\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Digest Type\": \"2 (SHA-256)\",\n    \"Digest\": \"32996839A6D808AFE3EB4A795A0E6A7A39A76FC52FF228B22B76F6D63826F2B9\",\n    \"TTL\": \"86400s\"\n  }\n]"
+}

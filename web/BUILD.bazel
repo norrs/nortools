@@ -12,6 +12,12 @@ build_data_info(
     main_class = "no.norrs.nortools.web.WebPortalKt",
 )
 
+filegroup(
+    name = "web_portal_source",
+    srcs = ["src/main/kotlin/no/norrs/nortools/web/WebPortal.kt"],
+    visibility = ["//visibility:public"],
+)
+
 kt_jvm_library(
     name = "web_lib",
     resources = glob(["src/main/resources/vue/**"]) + [

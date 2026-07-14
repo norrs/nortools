@@ -1,0 +1,10 @@
+{
+  "command": "bulk",
+  "title": "Bulk",
+  "smokeArgsFile": "native_linux_cli_smoke_bulk.args",
+  "invocation": "nortools bulk --json cli_native/samples/domains.txt --type A",
+  "capturedAt": "2026-07-12T21:57:42.658Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "Bulk A lookup for 3 entries\r\n\r\n[\n  {\n    \"Query\": \"example.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"104.20.23.154; 172.66.147.243\",\n    \"TTL\": \"115s\"\n  },\n  {\n    \"Query\": \"google.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"142.251.142.238\",\n    \"TTL\": \"185s\"\n  },\n  {\n    \"Query\": \"8.8.8.8\",\n    \"Status\": \"NXDOMAIN\",\n    \"Records\": \"No records\",\n    \"TTL\": \"-\"\n  }\n]\r\n\r\nResults: 2/3 successful"
+}

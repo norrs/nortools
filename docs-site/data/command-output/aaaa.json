@@ -1,0 +1,10 @@
+{
+  "command": "aaaa",
+  "title": "Aaaa",
+  "smokeArgsFile": "native_linux_cli_smoke_aaaa.args",
+  "invocation": "nortools aaaa --json example.com",
+  "capturedAt": "2026-07-12T21:57:30.463Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Address\": \"2606:4700:10:0:0:0:ac42:93f3\",\n    \"TTL\": \"142s\"\n  },\n  {\n    \"Address\": \"2606:4700:10:0:0:0:6814:179a\",\n    \"TTL\": \"142s\"\n  }\n]"
+}

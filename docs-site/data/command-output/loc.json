@@ -1,0 +1,10 @@
+{
+  "command": "loc",
+  "title": "Loc",
+  "smokeArgsFile": "native_linux_cli_smoke_loc.args",
+  "invocation": "nortools loc --json example.com",
+  "capturedAt": "2026-07-12T21:58:14.594Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "No LOC records found for example.com"
+}

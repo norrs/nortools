@@ -1,0 +1,10 @@
+.hugo_build.lock
+public/
+resources/
+static/assets/nortools-logo.png
+static/generated/
+static/screenshots/
+content/reference/cli.md
+content/reference/standards.md
+content/reference/ui-routes.md
+content/tools/*.md

@@ -1,0 +1,10 @@
+{
+  "command": "nsec3param",
+  "title": "Nsec3param",
+  "smokeArgsFile": "native_linux_cli_smoke_nsec3param.args",
+  "invocation": "nortools nsec3param --json cloudflare.com",
+  "capturedAt": "2026-07-12T21:58:21.667Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "NSEC3PARAM lookup failed for cloudflare.com: NOERROR"
+}

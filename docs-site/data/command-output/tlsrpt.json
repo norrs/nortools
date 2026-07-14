@@ -1,0 +1,10 @@
+{
+  "command": "tlsrpt",
+  "title": "Tlsrpt",
+  "smokeArgsFile": "native_linux_cli_smoke_tlsrpt.args",
+  "invocation": "nortools tlsrpt --json google.com",
+  "capturedAt": "2026-07-12T21:58:41.332Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"google.com\",\n  \"TLSRPT Domain\": \"_smtp._tls.google.com\",\n  \"TLSRPT Record\": \"v\\u003dTLSRPTv1;rua\\u003dmailto:sts-reports@google.com\",\n  \"Version\": \"TLSRPTv1\",\n  \"Report URI(s)\": \"mailto:sts-reports@google.com\",\n  \"TTL\": \"176s\"\n}"
+}

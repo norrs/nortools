@@ -1,0 +1,10 @@
+{
+  "command": "mailflow",
+  "title": "Mailflow",
+  "smokeArgsFile": "native_linux_cli_smoke_mailflow.args",
+  "invocation": "nortools mailflow --json example.com",
+  "capturedAt": "2026-07-12T21:58:15.796Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== Mail Flow Diagnostic: example.com ===\r\n\r\nTesting primary MX: \r\n\r\n[\n  {\n    \"Step\": \"MX Resolution\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX: 0 .\"\n  },\n  {\n    \"Step\": \"MX A Record\",\n    \"Status\": \"FAIL\",\n    \"Details\": \"No A record for \"\n  }\n]"
+}

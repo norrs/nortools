@@ -1,0 +1,10 @@
+{
+  "command": "subnet-calc",
+  "title": "Subnet Calc",
+  "smokeArgsFile": "native_linux_cli_smoke_subnet_calc.args",
+  "invocation": "nortools subnet-calc --json 192.168.1.0/24",
+  "capturedAt": "2026-07-12T21:58:39.606Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"CIDR\": \"192.168.1.0/24\",\n  \"IP Address\": \"192.168.1.0\",\n  \"Network Address\": \"192.168.1.0\",\n  \"Broadcast Address\": \"192.168.1.255\",\n  \"Subnet Mask\": \"255.255.255.0\",\n  \"Wildcard Mask\": \"0.0.0.255\",\n  \"First Host\": \"192.168.1.1\",\n  \"Last Host\": \"192.168.1.254\",\n  \"Total Hosts\": 254,\n  \"Prefix Length\": \"/24\",\n  \"IP Class\": \"C\",\n  \"Private\": \"Yes (192.168.0.0/16)\"\n}"
+}

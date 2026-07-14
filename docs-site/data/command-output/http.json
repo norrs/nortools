@@ -1,0 +1,10 @@
+{
+  "command": "http",
+  "title": "Http",
+  "smokeArgsFile": "native_linux_cli_smoke_http.args",
+  "invocation": "nortools http --json http://example.com",
+  "capturedAt": "2026-07-12T21:58:10.445Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"URL\": \"http://example.com\",\n  \"Status Code\": \"200\",\n  \"Response Time\": \"100ms\",\n  \"Server\": \"cloudflare\",\n  \"Content-Type\": \"text/html\"\n}"
+}

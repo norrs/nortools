@@ -1,0 +1,10 @@
+{
+  "command": "mta-sts",
+  "title": "Mta Sts",
+  "smokeArgsFile": "native_linux_cli_smoke_mta_sts.args",
+  "invocation": "nortools mta-sts --json google.com",
+  "capturedAt": "2026-07-12T21:58:17.493Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"google.com\",\n  \"MTA-STS Record\": \"v\\u003dSTSv1; id\\u003d20210803T010101;\",\n  \"Version\": \"STSv1\",\n  \"ID\": \"20210803T010101\",\n  \"TTL\": \"175s\",\n  \"Policy URL\": \"https://mta-sts.google.com/.well-known/mta-sts.txt\",\n  \"Policy Status\": \"Found (HTTP 200)\",\n  \"Policy Version\": \"STSv1\",\n  \"Mode\": \"enforce (require TLS)\",\n  \"MX Patterns\": \"smtp.google.com, aspmx.l.google.com, *.aspmx.l.google.com\",\n  \"Max Age\": \"86400s (1d)\"\n}"
+}

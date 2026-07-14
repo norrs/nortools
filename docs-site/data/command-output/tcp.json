@@ -1,0 +1,10 @@
+{
+  "command": "tcp",
+  "title": "Tcp",
+  "smokeArgsFile": "native_linux_cli_smoke_tcp.args",
+  "invocation": "nortools tcp --json example.com 443",
+  "capturedAt": "2026-07-12T21:58:40.157Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Host\": \"example.com\",\n  \"Port\": 443,\n  \"Status\": \"OPEN\",\n  \"Response Time\": \"37ms\"\n}"
+}

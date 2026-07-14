@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "assets/nortools-icon.png",
+    "assets/nortools-logo.png",
+])
+
+filegroup(
+    name = "screenshots",
+    srcs = glob(["screenshots/*.png"]),
+)

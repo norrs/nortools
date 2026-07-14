@@ -1,0 +1,10 @@
+{
+  "command": "dns-health",
+  "title": "Dns Health",
+  "smokeArgsFile": "native_linux_cli_smoke_dns_health.args",
+  "invocation": "nortools dns-health --json example.com",
+  "capturedAt": "2026-07-12T21:57:53.763Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "DNS Health Check: example.com\r\n\r\n[\n  {\n    \"Check\": \"SOA Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"elliott.ns.cloudflare.com. dns.cloudflare.com. 2407636105 10000 2400 604800 1800\"\n  },\n  {\n    \"Check\": \"NS Records\",\n    \"Status\": \"PASS\",\n    \"Details\": \"2 nameservers: elliott.ns.cloudflare.com., hera.ns.cloudflare.com.\"\n  },\n  {\n    \"Check\": \"A Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"172.66.147.243, 104.20.23.154\"\n  },\n  {\n    \"Check\": \"AAAA Record (IPv6)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"2606:4700:10:0:0:0:6814:179a, 2606:4700:10:0:0:0:ac42:93f3\"\n  },\n  {\n    \"Check\": \"MX Records\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX records found\"\n  },\n  {\n    \"Check\": \"SPF Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dspf1 -all\"\n  },\n  {\n    \"Check\": \"DMARC Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dDMARC1;p\\u003dreject;sp\\u003dreject;adkim\\u003ds;aspf\\u003ds\"\n  },\n  {\n    \"Check\": \"DNSSEC\",\n    \"Status\": \"PASS\",\n    \"Details\": \"4 DNSKEY records found\"\n  },\n  {\n    \"Check\": \"CAA Record\",\n    \"Status\": \"INFO\",\n    \"Details\": \"No CAA records � any CA can issue certificates\"\n  }\n]\r\n\r\nSummary: 8 passed, 0 warnings, 0 failures out of 9 checks"
+}

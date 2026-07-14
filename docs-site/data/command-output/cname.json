@@ -1,0 +1,10 @@
+{
+  "command": "cname",
+  "title": "Cname",
+  "smokeArgsFile": "native_linux_cli_smoke_cname.args",
+  "invocation": "nortools cname --json www.google.com",
+  "capturedAt": "2026-07-12T21:57:44.950Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "CNAME lookup failed for www.google.com: NOERROR"
+}

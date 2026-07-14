@@ -1,0 +1,10 @@
+{
+  "command": "soa",
+  "title": "Soa",
+  "smokeArgsFile": "native_linux_cli_smoke_soa.args",
+  "invocation": "nortools soa --json example.com",
+  "capturedAt": "2026-07-12T21:58:36.177Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"example.com\",\n  \"Primary NS\": \"elliott.ns.cloudflare.com.\",\n  \"Responsible\": \"dns.cloudflare.com.\",\n  \"Serial\": \"2407636105\",\n  \"Refresh\": \"10000s\",\n  \"Retry\": \"2400s\",\n  \"Expire\": \"604800s\",\n  \"Minimum TTL\": \"1800s\",\n  \"TTL\": \"1777s\"\n}"
+}

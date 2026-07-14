@@ -1,0 +1,10 @@
+{
+  "command": "bimi",
+  "title": "Bimi",
+  "smokeArgsFile": "native_linux_cli_smoke_bimi.args",
+  "invocation": "nortools bimi --json google.com",
+  "capturedAt": "2026-07-12T21:57:35.809Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "BIMI lookup failed for default._bimi.google.com: NXDOMAIN"
+}

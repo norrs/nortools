@@ -1,0 +1,10 @@
+{
+  "command": "domain-health",
+  "title": "Domain Health",
+  "smokeArgsFile": "native_linux_cli_smoke_domain_health.args",
+  "invocation": "nortools domain-health --json example.com",
+  "capturedAt": "2026-07-12T21:58:07.506Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== Domain Health Report: example.com ===\r\n\r\n--- DNS ---\r\n--- Email Authentication ---\r\n--- DNSSEC ---\r\n--- Web ---\r\n\r\n[\n  {\n    \"Check\": \"SOA Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"elliott.ns.cloudflare.com. dns.cloudflare.com. 2407636105 10000 2400 604800 1800\"\n  },\n  {\n    \"Check\": \"NS Records (?2)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"2 nameservers\"\n  },\n  {\n    \"Check\": \"A Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"104.20.23.154, 172.66.147.243\"\n  },\n  {\n    \"Check\": \"AAAA Record (IPv6)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"2606:4700:10:0:0:0:ac42:93f3, 2606:4700:10:0:0:0:6814:179a\"\n  },\n  {\n    \"Check\": \"MX Records\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX records\"\n  },\n  {\n    \"Check\": \"SPF Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dspf1 -all\"\n  },\n  {\n    \"Check\": \"DMARC Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dDMARC1;p\\u003dreject;sp\\u003dreject;adkim\\u003ds;aspf\\u003ds\"\n  },\n  {\n    \"Check\": \"DNSSEC (DNSKEY)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"4 keys\"\n  },\n  {\n    \"Check\": \"DNSSEC (DS)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 DS records\"\n  },\n  {\n    \"Check\": \"HTTPS Accessible\",\n    \"Status\": \"PASS\",\n    \"Details\": \"HTTP 200 (296ms)\"\n  },\n  {\n    \"Check\": \"HTTP?HTTPS Redirect\",\n    \"Status\": \"WARN\",\n    \"Details\": \"HTTP 200\"\n  },\n  {\n    \"Check\": \"CAA Record\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not set\"\n  }\n]\r\n\r\nScore: 10 passed, 1 warnings, 0 failures, 1 informational (12 total)"
+}

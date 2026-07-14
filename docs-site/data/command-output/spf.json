@@ -1,0 +1,10 @@
+{
+  "command": "spf",
+  "title": "Spf",
+  "smokeArgsFile": "native_linux_cli_smoke_spf.args",
+  "invocation": "nortools spf --json google.com",
+  "capturedAt": "2026-07-12T21:58:37.358Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"google.com\",\n  \"SPF Record\": \"v\\u003dspf1 include:_spf.google.com ~all\",\n  \"TTL\": \"113s\"\n}\r\n\r\n[\n  {\n    \"Qualifier\": \"Pass\",\n    \"Mechanism\": \"include\",\n    \"Value\": \"_spf.google.com\"\n  },\n  {\n    \"Qualifier\": \"SoftFail\",\n    \"Mechanism\": \"all\",\n    \"Value\": \"\"\n  }\n]"
+}

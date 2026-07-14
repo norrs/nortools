@@ -1,0 +1,10 @@
+{
+  "command": "deliverability",
+  "title": "Deliverability",
+  "smokeArgsFile": "native_linux_cli_smoke_deliverability.args",
+  "invocation": "nortools deliverability --json example.com",
+  "capturedAt": "2026-07-12T21:57:47.459Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== Email Deliverability Report: example.com ===\r\n\r\n[\n  {\n    \"Check\": \"MX Records\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX: 0 .\"\n  },\n  {\n    \"Check\": \"SPF Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dspf1 -all\"\n  },\n  {\n    \"Check\": \"DMARC Record\",\n    \"Status\": \"PASS\",\n    \"Details\": \"Policy: reject � v\\u003dDMARC1;p\\u003dreject;sp\\u003dreject;adkim\\u003ds;aspf\\u003ds\"\n  },\n  {\n    \"Check\": \"DKIM (common selectors)\",\n    \"Status\": \"PASS\",\n    \"Details\": \"Found: default, google, selector1, selector2, k1, dkim, mail\"\n  },\n  {\n    \"Check\": \"MTA-STS\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not configured\"\n  },\n  {\n    \"Check\": \"TLS-RPT\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not configured\"\n  },\n  {\n    \"Check\": \"Reverse DNS (PTR)\",\n    \"Status\": \"INFO\",\n    \"Details\": \"MX target is \\u0027.\\u0027 (null MX) � skipping PTR lookup\"\n  }\n]\r\n\r\nScore: 4 passed, 0 warnings, 0 failures (7 checks)"
+}

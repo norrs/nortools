@@ -1,0 +1,10 @@
+{
+  "command": "dnskey",
+  "title": "Dnskey",
+  "smokeArgsFile": "native_linux_cli_smoke_dnskey.args",
+  "invocation": "nortools dnskey --json --server 1.1.1.1 cloudflare.com",
+  "capturedAt": "2026-07-12T21:58:05.621Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Flags\": \"256 (ZSK (Zone Signing Key))\",\n    \"Protocol\": \"3\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Key Tag\": \"34505\",\n    \"Key Length\": \"512 bits\",\n    \"TTL\": \"595s\"\n  },\n  {\n    \"Flags\": \"257 (KSK (Key Signing Key))\",\n    \"Protocol\": \"3\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Key Tag\": \"2371\",\n    \"Key Length\": \"512 bits\",\n    \"TTL\": \"595s\"\n  }\n]"
+}

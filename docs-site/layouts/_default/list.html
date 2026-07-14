@@ -1,0 +1,17 @@
+{{ define "main" }}
+  <div class="page-shell">
+    {{ partial "section-nav.html" . }}
+    <article class="content">
+      {{ if .Title }}<h1>{{ .Title }}</h1>{{ end }}
+      {{ .Content }}
+      {{ if .RegularPages }}
+        <h2>Pages</h2>
+        <div class="link-list">
+          {{ range .RegularPages.ByTitle }}
+            <a href="{{ .RelPermalink }}">{{ partial "page-title.html" . }}</a>
+          {{ end }}
+        </div>
+      {{ end }}
+    </article>
+  </div>
+{{ end }}

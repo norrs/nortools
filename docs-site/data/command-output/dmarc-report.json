@@ -1,0 +1,10 @@
+{
+  "command": "dmarc-report",
+  "title": "Dmarc Report",
+  "smokeArgsFile": "native_linux_cli_smoke_dmarc_report.args",
+  "invocation": "nortools dmarc-report --json cli_native/samples/dmarc_report.xml",
+  "capturedAt": "2026-07-12T21:57:52.561Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== DMARC Report Summary ===\r\n{\n  \"Organization\": \"Example Org\",\n  \"Email\": \"postmaster@example.com\",\n  \"Report ID\": \"test-report-001\",\n  \"Period Start\": \"2024-01-01T00:00:00Z\",\n  \"Period End\": \"2024-01-02T00:00:00Z\"\n}\r\n\r\n=== Records (1 sources, 1 messages) ===\r\n[\n  {\n    \"Source IP\": \"203.0.113.10\",\n    \"Count\": \"1\",\n    \"Disposition\": \"none\",\n    \"DKIM\": \"pass\",\n    \"SPF\": \"pass\"\n  }\n]\r\n\r\nTotal: 1 messages � 1 passed, 0 failed"
+}

@@ -1,0 +1,9 @@
+{{- if .Title -}}
+  {{- .Title -}}
+{{- else if .IsHome -}}
+  {{- site.Title -}}
+{{- else if eq .File.BaseFileName "_index" -}}
+  {{- path.Base (strings.TrimSuffix "/" .File.Dir) | humanize | title -}}
+{{- else -}}
+  {{- .File.BaseFileName | humanize | title -}}
+{{- end -}}

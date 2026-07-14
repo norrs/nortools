@@ -1,0 +1,10 @@
+{
+  "command": "dkim",
+  "title": "Dkim",
+  "smokeArgsFile": "native_linux_cli_smoke_dkim.args",
+  "invocation": "nortools dkim --json --discover nrk.no",
+  "capturedAt": "2026-07-12T21:57:50.366Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Selector\": \"google\",\n    \"DKIM Domain\": \"google._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"164s\"\n  },\n  {\n    \"Selector\": \"selector1\",\n    \"DKIM Domain\": \"selector1._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDK...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"3476s\"\n  },\n  {\n    \"Selector\": \"k1\",\n    \"DKIM Domain\": \"k1._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDb...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"83833s\"\n  },\n  {\n    \"Selector\": \"mandrill\",\n    \"DKIM Domain\": \"mandrill._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCr...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"3476s\"\n  },\n  {\n    \"Selector\": \"s1\",\n    \"DKIM Domain\": \"s1._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC...\",\n    \"Flags\": \"s\",\n    \"TTL\": \"1676s\"\n  },\n  {\n    \"Selector\": \"s2\",\n    \"DKIM Domain\": \"s2._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCx...\",\n    \"Flags\": \"s\",\n    \"TTL\": \"1676s\"\n  },\n  {\n    \"Selector\": \"key1\",\n    \"DKIM Domain\": \"key1._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"3476s\"\n  },\n  {\n    \"Selector\": \"mx\",\n    \"DKIM Domain\": \"mx._domainkey.nrk.no\",\n    \"Key Type\": \"rsa\",\n    \"Public Key\": \"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC7...\",\n    \"Flags\": \"none\",\n    \"TTL\": \"60s\"\n  }\n]"
+}

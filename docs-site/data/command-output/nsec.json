@@ -1,0 +1,10 @@
+{
+  "command": "nsec",
+  "title": "Nsec",
+  "smokeArgsFile": "native_linux_cli_smoke_nsec.args",
+  "invocation": "nortools nsec --json --server 1.1.1.1 cloudflare.com",
+  "capturedAt": "2026-07-12T21:58:20.488Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Name\": \"cloudflare.com.\",\n    \"Next Domain\": \"\\\\000.cloudflare.com.\",\n    \"Types\": \"A, NS, SOA, HINFO, MX, TXT, AAAA, LOC, SRV, NAPTR, CERT, SSHFP, RRSIG, NSEC, DNSKEY, TLSA, SMIMEA, HIP, CDS, CDNSKEY, OPENPGPKEY, SVCB, HTTPS, URI, CAA\",\n    \"TTL\": \"300s\"\n  }\n]"
+}

@@ -1,0 +1,40 @@
+baseURL = "https://norrs.github.io/nortools/"
+languageCode = "en-us"
+title = "NorTools Documentation"
+enableRobotsTXT = true
+disableKinds = ["taxonomy", "term"]
+
+[markup]
+  [markup.highlight]
+    noClasses = false
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[params]
+  description = "End-user documentation for NorTools command-line and desktop network diagnostics."
+
+[[menu.main]]
+  name = "Start"
+  url = "/getting-started/install/"
+  weight = 10
+
+[[menu.main]]
+  name = "Tools"
+  url = "/tools/"
+  weight = 20
+
+[[menu.main]]
+  name = "Concepts"
+  url = "/concepts/dns-records/"
+  weight = 30
+
+[[menu.main]]
+  name = "Troubleshooting"
+  url = "/troubleshooting/dns/"
+  weight = 40
+
+[[menu.main]]
+  name = "Reference"
+  url = "/reference/cli/"
+  weight = 50

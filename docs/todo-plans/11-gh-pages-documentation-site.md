@@ -45,6 +45,7 @@ Reasoning:
 - VitePress is Markdown-first and lightweight.
 - It builds static HTML suitable for GitHub Pages.
 - It can include generated Markdown pages from scripts.
+- It can render Mermaid diagrams through a Markdown/VitePress plugin.
 - It avoids mixing publishable user docs with `docs/todo-plans` and `docs/archived-plans`.
 
 Suggested layout:
@@ -91,6 +92,42 @@ docs-site/
   scripts/
     generate-tool-reference.mjs
 ```
+
+## Mermaid Diagram Support
+
+The documentation site must support Mermaid diagrams in Markdown. Use this for diagrams that explain flows and relationships more clearly than prose:
+
+- DNS lookup flow from user input to resolver response.
+- DNSSEC chain of trust.
+- SMTP delivery and STARTTLS flow.
+- SPF/DKIM/DMARC alignment.
+- TLS certificate chain and validation steps.
+- Zeroconf discovery protocol flow.
+- Domain health/composite check dependency graphs.
+- Desktop app architecture: native wrapper, embedded web server, Vue UI, CLI tools.
+
+Implementation requirements:
+
+- Add a VitePress-compatible Mermaid renderer, for example `vitepress-plugin-mermaid` or an equivalent maintained plugin.
+- Configure Mermaid in `docs-site/docs/.vitepress/config.ts`.
+- Support light and dark themes.
+- Ensure diagrams are accessible:
+  - Provide a short text summary before or after each diagram.
+  - Do not rely on color alone to communicate state.
+  - Keep node labels readable on mobile.
+- Keep diagram source in Markdown using fenced code blocks:
+
+````md
+```mermaid
+flowchart LR
+  User[User] --> CLI[nortools command]
+  CLI --> Tool[Tool handler]
+  Tool --> Result[Table or JSON output]
+```
+````
+
+- Avoid huge diagrams on individual tool pages. Put larger architecture diagrams under `concepts/` or `reference/`.
+- Mermaid diagrams should be reviewed like code because syntax errors can break the page render.
 
 ## Documentation Principles
 
@@ -316,9 +353,10 @@ Workflow behavior:
 2. Install Node with pnpm.
 3. Run docs generation.
 4. Run link checks and markdown lint.
-5. Build VitePress static site.
-6. Upload Pages artifact.
-7. Deploy with GitHub Pages actions.
+5. Validate Mermaid diagrams.
+6. Build VitePress static site.
+7. Upload Pages artifact.
+8. Deploy with GitHub Pages actions.
 
 Use GitHub's Pages deployment flow rather than pushing generated files to a checked-in `gh-pages` branch unless there is a specific repository reason to keep that branch.
 
@@ -337,6 +375,7 @@ Add CI checks:
 - No broken internal links.
 - No references to `bazelisk run` in end-user quick-start snippets except in developer-only pages.
 - Screenshots referenced by docs exist.
+- Mermaid diagrams parse successfully and render in the built static site.
 
 ## Implementation Steps
 
@@ -346,6 +385,8 @@ Add CI checks:
      - `docs:generate`
      - `docs:build`
      - `docs:check`
+   - Add Mermaid rendering support.
+   - Add a Mermaid validation step to `docs:check`.
 
 2. Create base site structure.
    - Home.
@@ -379,18 +420,26 @@ Add CI checks:
    - ZeroConf Discovery.
    - Samba Browse.
 
-6. Add the Pages workflow.
+6. Add initial Mermaid diagrams.
+   - DNS lookup request/response flow.
+   - DNSSEC chain of trust.
+   - SMTP authentication and delivery flow.
+   - TLS certificate validation flow.
+   - Zeroconf discovery flow.
+
+7. Add the Pages workflow.
    - Build on PR.
    - Deploy on `main`.
    - Document repository Pages settings if manual setup is needed.
 
-7. Add docs contribution guide.
+8. Add docs contribution guide.
    - New tool checklist.
    - Tool page template.
+   - Mermaid diagram style and validation rules.
    - Screenshot update process.
    - How to run local docs site.
 
-8. Add release integration.
+9. Add release integration.
    - For each release, publish docs with the release version and link to latest downloads.
    - Optional later milestone: versioned docs for older releases.
 
@@ -401,5 +450,6 @@ Add CI checks:
 - The site has end-user pages for every current tool category.
 - At least one complete page exists for every current CLI command.
 - Each UI page maps to an equivalent CLI command where one exists.
+- Mermaid diagrams render correctly in local and GitHub Pages builds.
 - The docs are readable by beginners without hiding engineer-level details.
 - Generated command references use `nortools <command>`, not Bazel developer commands.
