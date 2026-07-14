@@ -26,6 +26,7 @@ DOCS_SITE_SRCS = glob(
     "//:RFC.md",
     "//cli_native:smoke_args",
     "//cli_native:smoke_test_names",
+    "//docs:assets/nortools-logo.png",
     "//docs:screenshots",
     "//web:web_portal_source",
 ]
@@ -44,17 +45,15 @@ sh_binary(
 
 NODE_RUNTIME = "@rules_nodejs//nodejs:current_node_runtime"
 
-NODE_UNIX = "NODE=\"\"; for f in $(locations " + NODE_RUNTIME + "); do case \"$$f\" in */node|*node.exe) NODE=\"$$ROOT/$$f\";; esac; done; test -n \"$$NODE\""
-
-HUGO_UNIX = "HUGO=\"\"; if [ -x \"$$ROOT/docs-site/node_modules/hugo-bin/vendor/hugo\" ]; then HUGO=\"$$ROOT/docs-site/node_modules/hugo-bin/vendor/hugo\"; elif command -v hugo >/dev/null 2>&1; then HUGO=\"$$(command -v hugo)\"; fi; test -n \"$$HUGO\""
-
 POWERSHELL = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File docs-site\\scripts\\bazel-docs.ps1"
+
+BAZEL_DOCS_UNIX = "bash docs-site/scripts/bazel-docs.sh"
 
 genrule(
     name = "generate_reference",
     srcs = DOCS_SITE_SRCS,
     outs = ["generate_reference.marker"],
-    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && echo generated > \"$$ROOT/$@\"",
+    cmd = BAZEL_DOCS_UNIX + " --mode generate --output \"$@\" --bindir \"$(BINDIR)\" --node-locations \"$(locations " + NODE_RUNTIME + ")\"",
     cmd_bat = POWERSHELL + " -Mode generate -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
     tools = [NODE_RUNTIME],
 )
@@ -63,7 +62,7 @@ genrule(
     name = "check",
     srcs = DOCS_SITE_SRCS,
     outs = ["check.marker"],
-    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && echo checked > \"$$ROOT/$@\"",
+    cmd = BAZEL_DOCS_UNIX + " --mode check --output \"$@\" --bindir \"$(BINDIR)\" --node-locations \"$(locations " + NODE_RUNTIME + ")\"",
     cmd_bat = POWERSHELL + " -Mode check -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
     tools = [NODE_RUNTIME],
 )
@@ -72,7 +71,7 @@ genrule(
     name = "docs_site",
     srcs = DOCS_SITE_SRCS,
     outs = ["docs_site_public.tar.gz"],
-    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && " + HUGO_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$HUGO\" --minify --cleanDestinationDir && test -f \"$$ROOT/docs-site/public/index.html\" && test -f \"$$ROOT/docs-site/public/index.xml\" && tar -C \"$$ROOT/docs-site/public\" -czf \"$$ROOT/$@\" .",
+    cmd = BAZEL_DOCS_UNIX + " --mode build --output \"$@\" --bindir \"$(BINDIR)\" --node-locations \"$(locations " + NODE_RUNTIME + ")\"",
     cmd_bat = POWERSHELL + " -Mode build -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
     tools = [NODE_RUNTIME],
 )
