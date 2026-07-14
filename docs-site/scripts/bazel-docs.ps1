@@ -10,9 +10,7 @@ param(
     [string] $Bindir,
 
     [Parameter(Mandatory = $true)]
-    [string] $NodeLocations,
-
-    [string] $HugoWrapper = ""
+    [string] $NodeLocations
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,11 +38,15 @@ if ($Mode -eq "check" -or $Mode -eq "build") {
 }
 
 if ($Mode -eq "build") {
-    $wrapper = Join-Path $root $HugoWrapper
-    $execBin = Split-Path (Split-Path (Split-Path $wrapper -Parent) -Parent) -Parent
-    $hugo = Join-Path $execBin "node_modules\.aspect_rules_js\hugo-bin@0.149.2\node_modules\hugo-bin\vendor\hugo.exe"
+    $hugo = Join-Path $root "docs-site\node_modules\hugo-bin\vendor\hugo.exe"
     if (-not (Test-Path $hugo)) {
-        throw "Unable to locate hugo.exe at $hugo"
+        $hugoCommand = Get-Command "hugo" -ErrorAction SilentlyContinue
+        if ($hugoCommand) {
+            $hugo = $hugoCommand.Source
+        }
+    }
+    if (-not (Test-Path $hugo)) {
+        throw "Unable to locate hugo.exe in docs-site node_modules or PATH"
     }
     & $hugo "--minify"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

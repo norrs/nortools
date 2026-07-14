@@ -2,6 +2,16 @@
 package(default_visibility = ["//visibility:public"])
 load(":smoke_tests.bzl", "define_native_linux_cli_smoke_tests")
 
+filegroup(
+    name = "smoke_args",
+    srcs = glob(["smoke/args/*.args"]),
+)
+
+filegroup(
+    name = "smoke_test_names",
+    srcs = ["smoke/test_names.bzl"],
+)
+
 sh_binary(
     name = "native_cli_a",
     srcs = ["run_native_cli.sh"],
