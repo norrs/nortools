@@ -72,7 +72,7 @@ genrule(
     name = "docs_site",
     srcs = DOCS_SITE_SRCS,
     outs = ["docs_site_public.tar.gz"],
-    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && " + HUGO_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$HUGO\" --minify && tar -C \"$$ROOT/docs-site/public\" -czf \"$$ROOT/$@\" .",
+    cmd = "ROOT=\"$$PWD\" && " + NODE_UNIX + " && " + HUGO_UNIX + " && cd \"$$ROOT/docs-site\" && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/generate-tool-reference.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$NODE\" scripts/check-docs.mjs && BAZEL_BINDIR=\"$$ROOT/$(BINDIR)\" \"$$HUGO\" --minify --cleanDestinationDir && test -f \"$$ROOT/docs-site/public/index.html\" && test -f \"$$ROOT/docs-site/public/index.xml\" && tar -C \"$$ROOT/docs-site/public\" -czf \"$$ROOT/$@\" .",
     cmd_bat = POWERSHELL + " -Mode build -Output \"$@\" -Bindir \"$(BINDIR)\" -NodeLocations \"$(locations " + NODE_RUNTIME + ")\"",
     tools = [NODE_RUNTIME],
 )

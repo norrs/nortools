@@ -48,7 +48,7 @@ if ($Mode -eq "build") {
     if (-not (Test-Path $hugo)) {
         throw "Unable to locate hugo.exe in docs-site node_modules or PATH"
     }
-    & $hugo "--minify"
+    & $hugo "--minify" "--cleanDestinationDir"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
@@ -59,6 +59,12 @@ if ($Mode -eq "build") {
     $public = Join-Path $root "docs-site\public"
     if (-not (Test-Path $public)) {
         throw "Unable to locate generated Hugo public directory at $public"
+    }
+    if (-not (Test-Path (Join-Path $public "index.html"))) {
+        throw "Generated Hugo public directory is missing index.html"
+    }
+    if (-not (Test-Path (Join-Path $public "index.xml"))) {
+        throw "Generated Hugo public directory is missing index.xml"
     }
     $tar = Join-Path $env:SystemRoot "System32\tar.exe"
     if (-not (Test-Path $tar)) {
