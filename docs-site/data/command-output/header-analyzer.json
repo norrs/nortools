@@ -1,0 +1,10 @@
+{
+  "command": "header-analyzer",
+  "title": "Header Analyzer",
+  "smokeArgsFile": "native_linux_cli_smoke_header_analyzer.args",
+  "invocation": "nortools header-analyzer --json cli_native/samples/headers.txt",
+  "capturedAt": "2026-07-12T21:58:09.180Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== Key Headers ===\r\n{\n  \"From\": \"Example Sender \\u003csender@example.com\\u003e\",\n  \"To\": \"Example Recipient \\u003crecipient@example.net\\u003e\",\n  \"Subject\": \"Test Message\",\n  \"Date\": \"Tue, 02 Jan 2024 12:34:56 +0000\",\n  \"Message-ID\": \"\\u003ctest123@example.com\\u003e\"\n}"
+}

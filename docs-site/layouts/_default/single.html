@@ -1,0 +1,9 @@
+{{ define "main" }}
+  <div class="page-shell">
+    {{ partial "section-nav.html" . }}
+    <article class="content">
+      {{ if .Title }}<h1>{{ .Title }}</h1>{{ end }}
+      {{ .Content }}
+    </article>
+  </div>
+{{ end }}

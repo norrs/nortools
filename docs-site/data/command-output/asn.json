@@ -1,0 +1,10 @@
+{
+  "command": "asn",
+  "title": "Asn",
+  "smokeArgsFile": "native_linux_cli_smoke_asn.args",
+  "invocation": "nortools asn --json AS13335",
+  "capturedAt": "2026-07-12T21:57:34.632Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"ASN\": \"AS13335\",\n  \"Country\": \"US\",\n  \"Registry\": \"arin\",\n  \"Allocated\": \"2010-07-14\",\n  \"AS Name\": \"CLOUDFLARENET - Cloudflare, Inc., US\",\n  \"Name\": \"CLOUDFLARENET\",\n  \"Route Validation\": \"Not applicable (requires IP/prefix input)\"\n}"
+}

@@ -1,0 +1,10 @@
+{
+  "command": "ns",
+  "title": "Ns",
+  "smokeArgsFile": "native_linux_cli_smoke_ns.args",
+  "invocation": "nortools ns --json example.com",
+  "capturedAt": "2026-07-12T21:58:19.834Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Name Server\": \"hera.ns.cloudflare.com.\",\n    \"TTL\": \"66534s\"\n  },\n  {\n    \"Name Server\": \"elliott.ns.cloudflare.com.\",\n    \"TTL\": \"66534s\"\n  }\n]"
+}

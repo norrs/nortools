@@ -1,0 +1,10 @@
+{
+  "command": "dmarc",
+  "title": "Dmarc",
+  "smokeArgsFile": "native_linux_cli_smoke_dmarc.args",
+  "invocation": "nortools dmarc --json google.com",
+  "capturedAt": "2026-07-12T21:57:51.566Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"google.com\",\n  \"DMARC Record\": \"v\\u003dDMARC1; p\\u003dreject; rua\\u003dmailto:mailauth-reports@google.com\",\n  \"Version\": \"DMARC1\",\n  \"Policy\": \"reject (block delivery)\",\n  \"Subdomain Policy\": \"same as domain policy\",\n  \"PCT\": \"100%\",\n  \"DKIM Alignment\": \"relaxed\",\n  \"SPF Alignment\": \"relaxed\",\n  \"Aggregate Reports (rua)\": \"mailto:mailauth-reports@google.com\",\n  \"Forensic Reports (ruf)\": \"not configured\",\n  \"Report Format\": \"afrf\",\n  \"Report Interval\": \"86400s\",\n  \"Failure Options\": \"0\",\n  \"TTL\": \"300s\"\n}"
+}

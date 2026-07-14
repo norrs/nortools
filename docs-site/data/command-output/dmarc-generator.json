@@ -1,0 +1,10 @@
+{
+  "command": "dmarc-generator",
+  "title": "Dmarc Generator",
+  "smokeArgsFile": "native_linux_cli_smoke_dmarc_generator.args",
+  "invocation": "nortools dmarc-generator --json example.com --policy none",
+  "capturedAt": "2026-07-12T21:57:52.036Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Domain\": \"example.com\",\n  \"DMARC Record\": \"v\\u003dDMARC1; p\\u003dnone\",\n  \"DNS Name\": \"_dmarc.example.com\",\n  \"Policy\": \"none (monitor only)\",\n  \"DKIM Alignment\": \"relaxed\",\n  \"SPF Alignment\": \"relaxed\",\n  \"Percentage\": \"100%\",\n  \"Aggregate Reports\": \"not configured\",\n  \"Forensic Reports\": \"not configured\"\n}\r\n\r\nDNS TXT Record:\r\n_dmarc.example.com  IN  TXT  \"v=DMARC1; p=none\""
+}

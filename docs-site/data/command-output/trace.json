@@ -1,0 +1,10 @@
+{
+  "command": "trace",
+  "title": "Trace",
+  "smokeArgsFile": "native_linux_cli_smoke_trace.args",
+  "invocation": "nortools trace --json example.com",
+  "capturedAt": "2026-07-12T21:58:41.875Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "Traceroute failed: Cannot run program \"traceroute\": CreateProcess error=2, The system cannot find the file specified"
+}

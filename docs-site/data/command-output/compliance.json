@@ -1,0 +1,10 @@
+{
+  "command": "compliance",
+  "title": "Compliance",
+  "smokeArgsFile": "native_linux_cli_smoke_compliance.args",
+  "invocation": "nortools compliance --json example.com",
+  "capturedAt": "2026-07-12T21:57:46.162Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "=== Email Compliance Report: example.com ===\r\n(Based on Google/Yahoo 2024 bulk sender requirements)\r\n\r\n[\n  {\n    \"Check\": \"SPF Authentication\",\n    \"Requirement\": \"Required\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dspf1 -all\"\n  },\n  {\n    \"Check\": \"DKIM Authentication\",\n    \"Requirement\": \"Required\",\n    \"Status\": \"PASS\",\n    \"Details\": \"DKIM found\"\n  },\n  {\n    \"Check\": \"DMARC Record\",\n    \"Requirement\": \"Required\",\n    \"Status\": \"PASS\",\n    \"Details\": \"v\\u003dDMARC1;p\\u003dreject;sp\\u003dreject;adkim\\u003ds;aspf\\u003ds\"\n  },\n  {\n    \"Check\": \"DMARC Policy (p\\u003dquarantine|reject)\",\n    \"Requirement\": \"Recommended\",\n    \"Status\": \"PASS\",\n    \"Details\": \"Policy: reject\"\n  },\n  {\n    \"Check\": \"MTA-STS (RFC 8461)\",\n    \"Requirement\": \"Recommended\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not configured\"\n  },\n  {\n    \"Check\": \"TLS-RPT (RFC 8460)\",\n    \"Requirement\": \"Recommended\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not configured\"\n  },\n  {\n    \"Check\": \"BIMI (Brand Indicators)\",\n    \"Requirement\": \"Optional\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Not configured\"\n  },\n  {\n    \"Check\": \"TLS Support (STARTTLS)\",\n    \"Requirement\": \"Required\",\n    \"Status\": \"INFO\",\n    \"Details\": \"Run smtp tool to verify STARTTLS\"\n  }\n]\r\n\r\nCompliance: 4 passed, 0 warnings, 0 failures (8 checks)"
+}

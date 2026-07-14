@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="{{ site.Language.LanguageCode }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ site.Params.description }}">
+    <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ partial "page-title.html" . }} | {{ site.Title }}{{ end }}</title>
+    <link rel="stylesheet" href="{{ "css/site.css" | relURL }}">
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script defer src="{{ "js/site.js" | relURL }}"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="{{ site.Home.RelPermalink }}">
+        <img class="brand-logo" src="{{ "assets/nortools-logo.png" | relURL }}" alt="NorTools">
+      </a>
+      <nav aria-label="Main navigation">
+        {{ range site.Menus.main }}
+          <a href="{{ .URL | relURL }}">{{ .Name }}</a>
+        {{ end }}
+      </nav>
+    </header>
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    <footer class="site-footer">
+      <span>NorTools documentation</span>
+      <a href="{{ "reference/cli/" | relURL }}">CLI reference</a>
+      <a href="{{ "reference/ui-routes/" | relURL }}">UI reference</a>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{{- $section := site.GetPage "section" .Section -}}
+{{- if $section -}}
+  <aside class="side-nav" aria-label="Section pages">
+    <strong>{{ partial "page-title.html" $section }}</strong>
+    {{ $sections := where $section.Pages "Kind" "section" }}
+    {{ $pages := where $section.Pages "Kind" "page" }}
+    {{ if $sections }}
+      <span class="side-nav-label">Categories</span>
+      {{ range $sections.ByTitle }}
+        <a href="{{ .RelPermalink }}">{{ partial "page-title.html" . }}</a>
+      {{ end }}
+    {{ end }}
+    {{ if $pages }}
+      <span class="side-nav-label">Commands</span>
+      {{ range $pages.ByTitle }}
+        <a href="{{ .RelPermalink }}">{{ partial "page-title.html" . }}</a>
+      {{ end }}
+    {{ end }}
+  </aside>
+{{- end -}}

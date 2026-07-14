@@ -1,0 +1,10 @@
+{
+  "command": "mx",
+  "title": "Mx",
+  "smokeArgsFile": "native_linux_cli_smoke_mx.args",
+  "invocation": "nortools mx --json gmail.com",
+  "capturedAt": "2026-07-12T21:58:18.669Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Preference\": \"5\",\n    \"Hostname\": \"gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"10\",\n    \"Hostname\": \"alt1.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"20\",\n    \"Hostname\": \"alt2.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"30\",\n    \"Hostname\": \"alt3.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"40\",\n    \"Hostname\": \"alt4.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  }\n]"
+}

@@ -1,0 +1,10 @@
+{
+  "command": "rrsig",
+  "title": "Rrsig",
+  "smokeArgsFile": "native_linux_cli_smoke_rrsig.args",
+  "invocation": "nortools rrsig --json --server 1.1.1.1 cloudflare.com",
+  "capturedAt": "2026-07-12T21:58:25.592Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"Type Covered\": \"DNSKEY\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Labels\": \"2\",\n    \"Original TTL\": \"3600s\",\n    \"Expiration\": \"2026-09-08 04:55:32 UTC\",\n    \"Inception\": \"2026-07-09 04:55:32 UTC\",\n    \"Key Tag\": \"2371\",\n    \"Signer\": \"cloudflare.com.\",\n    \"TTL\": \"1245s\"\n  }\n]"
+}

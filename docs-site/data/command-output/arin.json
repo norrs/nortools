@@ -1,0 +1,10 @@
+{
+  "command": "arin",
+  "title": "Arin",
+  "smokeArgsFile": "native_linux_cli_smoke_arin.args",
+  "invocation": "nortools arin --json 8.8.8.8",
+  "capturedAt": "2026-07-12T21:57:32.470Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"IP\": \"8.8.8.8\",\n  \"Network Name\": \"GOGL\",\n  \"Handle\": \"NET-8-8-8-0-2\",\n  \"CIDR\": \"8.8.8.0/24\",\n  \"Start Address\": \"8.8.8.0\",\n  \"End Address\": \"8.8.8.255\",\n  \"IP Version\": \"v4\",\n  \"Type\": \"DIRECT ALLOCATION\",\n  \"Organization (registrant)\": \"Google LLC\",\n  \"Last changed\": \"2023-12-28T17:24:56-05:00\",\n  \"Registration\": \"2023-12-28T17:24:33-05:00\"\n}"
+}

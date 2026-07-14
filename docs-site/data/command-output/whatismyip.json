@@ -1,0 +1,10 @@
+{
+  "command": "whatismyip",
+  "title": "Whatismyip",
+  "smokeArgsFile": "native_linux_cli_smoke_whatismyip.args",
+  "invocation": "nortools whatismyip --json",
+  "capturedAt": "2026-07-12T21:58:45.647Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"IP (ifconfig.me)\": \"8.8.8.8\",\n  \"IP (icanhazip.com)\": \"8.8.8.8\",\n  \"IP (ipify.org)\": \"8.8.8.8\",\n  \"IP (ipify.org (v6))\": \"2001:4860:4860::8888\"\n}"
+}

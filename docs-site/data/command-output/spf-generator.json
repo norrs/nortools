@@ -1,0 +1,10 @@
+{
+  "command": "spf-generator",
+  "title": "Spf Generator",
+  "smokeArgsFile": "native_linux_cli_smoke_spf_generator.args",
+  "invocation": "nortools spf-generator --json --include _spf.google.com --ip4 203.0.113.0/24 --all softfail",
+  "capturedAt": "2026-07-12T21:58:37.886Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"SPF Record\": \"v\\u003dspf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\",\n  \"DNS Lookups\": \"1 / 10\",\n  \"Record Length\": \"54 chars\"\n}\r\n\r\nTXT Record Value:\r\n\"v=spf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\""
+}

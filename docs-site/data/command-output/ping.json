@@ -1,0 +1,10 @@
+{
+  "command": "ping",
+  "title": "Ping",
+  "smokeArgsFile": "native_linux_cli_smoke_ping.args",
+  "invocation": "nortools ping --json --count 2 example.com",
+  "capturedAt": "2026-07-12T21:58:23.775Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "{\n  \"Host\": \"example.com\",\n  \"Packets Sent\": \"2\",\n  \"Status\": \"Reachable\"\n}\r\n\r\n[\n  {\n    \"From\": \"104.20.23.154\",\n    \"Time\": \"8ms\"\n  },\n  {\n    \"From\": \"104.20.23.154\",\n    \"Time\": \"8ms\"\n  }\n]"
+}

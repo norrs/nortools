@@ -1,0 +1,10 @@
+{
+  "command": "ipseckey",
+  "title": "Ipseckey",
+  "smokeArgsFile": "native_linux_cli_smoke_ipseckey.args",
+  "invocation": "nortools ipseckey --json example.com",
+  "capturedAt": "2026-07-12T21:58:13.377Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "No IPSECKEY records found for example.com"
+}

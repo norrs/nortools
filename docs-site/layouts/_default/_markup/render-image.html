@@ -1,0 +1,5 @@
+<figure>
+  {{ $destination := strings.TrimPrefix "/" .Destination }}
+  <img src="{{ $destination | relURL }}" alt="{{ .Text }}" loading="lazy">
+  {{ with .Title }}<figcaption>{{ . }}</figcaption>{{ end }}
+</figure>

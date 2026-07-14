@@ -1,0 +1,10 @@
+{
+  "command": "ptr",
+  "title": "Ptr",
+  "smokeArgsFile": "native_linux_cli_smoke_ptr.args",
+  "invocation": "nortools ptr --json 8.8.8.8",
+  "capturedAt": "2026-07-12T21:58:24.937Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "[\n  {\n    \"IP Address\": \"8.8.8.8\",\n    \"Hostname\": \"dns.google.\",\n    \"TTL\": \"30750s\"\n  }\n]"
+}

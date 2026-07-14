@@ -1,0 +1,10 @@
+{
+  "command": "srv",
+  "title": "Srv",
+  "smokeArgsFile": "native_linux_cli_smoke_srv.args",
+  "invocation": "nortools srv --json _sip._tcp.google.com",
+  "capturedAt": "2026-07-12T21:58:39.098Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "SRV lookup failed for _sip._tcp.google.com: NXDOMAIN"
+}

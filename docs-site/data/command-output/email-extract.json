@@ -1,0 +1,10 @@
+{
+  "command": "email-extract",
+  "title": "Email Extract",
+  "smokeArgsFile": "native_linux_cli_smoke_email_extract.args",
+  "invocation": "nortools email-extract --json cli_native/samples/emails.txt",
+  "capturedAt": "2026-07-12T21:58:08.683Z",
+  "exitCode": 0,
+  "timedOut": false,
+  "output": "Found 3 email addresses\r\n\r\n[\n  {\n    \"Email\": \"support@example.com\",\n    \"Local Part\": \"support\",\n    \"Domain\": \"example.com\"\n  },\n  {\n    \"Email\": \"sales@example.org\",\n    \"Local Part\": \"sales\",\n    \"Domain\": \"example.org\"\n  },\n  {\n    \"Email\": \"first.last+tag@sub.example.co.uk\",\n    \"Local Part\": \"first.last+tag\",\n    \"Domain\": \"sub.example.co.uk\"\n  }\n]"
+}

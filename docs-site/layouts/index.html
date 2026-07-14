@@ -1,0 +1,22 @@
+{{ define "main" }}
+  <section class="hero">
+    <p class="eyebrow">Network diagnostics for CLI and desktop users</p>
+    <h1>{{ .Title }}</h1>
+    {{ with .Params.tagline }}<p class="tagline">{{ . }}</p>{{ end }}
+    <div class="actions">
+      <a class="button primary" href="{{ "getting-started/install/" | relURL }}">Get Started</a>
+      <a class="button" href="{{ "tools/" | relURL }}">Browse Tools</a>
+    </div>
+  </section>
+  <section class="feature-strip" aria-label="Documentation focus">
+    {{ range .Params.features }}
+      <article>
+        <h2>{{ .title }}</h2>
+        <p>{{ .details }}</p>
+      </article>
+    {{ end }}
+  </section>
+  <article class="content">
+    {{ .Content }}
+  </article>
+{{ end }}
