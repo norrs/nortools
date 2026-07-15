@@ -1,10 +1,14 @@
 {
   "command": "bimi",
-  "title": "Bimi",
+  "title": "BIMI",
   "smokeArgsFile": "native_linux_cli_smoke_bimi.args",
   "invocation": "nortools bimi --json google.com",
-  "capturedAt": "2026-07-12T21:57:35.809Z",
+  "helpInvocation": "nortools bimi --help",
+  "capturedAt": "2026-07-15T18:31:24.566Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: bimi [<options>] <domain>\n\n  Look up BIMI records for a domain.\n\nOptions:\n  --json                 Output results in JSON format\n  -s, --server=<text>    DNS server to query (default: system resolver)\n  -t, --timeout=<int>    Query timeout in seconds\n  -S, --selector=<text>  BIMI selector (default: 'default')\n  -h, --help             Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up BIMI records for",
   "output": "BIMI lookup failed for default._bimi.google.com: NXDOMAIN"
 }

@@ -1,10 +1,14 @@
 {
   "command": "nsec",
-  "title": "Nsec",
+  "title": "NSEC",
   "smokeArgsFile": "native_linux_cli_smoke_nsec.args",
   "invocation": "nortools nsec --json --server 1.1.1.1 cloudflare.com",
-  "capturedAt": "2026-07-12T21:58:20.488Z",
+  "helpInvocation": "nortools nsec --help",
+  "capturedAt": "2026-07-15T18:31:53.719Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: nsec [<options>] <domain>\n\n  Look up NSEC records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up NSEC records for",
   "output": "[\n  {\n    \"Name\": \"cloudflare.com.\",\n    \"Next Domain\": \"\\\\000.cloudflare.com.\",\n    \"Types\": \"A, NS, SOA, HINFO, MX, TXT, AAAA, LOC, SRV, NAPTR, CERT, SSHFP, RRSIG, NSEC, DNSKEY, TLSA, SMIMEA, HIP, CDS, CDNSKEY, OPENPGPKEY, SVCB, HTTPS, URI, CAA\",\n    \"TTL\": \"300s\"\n  }\n]"
 }

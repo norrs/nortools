@@ -1,10 +1,14 @@
 {
   "command": "rrsig",
-  "title": "Rrsig",
+  "title": "RRSIG",
   "smokeArgsFile": "native_linux_cli_smoke_rrsig.args",
   "invocation": "nortools rrsig --json --server 1.1.1.1 cloudflare.com",
-  "capturedAt": "2026-07-12T21:58:25.592Z",
+  "helpInvocation": "nortools rrsig --help",
+  "capturedAt": "2026-07-15T18:31:58.040Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "[\n  {\n    \"Type Covered\": \"DNSKEY\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Labels\": \"2\",\n    \"Original TTL\": \"3600s\",\n    \"Expiration\": \"2026-09-08 04:55:32 UTC\",\n    \"Inception\": \"2026-07-09 04:55:32 UTC\",\n    \"Key Tag\": \"2371\",\n    \"Signer\": \"cloudflare.com.\",\n    \"TTL\": \"1245s\"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: rrsig [<options>] <domain>\n\n  Look up DNSSEC RRSIG records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -T, --type=<text>    Filter by covered record type (e.g., A, AAAA, MX)\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up RRSIG records for",
+  "output": "[\n  {\n    \"Type Covered\": \"DNSKEY\",\n    \"Algorithm\": \"13 (ECDSAP256SHA256)\",\n    \"Labels\": \"2\",\n    \"Original TTL\": \"3600s\",\n    \"Expiration\": \"2026-09-08 04:55:32 UTC\",\n    \"Inception\": \"2026-07-09 04:55:32 UTC\",\n    \"Key Tag\": \"2371\",\n    \"Signer\": \"cloudflare.com.\",\n    \"TTL\": \"2251s\"\n  }\n]"
 }

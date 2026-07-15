@@ -1,52 +1,302 @@
 {
-  "a": "Look up A (IPv4 address) records for a domain.",
-  "aaaa": "Look up AAAA (IPv6 address) records for a domain.",
-  "arin": "Look up IP address information from ARIN.",
-  "asn": "Look up Autonomous System Number information and route validity.",
-  "bimi": "Look up BIMI records for a domain.",
-  "blacklist": "Check an IP address against DNS-based blacklists.",
-  "blocklist": "Check a domain against URI and domain blocklists.",
-  "bulk": "Run DNS lookups for a list of domains.",
-  "cert": "Look up DNS CERT records for a domain.",
-  "cname": "Look up CNAME records for a domain.",
-  "compliance": "Check email compliance requirements for a domain.",
-  "deliverability": "Check email deliverability factors for a domain.",
-  "dkim": "Look up DKIM records or discover common DKIM selectors.",
-  "dmarc": "Look up and analyze DMARC policy for a domain.",
-  "dmarc-generator": "Generate a DMARC record from policy settings.",
-  "dmarc-report": "Parse and analyze DMARC aggregate XML reports.",
-  "dns-health": "Run a comprehensive DNS health check for a domain.",
-  "dns-propagation": "Check DNS propagation across public resolvers.",
-  "dnskey": "Look up DNSKEY records for a domain.",
-  "domain-health": "Run combined DNS, mail, web, and reputation checks.",
-  "ds": "Look up DS records for a domain.",
-  "email-extract": "Extract email addresses from text input.",
-  "header-analyzer": "Analyze email headers from a file or stdin.",
-  "http": "Check HTTP connectivity and response details for a URL.",
-  "https": "Check HTTPS connectivity and TLS certificate details.",
-  "ipseckey": "Look up DNS IPSECKEY records for a domain or IP.",
-  "loc": "Look up DNS LOC geographic location records.",
-  "mailflow": "Run an end-to-end mail flow diagnostic.",
-  "mta-sts": "Look up and validate MTA-STS policy for a domain.",
-  "mx": "Look up MX records for a domain.",
-  "ns": "Look up NS records for a domain.",
-  "nsec": "Look up NSEC records for a domain.",
-  "nsec3param": "Look up NSEC3PARAM records for a domain.",
-  "password-gen": "Generate cryptographically secure random passwords.",
-  "ping": "Ping a host using ICMP echo requests.",
-  "ptr": "Perform a reverse DNS PTR lookup for an IP address.",
-  "rrsig": "Look up DNSSEC RRSIG records for a domain.",
-  "smtp": "Test SMTP connectivity and STARTTLS behavior.",
-  "soa": "Look up SOA records for a domain.",
-  "samba-browse": "Browse SMB/Samba server metadata and shares.",
-  "spf": "Look up and analyze SPF records for a domain.",
-  "spf-generator": "Generate an SPF record from selected mechanisms.",
-  "srv": "Look up SRV service records for a domain.",
-  "subnet-calc": "Calculate subnet details from CIDR notation.",
-  "tcp": "Check TCP port connectivity and optionally grab a banner.",
-  "tlsrpt": "Look up SMTP TLS reporting policy for a domain.",
-  "trace": "Trace the network route to a host.",
-  "txt": "Look up TXT records for a domain.",
-  "whatismyip": "Show the current public IP address.",
-  "whois": "Look up WHOIS registration information."
+  "a": {
+    "description": "Look up A (IPv4 address) records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "aaaa": {
+    "description": "Look up AAAA (IPv6 address) records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "arin": {
+    "description": "Look up IP address information from ARIN.",
+    "category": "WHOIS, RDAP, ASN, And RPKI",
+    "uiPath": "Home -> RPKI Route",
+    "icon": "🛣️"
+  },
+  "asn": {
+    "description": "Look up Autonomous System Number information and route validity.",
+    "category": "WHOIS, RDAP, ASN, And RPKI",
+    "uiPath": "Home -> RPKI Route",
+    "icon": "🛣️"
+  },
+  "bimi": {
+    "description": "Look up BIMI records for a domain.",
+    "category": "Email Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "📧"
+  },
+  "blacklist": {
+    "description": "Check an IP address against DNS-based blacklists.",
+    "category": "Security And Blocklist Tools",
+    "uiPath": "Home -> Blacklist",
+    "icon": "🚫"
+  },
+  "blocklist": {
+    "description": "Check a domain against URI and domain blocklists.",
+    "category": "Security And Blocklist Tools",
+    "uiPath": "Home -> Blacklist",
+    "icon": "🚫"
+  },
+  "bulk": {
+    "description": "Run DNS lookups for a list of domains.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "cert": {
+    "description": "Look up DNS CERT records for a domain.",
+    "category": "Security And Blocklist Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "cname": {
+    "description": "Look up CNAME records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "compliance": {
+    "description": "Check email compliance requirements for a domain.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "💊"
+  },
+  "deliverability": {
+    "description": "Check email deliverability factors for a domain.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "💊"
+  },
+  "dkim": {
+    "description": "Look up DKIM records or discover common DKIM selectors.",
+    "category": "Email Tools",
+    "uiPath": "Home -> DKIM",
+    "icon": "🔑"
+  },
+  "dmarc": {
+    "description": "Look up and analyze DMARC policy for a domain.",
+    "category": "Email Tools",
+    "uiPath": "Home -> DMARC",
+    "icon": "🛡️"
+  },
+  "dmarc-generator": {
+    "description": "Generate a DMARC record from policy settings.",
+    "category": "Email Tools",
+    "uiPath": "Home -> DMARC Generator",
+    "icon": "⚙️"
+  },
+  "dmarc-report": {
+    "description": "Parse and analyze DMARC aggregate XML reports.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "💊"
+  },
+  "dns-health": {
+    "description": "Run a comprehensive DNS health check for a domain.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> DNS Health",
+    "icon": "🏥"
+  },
+  "dns-propagation": {
+    "description": "Check DNS propagation across public resolvers.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "dnskey": {
+    "description": "Look up DNSKEY records for a domain.",
+    "category": "DNSSEC Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "domain-health": {
+    "description": "Run combined DNS, mail, web, and reputation checks.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "💊"
+  },
+  "ds": {
+    "description": "Look up DS records for a domain.",
+    "category": "DNSSEC Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "email-extract": {
+    "description": "Extract email addresses from text input.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> Email Extract",
+    "icon": "✉️"
+  },
+  "header-analyzer": {
+    "description": "Analyze email headers from a file or stdin.",
+    "category": "Email Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "📧"
+  },
+  "http": {
+    "description": "Check HTTP connectivity and response details for a URL.",
+    "category": "Network Tools",
+    "uiPath": "Home -> HTTP Check",
+    "icon": "🌐"
+  },
+  "https": {
+    "description": "Check HTTPS connectivity and TLS certificate details.",
+    "category": "Network Tools",
+    "uiPath": "Home -> HTTPS / SSL",
+    "icon": "🔒"
+  },
+  "ipseckey": {
+    "description": "Look up DNS IPSECKEY records for a domain or IP.",
+    "category": "Security And Blocklist Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "loc": {
+    "description": "Look up DNS LOC geographic location records.",
+    "category": "Security And Blocklist Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🚫"
+  },
+  "mailflow": {
+    "description": "Run an end-to-end mail flow diagnostic.",
+    "category": "Composite Report Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "💊"
+  },
+  "mta-sts": {
+    "description": "Look up and validate MTA-STS policy for a domain.",
+    "category": "Email Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "📧"
+  },
+  "mx": {
+    "description": "Look up MX records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "ns": {
+    "description": "Look up NS records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "nsec": {
+    "description": "Look up NSEC records for a domain.",
+    "category": "DNSSEC Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "nsec3param": {
+    "description": "Look up NSEC3PARAM records for a domain.",
+    "category": "DNSSEC Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "password-gen": {
+    "description": "Generate cryptographically secure random passwords.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> Password Generator",
+    "icon": "🔐"
+  },
+  "ping": {
+    "description": "Ping a host using ICMP echo requests.",
+    "category": "Network Tools",
+    "uiPath": "Home -> Ping",
+    "icon": "📡"
+  },
+  "ptr": {
+    "description": "Perform a reverse DNS PTR lookup for an IP address.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> Reverse DNS",
+    "icon": "🔄"
+  },
+  "rrsig": {
+    "description": "Look up DNSSEC RRSIG records for a domain.",
+    "category": "DNSSEC Tools",
+    "uiPath": "Home -> DNSSEC Lookup",
+    "icon": "🔐"
+  },
+  "smtp": {
+    "description": "Test SMTP connectivity and STARTTLS behavior.",
+    "category": "Email Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "📧"
+  },
+  "soa": {
+    "description": "Look up SOA records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "samba-browse": {
+    "description": "Browse SMB/Samba server metadata and shares.",
+    "category": "ZeroConf And Local Discovery Tools",
+    "uiPath": "Home -> Samba Browse",
+    "icon": "📶"
+  },
+  "spf": {
+    "description": "Look up and analyze SPF records for a domain.",
+    "category": "Email Tools",
+    "uiPath": "Home -> SPF",
+    "icon": "📧"
+  },
+  "spf-generator": {
+    "description": "Generate an SPF record from selected mechanisms.",
+    "category": "Email Tools",
+    "uiPath": "Home -> SPF Generator",
+    "icon": "⚙️"
+  },
+  "srv": {
+    "description": "Look up SRV service records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "subnet-calc": {
+    "description": "Calculate subnet details from CIDR notation.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> Subnet Calculator",
+    "icon": "🧮"
+  },
+  "tcp": {
+    "description": "Check TCP port connectivity and optionally grab a banner.",
+    "category": "Network Tools",
+    "uiPath": "Home -> TCP Check",
+    "icon": "🔌"
+  },
+  "tlsrpt": {
+    "description": "Look up SMTP TLS reporting policy for a domain.",
+    "category": "Email Tools",
+    "uiPath": "Home -> Domain Health",
+    "icon": "📧"
+  },
+  "trace": {
+    "description": "Trace the network route to a host.",
+    "category": "Network Tools",
+    "uiPath": "Home -> Traceroute",
+    "icon": "🗺️"
+  },
+  "txt": {
+    "description": "Look up TXT records for a domain.",
+    "category": "DNS Tools",
+    "uiPath": "Home -> DNS Lookup",
+    "icon": "🔍"
+  },
+  "whatismyip": {
+    "description": "Show the current public IP address.",
+    "category": "Utility Tools",
+    "uiPath": "Home -> What Is My IP",
+    "icon": "🏠"
+  },
+  "whois": {
+    "description": "Look up WHOIS registration information.",
+    "category": "WHOIS, RDAP, ASN, And RPKI",
+    "uiPath": "Home -> WHOIS Lookup",
+    "icon": "📋"
+  }
 }

@@ -1,10 +1,14 @@
 {
   "command": "asn",
-  "title": "Asn",
+  "title": "ASN",
   "smokeArgsFile": "native_linux_cli_smoke_asn.args",
   "invocation": "nortools asn --json AS13335",
-  "capturedAt": "2026-07-12T21:57:34.632Z",
+  "helpInvocation": "nortools asn --help",
+  "capturedAt": "2026-07-15T18:31:23.903Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: asn [<options>] <query>\n\n  Look up Autonomous System Number information and route validity.\n\nOptions:\n  --json                   Output results in JSON format\n  -s, --server=<text>      DNS server to query (default: system resolver)\n  -t, --timeout=<int>      Query timeout in seconds\n  --skip-route-validation  Skip RPKI route origin validation (Routinator)\n  --routinator-bin=<text>  Explicit path to Routinator binary (otherwise uses\n                           env, embedded binary, or PATH)\n  -h, --help               Show this message and exit\n\nArguments:\n  <query>  ASN number (e.g., AS13335) or IP address",
   "output": "{\n  \"ASN\": \"AS13335\",\n  \"Country\": \"US\",\n  \"Registry\": \"arin\",\n  \"Allocated\": \"2010-07-14\",\n  \"AS Name\": \"CLOUDFLARENET - Cloudflare, Inc., US\",\n  \"Name\": \"CLOUDFLARENET\",\n  \"Route Validation\": \"Not applicable (requires IP/prefix input)\"\n}"
 }

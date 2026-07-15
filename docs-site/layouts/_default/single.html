@@ -2,7 +2,16 @@
   <div class="page-shell">
     {{ partial "section-nav.html" . }}
     <article class="content">
-      {{ if .Title }}<h1>{{ .Title }}</h1>{{ end }}
+      {{ if .Title }}
+        {{ if and (eq .Section "tools") (eq .Kind "page") .Params.icon }}
+          <div class="command-title">
+            <span class="command-title-icon" aria-hidden="true">{{ .Params.icon }}</span>
+            <h1>{{ .Title }}</h1>
+          </div>
+        {{ else }}
+          <h1>{{ .Title }}</h1>
+        {{ end }}
+      {{ end }}
       {{ .Content }}
     </article>
   </div>

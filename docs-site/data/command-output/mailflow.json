@@ -3,8 +3,12 @@
   "title": "Mailflow",
   "smokeArgsFile": "native_linux_cli_smoke_mailflow.args",
   "invocation": "nortools mailflow --json example.com",
-  "capturedAt": "2026-07-12T21:58:15.796Z",
+  "helpInvocation": "nortools mailflow --help",
+  "capturedAt": "2026-07-15T18:31:50.370Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "=== Mail Flow Diagnostic: example.com ===\r\n\r\nTesting primary MX: \r\n\r\n[\n  {\n    \"Step\": \"MX Resolution\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX: 0 .\"\n  },\n  {\n    \"Step\": \"MX A Record\",\n    \"Status\": \"FAIL\",\n    \"Details\": \"No A record for \"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: mailflow [<options>] <domain>\n\n  Run an end-to-end mail flow diagnostic.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to check mail flow for",
+  "output": "=== Mail Flow Diagnostic: example.com ===\n\nTesting primary MX: \n\n[\n  {\n    \"Step\": \"MX Resolution\",\n    \"Status\": \"PASS\",\n    \"Details\": \"1 MX: 0 .\"\n  },\n  {\n    \"Step\": \"MX A Record\",\n    \"Status\": \"FAIL\",\n    \"Details\": \"No A record for \"\n  }\n]"
 }

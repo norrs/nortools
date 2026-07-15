@@ -3,8 +3,12 @@
   "title": "Subnet Calc",
   "smokeArgsFile": "native_linux_cli_smoke_subnet_calc.args",
   "invocation": "nortools subnet-calc --json 192.168.1.0/24",
-  "capturedAt": "2026-07-12T21:58:39.606Z",
+  "helpInvocation": "nortools subnet-calc --help",
+  "capturedAt": "2026-07-15T18:32:09.438Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: subnet-calc [<options>] <cidr>\n\n  Calculate subnet details from CIDR notation.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <cidr>  CIDR notation (e.g., 192.168.1.0/24 or 10.0.0.0/8)",
   "output": "{\n  \"CIDR\": \"192.168.1.0/24\",\n  \"IP Address\": \"192.168.1.0\",\n  \"Network Address\": \"192.168.1.0\",\n  \"Broadcast Address\": \"192.168.1.255\",\n  \"Subnet Mask\": \"255.255.255.0\",\n  \"Wildcard Mask\": \"0.0.0.255\",\n  \"First Host\": \"192.168.1.1\",\n  \"Last Host\": \"192.168.1.254\",\n  \"Total Hosts\": 254,\n  \"Prefix Length\": \"/24\",\n  \"IP Class\": \"C\",\n  \"Private\": \"Yes (192.168.0.0/16)\"\n}"
 }

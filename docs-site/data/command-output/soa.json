@@ -1,10 +1,14 @@
 {
   "command": "soa",
-  "title": "Soa",
+  "title": "SOA",
   "smokeArgsFile": "native_linux_cli_smoke_soa.args",
   "invocation": "nortools soa --json example.com",
-  "capturedAt": "2026-07-12T21:58:36.177Z",
+  "helpInvocation": "nortools soa --help",
+  "capturedAt": "2026-07-15T18:32:06.817Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "{\n  \"Domain\": \"example.com\",\n  \"Primary NS\": \"elliott.ns.cloudflare.com.\",\n  \"Responsible\": \"dns.cloudflare.com.\",\n  \"Serial\": \"2407636105\",\n  \"Refresh\": \"10000s\",\n  \"Retry\": \"2400s\",\n  \"Expire\": \"604800s\",\n  \"Minimum TTL\": \"1800s\",\n  \"TTL\": \"1777s\"\n}"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: soa [<options>] <domain>\n\n  Look up SOA records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up SOA records for",
+  "output": "{\n  \"Domain\": \"example.com\",\n  \"Primary NS\": \"elliott.ns.cloudflare.com.\",\n  \"Responsible\": \"dns.cloudflare.com.\",\n  \"Serial\": \"2407636105\",\n  \"Refresh\": \"10000s\",\n  \"Retry\": \"2400s\",\n  \"Expire\": \"604800s\",\n  \"Minimum TTL\": \"1800s\",\n  \"TTL\": \"1768s\"\n}"
 }

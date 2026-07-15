@@ -1,10 +1,14 @@
 {
   "command": "tcp",
-  "title": "Tcp",
+  "title": "TCP",
   "smokeArgsFile": "native_linux_cli_smoke_tcp.args",
   "invocation": "nortools tcp --json example.com 443",
-  "capturedAt": "2026-07-12T21:58:40.157Z",
+  "helpInvocation": "nortools tcp --help",
+  "capturedAt": "2026-07-15T18:32:10.038Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "{\n  \"Host\": \"example.com\",\n  \"Port\": 443,\n  \"Status\": \"OPEN\",\n  \"Response Time\": \"37ms\"\n}"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: tcp [<options>] <host> <port>\n\n  Check TCP port connectivity and optionally grab a banner.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -b, --banner         Attempt to grab server banner\n  -c, --common         Scan common ports for the host\n  -h, --help           Show this message and exit\n\nArguments:\n  <host>  Host to connect to\n  <port>  Port number to check",
+  "output": "{\n  \"Host\": \"example.com\",\n  \"Port\": 443,\n  \"Status\": \"OPEN\",\n  \"Response Time\": \"23ms\"\n}"
 }

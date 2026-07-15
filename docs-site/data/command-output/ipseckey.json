@@ -1,10 +1,14 @@
 {
   "command": "ipseckey",
-  "title": "Ipseckey",
+  "title": "IPSECKEY",
   "smokeArgsFile": "native_linux_cli_smoke_ipseckey.args",
   "invocation": "nortools ipseckey --json example.com",
-  "capturedAt": "2026-07-12T21:58:13.377Z",
+  "helpInvocation": "nortools ipseckey --help",
+  "capturedAt": "2026-07-15T18:31:49.109Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: ipseckey [<options>] <query>\n\n  Look up DNS IPSECKEY records for a domain or IP.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <query>  Domain name or reverse IP to look up IPSECKEY records for",
   "output": "No IPSECKEY records found for example.com"
 }

@@ -1,10 +1,14 @@
 {
   "command": "aaaa",
-  "title": "Aaaa",
+  "title": "AAAA",
   "smokeArgsFile": "native_linux_cli_smoke_aaaa.args",
   "invocation": "nortools aaaa --json example.com",
-  "capturedAt": "2026-07-12T21:57:30.463Z",
+  "helpInvocation": "nortools aaaa --help",
+  "capturedAt": "2026-07-15T18:31:19.901Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "[\n  {\n    \"Address\": \"2606:4700:10:0:0:0:ac42:93f3\",\n    \"TTL\": \"142s\"\n  },\n  {\n    \"Address\": \"2606:4700:10:0:0:0:6814:179a\",\n    \"TTL\": \"142s\"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: aaaa [<options>] <domain>\n\n  Look up AAAA (IPv6 address) records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up AAAA records for",
+  "output": "[\n  {\n    \"Address\": \"2606:4700:10:0:0:0:6814:179a\",\n    \"TTL\": \"128s\"\n  },\n  {\n    \"Address\": \"2606:4700:10:0:0:0:ac42:93f3\",\n    \"TTL\": \"128s\"\n  }\n]"
 }

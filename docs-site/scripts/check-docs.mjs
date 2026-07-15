@@ -93,10 +93,23 @@ function checkGeneratedCommandPages() {
     errors.push("missing command descriptions data file")
     return
   }
-  const descriptions = JSON.parse(readFileSync(commandDescriptionsFile, "utf8"))
+  const descriptions = Object.fromEntries(
+    Object.entries(JSON.parse(readFileSync(commandDescriptionsFile, "utf8"))).map(([command, value]) => {
+      if (typeof value === "string") {
+        return [command, { description: value, category: null }]
+      }
+      return [command, value]
+    }),
+  )
   for (const entry of smokeCommands()) {
-    if (!descriptions[entry.command]) {
+    if (!descriptions[entry.command]?.description) {
       errors.push(`missing command description for ${entry.command}`)
+    }
+    if (!descriptions[entry.command]?.category) {
+      errors.push(`missing command category for ${entry.command}`)
+    }
+    if (!descriptions[entry.command]?.icon) {
+      errors.push(`missing command icon for ${entry.command}`)
     }
     const outputFile = path.join(commandOutputRoot, `${entry.command}.json`)
     if (!existsSync(outputFile)) {
@@ -107,14 +120,23 @@ function checkGeneratedCommandPages() {
     if (output.exitCode !== 0) {
       errors.push(`captured output for ${entry.command} has non-zero exitCode ${output.exitCode}`)
     }
+    if (output.helpExitCode !== 0) {
+      errors.push(`captured help for ${entry.command} has non-zero helpExitCode ${output.helpExitCode}`)
+    }
+    if (!output.helpOutput || !output.helpOutput.includes("Usage:")) {
+      errors.push(`captured help for ${entry.command} is missing Usage output`)
+    }
     const pageFile = path.join(contentRoot, "tools", `${entry.command}.md`)
     if (!existsSync(pageFile)) {
       errors.push(`generated command page missing for ${entry.command}`)
       continue
     }
     const pageText = readFileSync(pageFile, "utf8")
-    if (descriptions[entry.command] && !pageText.includes(descriptions[entry.command])) {
+    if (descriptions[entry.command]?.description && !pageText.includes(descriptions[entry.command].description)) {
       errors.push(`generated command page for ${entry.command} does not include its description`)
+    }
+    if (descriptions[entry.command]?.category && !pageText.includes(descriptions[entry.command].category)) {
+      errors.push(`generated command page for ${entry.command} does not include its category`)
     }
   }
 }

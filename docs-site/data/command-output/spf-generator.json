@@ -1,10 +1,14 @@
 {
   "command": "spf-generator",
-  "title": "Spf Generator",
+  "title": "SPF Generator",
   "smokeArgsFile": "native_linux_cli_smoke_spf_generator.args",
   "invocation": "nortools spf-generator --json --include _spf.google.com --ip4 203.0.113.0/24 --all softfail",
-  "capturedAt": "2026-07-12T21:58:37.886Z",
+  "helpInvocation": "nortools spf-generator --help",
+  "capturedAt": "2026-07-15T18:32:08.107Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "{\n  \"SPF Record\": \"v\\u003dspf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\",\n  \"DNS Lookups\": \"1 / 10\",\n  \"Record Length\": \"54 chars\"\n}\r\n\r\nTXT Record Value:\r\n\"v=spf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\""
+  "helpTimedOut": false,
+  "helpOutput": "Usage: spf-generator [<options>]\n\n  Generate an SPF record from selected mechanisms.\n\nOptions:\n  --json                Output results in JSON format\n  -s, --server=<text>   DNS server to query (default: system resolver)\n  -t, --timeout=<int>   Query timeout in seconds\n  -i, --include=<text>  Include domain (can be repeated)\n  --ip4=<text>          Allowed IPv4 address or CIDR (can be repeated)\n  --ip6=<text>          Allowed IPv6 address or CIDR (can be repeated)\n  --mx=<text>           Allow domain's MX servers\n  --a=<text>            Allow domain's A record\n  --redirect=<text>     Redirect to another domain's SPF\n  --all=<text>          Policy for 'all' mechanism: fail(-all), softfail(~all),\n                        neutral(?all), pass(+all)\n  -h, --help            Show this message and exit",
+  "output": "{\n  \"SPF Record\": \"v\\u003dspf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\",\n  \"DNS Lookups\": \"1 / 10\",\n  \"Record Length\": \"54 chars\"\n}\n\nTXT Record Value:\n\"v=spf1 include:_spf.google.com ip4:203.0.113.0/24 ~all\""
 }

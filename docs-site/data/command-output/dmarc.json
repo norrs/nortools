@@ -1,10 +1,14 @@
 {
   "command": "dmarc",
-  "title": "Dmarc",
+  "title": "DMARC",
   "smokeArgsFile": "native_linux_cli_smoke_dmarc.args",
   "invocation": "nortools dmarc --json google.com",
-  "capturedAt": "2026-07-12T21:57:51.566Z",
+  "helpInvocation": "nortools dmarc --help",
+  "capturedAt": "2026-07-15T18:31:38.886Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
+  "helpTimedOut": false,
+  "helpOutput": "Usage: dmarc [<options>] <domain>\n\n  Look up and analyze DMARC policy for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up DMARC policy for",
   "output": "{\n  \"Domain\": \"google.com\",\n  \"DMARC Record\": \"v\\u003dDMARC1; p\\u003dreject; rua\\u003dmailto:mailauth-reports@google.com\",\n  \"Version\": \"DMARC1\",\n  \"Policy\": \"reject (block delivery)\",\n  \"Subdomain Policy\": \"same as domain policy\",\n  \"PCT\": \"100%\",\n  \"DKIM Alignment\": \"relaxed\",\n  \"SPF Alignment\": \"relaxed\",\n  \"Aggregate Reports (rua)\": \"mailto:mailauth-reports@google.com\",\n  \"Forensic Reports (ruf)\": \"not configured\",\n  \"Report Format\": \"afrf\",\n  \"Report Interval\": \"86400s\",\n  \"Failure Options\": \"0\",\n  \"TTL\": \"300s\"\n}"
 }

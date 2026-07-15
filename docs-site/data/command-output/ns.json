@@ -1,10 +1,14 @@
 {
   "command": "ns",
-  "title": "Ns",
+  "title": "NS",
   "smokeArgsFile": "native_linux_cli_smoke_ns.args",
   "invocation": "nortools ns --json example.com",
-  "capturedAt": "2026-07-12T21:58:19.834Z",
+  "helpInvocation": "nortools ns --help",
+  "capturedAt": "2026-07-15T18:31:53.068Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "[\n  {\n    \"Name Server\": \"hera.ns.cloudflare.com.\",\n    \"TTL\": \"66534s\"\n  },\n  {\n    \"Name Server\": \"elliott.ns.cloudflare.com.\",\n    \"TTL\": \"66534s\"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: ns [<options>] <domain>\n\n  Look up NS records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up NS records for",
+  "output": "[\n  {\n    \"Name Server\": \"hera.ns.cloudflare.com.\",\n    \"TTL\": \"45162s\"\n  },\n  {\n    \"Name Server\": \"elliott.ns.cloudflare.com.\",\n    \"TTL\": \"45162s\"\n  }\n]"
 }

@@ -3,8 +3,12 @@
   "title": "Bulk",
   "smokeArgsFile": "native_linux_cli_smoke_bulk.args",
   "invocation": "nortools bulk --json cli_native/samples/domains.txt --type A",
-  "capturedAt": "2026-07-12T21:57:42.658Z",
+  "helpInvocation": "nortools bulk --help",
+  "capturedAt": "2026-07-15T18:31:32.754Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "Bulk A lookup for 3 entries\r\n\r\n[\n  {\n    \"Query\": \"example.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"104.20.23.154; 172.66.147.243\",\n    \"TTL\": \"115s\"\n  },\n  {\n    \"Query\": \"google.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"142.251.142.238\",\n    \"TTL\": \"185s\"\n  },\n  {\n    \"Query\": \"8.8.8.8\",\n    \"Status\": \"NXDOMAIN\",\n    \"Records\": \"No records\",\n    \"TTL\": \"-\"\n  }\n]\r\n\r\nResults: 2/3 successful"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: bulk [<options>] <file>\n\n  Run DNS lookups for a list of domains.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -T, --type=<text>    Record type (A, AAAA, MX, TXT, CNAME, NS, SOA, PTR)\n  -h, --help           Show this message and exit\n\nArguments:\n  <file>  File containing domains/IPs (one per line)",
+  "output": "Bulk A lookup for 3 entries\n\n[\n  {\n    \"Query\": \"example.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"172.66.147.243; 104.20.23.154\",\n    \"TTL\": \"215s\"\n  },\n  {\n    \"Query\": \"google.com\",\n    \"Status\": \"OK\",\n    \"Records\": \"216.58.201.238\",\n    \"TTL\": \"152s\"\n  },\n  {\n    \"Query\": \"8.8.8.8\",\n    \"Status\": \"NXDOMAIN\",\n    \"Records\": \"No records\",\n    \"TTL\": \"-\"\n  }\n]\n\nResults: 2/3 successful"
 }

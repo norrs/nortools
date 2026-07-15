@@ -12,8 +12,39 @@
     {{ end }}
     {{ if $pages }}
       <span class="side-nav-label">Commands</span>
-      {{ range $pages.ByTitle }}
-        <a href="{{ .RelPermalink }}">{{ partial "page-title.html" . }}</a>
+      {{ if eq .Section "tools" }}
+        {{ $metadata := index hugo.Data "command-descriptions" }}
+        {{ $categories := slice
+          "DNS Tools"
+          "DNSSEC Tools"
+          "Email Tools"
+          "Network Tools"
+          "ZeroConf And Local Discovery Tools"
+          "WHOIS, RDAP, ASN, And RPKI"
+          "Security And Blocklist Tools"
+          "Composite Report Tools"
+          "Utility Tools"
+        }}
+        {{ range $category := $categories }}
+          {{ $categoryPages := slice }}
+          {{ range $page := $pages.ByTitle }}
+            {{ $command := $page.File.BaseFileName }}
+            {{ $entry := index $metadata $command }}
+            {{ if and $entry (eq $entry.category $category) }}
+              {{ $categoryPages = $categoryPages | append $page }}
+            {{ end }}
+          {{ end }}
+          {{ if $categoryPages }}
+            <span class="side-nav-group">{{ $category }}</span>
+            {{ range $categoryPages }}
+              <a class="side-nav-command" href="{{ .RelPermalink }}">{{ with .Params.icon }}<span aria-hidden="true">{{ . }}</span>{{ end }}{{ partial "page-title.html" . }}</a>
+            {{ end }}
+          {{ end }}
+        {{ end }}
+      {{ else }}
+        {{ range $pages.ByTitle }}
+          <a href="{{ .RelPermalink }}">{{ partial "page-title.html" . }}</a>
+        {{ end }}
       {{ end }}
     {{ end }}
   </aside>

@@ -1,10 +1,14 @@
 {
   "command": "tlsrpt",
-  "title": "Tlsrpt",
+  "title": "TLSRPT",
   "smokeArgsFile": "native_linux_cli_smoke_tlsrpt.args",
   "invocation": "nortools tlsrpt --json google.com",
-  "capturedAt": "2026-07-12T21:58:41.332Z",
+  "helpInvocation": "nortools tlsrpt --help",
+  "capturedAt": "2026-07-15T18:32:10.728Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "{\n  \"Domain\": \"google.com\",\n  \"TLSRPT Domain\": \"_smtp._tls.google.com\",\n  \"TLSRPT Record\": \"v\\u003dTLSRPTv1;rua\\u003dmailto:sts-reports@google.com\",\n  \"Version\": \"TLSRPTv1\",\n  \"Report URI(s)\": \"mailto:sts-reports@google.com\",\n  \"TTL\": \"176s\"\n}"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: tlsrpt [<options>] <domain>\n\n  Look up SMTP TLS reporting policy for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up TLSRPT records for",
+  "output": "{\n  \"Domain\": \"google.com\",\n  \"TLSRPT Domain\": \"_smtp._tls.google.com\",\n  \"TLSRPT Record\": \"v\\u003dTLSRPTv1;rua\\u003dmailto:sts-reports@google.com\",\n  \"Version\": \"TLSRPTv1\",\n  \"Report URI(s)\": \"mailto:sts-reports@google.com\",\n  \"TTL\": \"300s\"\n}"
 }

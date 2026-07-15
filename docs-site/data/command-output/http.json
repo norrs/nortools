@@ -1,10 +1,14 @@
 {
   "command": "http",
-  "title": "Http",
+  "title": "HTTP",
   "smokeArgsFile": "native_linux_cli_smoke_http.args",
   "invocation": "nortools http --json http://example.com",
-  "capturedAt": "2026-07-12T21:58:10.445Z",
+  "helpInvocation": "nortools http --help",
+  "capturedAt": "2026-07-15T18:31:47.187Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "{\n  \"URL\": \"http://example.com\",\n  \"Status Code\": \"200\",\n  \"Response Time\": \"100ms\",\n  \"Server\": \"cloudflare\",\n  \"Content-Type\": \"text/html\"\n}"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: http [<options>] <url>\n\n  Check HTTP connectivity and response details for a URL.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -b, --body           Include response body\n  -H, --headers        Show all response headers\n  --no-follow          Don't follow redirects\n  -h, --help           Show this message and exit\n\nArguments:\n  <url>  URL to check (e.g., http://example.com)",
+  "output": "{\n  \"URL\": \"http://example.com\",\n  \"Status Code\": \"200\",\n  \"Response Time\": \"101ms\",\n  \"Server\": \"cloudflare\",\n  \"Content-Type\": \"text/html\"\n}"
 }

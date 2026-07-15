@@ -3,8 +3,12 @@
   "title": "Email Extract",
   "smokeArgsFile": "native_linux_cli_smoke_email_extract.args",
   "invocation": "nortools email-extract --json cli_native/samples/emails.txt",
-  "capturedAt": "2026-07-12T21:58:08.683Z",
+  "helpInvocation": "nortools email-extract --help",
+  "capturedAt": "2026-07-15T18:31:45.480Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "Found 3 email addresses\r\n\r\n[\n  {\n    \"Email\": \"support@example.com\",\n    \"Local Part\": \"support\",\n    \"Domain\": \"example.com\"\n  },\n  {\n    \"Email\": \"sales@example.org\",\n    \"Local Part\": \"sales\",\n    \"Domain\": \"example.org\"\n  },\n  {\n    \"Email\": \"first.last+tag@sub.example.co.uk\",\n    \"Local Part\": \"first.last+tag\",\n    \"Domain\": \"sub.example.co.uk\"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: email-extract [<options>] [<file>]\n\n  Extract email addresses from text input.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -u, --unique         Only show unique email addresses\n  --sort               Sort email addresses alphabetically\n  -d, --domain         Extract only domains from email addresses\n  -h, --help           Show this message and exit\n\nArguments:\n  <file>  File to extract emails from (reads stdin if omitted)",
+  "output": "Found 3 email addresses\n\n[\n  {\n    \"Email\": \"support@example.com\",\n    \"Local Part\": \"support\",\n    \"Domain\": \"example.com\"\n  },\n  {\n    \"Email\": \"sales@example.org\",\n    \"Local Part\": \"sales\",\n    \"Domain\": \"example.org\"\n  },\n  {\n    \"Email\": \"first.last+tag@sub.example.co.uk\",\n    \"Local Part\": \"first.last+tag\",\n    \"Domain\": \"sub.example.co.uk\"\n  }\n]"
 }

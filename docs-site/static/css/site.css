@@ -214,8 +214,50 @@ h3 {
   text-transform: uppercase;
 }
 
+.side-nav-group {
+  color: var(--text);
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin-top: 12px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+}
+
+.side-nav-command {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 10px;
+}
+
 .content {
   max-width: 860px;
+}
+
+.command-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.command-title h1 {
+  margin: 0;
+}
+
+.command-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 1.55rem;
+  line-height: 1;
 }
 
 .content img {

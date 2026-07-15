@@ -118,24 +118,30 @@ let failures = 0
 for (const entry of examples) {
   const args = localArgs(entry.args)
   const result = run("java", ["-jar", jar, ...args], { cleanRunfilesEnv: true })
+  const helpResult = run("java", ["-jar", jar, entry.command, "--help"], { cleanRunfilesEnv: true })
   const output = result.stdout.trimEnd()
   const errorOutput = result.stderr.trimEnd()
+  const helpOutput = (helpResult.stdout || helpResult.stderr || helpResult.error || "").trimEnd()
   const snapshot = {
     command: entry.command,
     title: titleFromCommand(entry.command),
     smokeArgsFile: entry.name,
     invocation: ["nortools", ...args].join(" "),
+    helpInvocation: ["nortools", entry.command, "--help"].join(" "),
     capturedAt: new Date().toISOString(),
     exitCode: result.status,
+    helpExitCode: helpResult.status,
     timedOut: result.signal === "SIGTERM",
+    helpTimedOut: helpResult.signal === "SIGTERM",
+    helpOutput,
     output: output || errorOutput || result.error || "",
   }
 
   writeFileSync(path.join(outputRoot, `${entry.command}.json`), JSON.stringify(snapshot, null, 2))
 
-  if (result.status !== 0) {
+  if (result.status !== 0 || helpResult.status !== 0) {
     failures += 1
-    console.error(`WARN: ${entry.command} exited with ${result.status}`)
+    console.error(`WARN: ${entry.command} exited with ${result.status}; help exited with ${helpResult.status}`)
   } else {
     console.log(`captured ${entry.command}`)
   }

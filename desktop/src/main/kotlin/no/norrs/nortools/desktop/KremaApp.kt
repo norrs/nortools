@@ -501,6 +501,8 @@ private fun runCliIfRequested(args: Array<String>): Boolean {
 private data class CliCommandInfo(
     val name: String,
     val description: String,
+    val category: String,
+    val icon: String?,
 )
 
 private val cliCommandNames = listOf(
@@ -515,7 +517,13 @@ private val cliCommandNames = listOf(
 
 private val cliCommands: List<CliCommandInfo> by lazy {
     cliCommandNames.map { name ->
-        CliCommandInfo(name, CommandDescriptions.descriptionFor(name) ?: "No description available.")
+        val metadata = CommandDescriptions.metadataFor(name)
+        CliCommandInfo(
+            name = name,
+            description = metadata?.description ?: "No description available.",
+            category = metadata?.category ?: "Uncategorized",
+            icon = metadata?.icon,
+        )
     }
 }
 
@@ -601,7 +609,11 @@ private fun printRootHelp() {
 }
 
 private fun printCommandList(printLine: (String) -> Unit) {
-    for (command in cliCommands) {
-        printLine("  ${command.name.padEnd(16)} ${command.description}")
+    for ((category, commands) in cliCommands.groupBy { it.category }) {
+        printLine("  $category")
+        for (command in commands) {
+            val iconPrefix = command.icon?.let { "$it " } ?: ""
+            printLine("    ${iconPrefix}${command.name.padEnd(16)} ${command.description}")
+        }
     }
 }

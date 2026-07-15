@@ -1,10 +1,14 @@
 {
   "command": "mx",
-  "title": "Mx",
+  "title": "MX",
   "smokeArgsFile": "native_linux_cli_smoke_mx.args",
   "invocation": "nortools mx --json gmail.com",
-  "capturedAt": "2026-07-12T21:58:18.669Z",
+  "helpInvocation": "nortools mx --help",
+  "capturedAt": "2026-07-15T18:31:52.418Z",
   "exitCode": 0,
+  "helpExitCode": 0,
   "timedOut": false,
-  "output": "[\n  {\n    \"Preference\": \"5\",\n    \"Hostname\": \"gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"10\",\n    \"Hostname\": \"alt1.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"20\",\n    \"Hostname\": \"alt2.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"30\",\n    \"Hostname\": \"alt3.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  },\n  {\n    \"Preference\": \"40\",\n    \"Hostname\": \"alt4.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"864s\"\n  }\n]"
+  "helpTimedOut": false,
+  "helpOutput": "Usage: mx [<options>] <domain>\n\n  Look up MX records for a domain.\n\nOptions:\n  --json               Output results in JSON format\n  -s, --server=<text>  DNS server to query (default: system resolver)\n  -t, --timeout=<int>  Query timeout in seconds\n  -h, --help           Show this message and exit\n\nArguments:\n  <domain>  Domain name to look up MX records for",
+  "output": "[\n  {\n    \"Preference\": \"5\",\n    \"Hostname\": \"gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"3252s\"\n  },\n  {\n    \"Preference\": \"10\",\n    \"Hostname\": \"alt1.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"3252s\"\n  },\n  {\n    \"Preference\": \"20\",\n    \"Hostname\": \"alt2.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"3252s\"\n  },\n  {\n    \"Preference\": \"30\",\n    \"Hostname\": \"alt3.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"3252s\"\n  },\n  {\n    \"Preference\": \"40\",\n    \"Hostname\": \"alt4.gmail-smtp-in.l.google.com.\",\n    \"TTL\": \"3252s\"\n  }\n]"
 }

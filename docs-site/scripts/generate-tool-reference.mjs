@@ -85,7 +85,20 @@ function commandOutput(command) {
 }
 
 function commandDescriptions() {
-  return JSON.parse(readFileSync(commandDescriptionsPath, "utf8"))
+  const raw = JSON.parse(readFileSync(commandDescriptionsPath, "utf8"))
+  return Object.fromEntries(
+    Object.entries(raw).map(([command, value]) => {
+      if (typeof value === "string") {
+        return [command, { description: value, category: "Uncategorized", uiPath: null }]
+      }
+      return [command, {
+        description: value.description,
+        category: value.category ?? "Uncategorized",
+        uiPath: value.uiPath ?? null,
+        icon: value.icon ?? null,
+      }]
+    }),
+  )
 }
 
 function uiRoutes() {
@@ -131,7 +144,9 @@ function writeCliReference(examples) {
   for (const entry of examples) {
     lines.push(`## ${titleFromCommand(entry.command)}`)
     lines.push("")
-    lines.push(descriptions[entry.command] ?? "No command description is available yet.")
+    lines.push(descriptions[entry.command]?.description ?? "No command description is available yet.")
+    lines.push("")
+    lines.push(`Category: ${descriptions[entry.command]?.category ?? "Uncategorized"}`)
     lines.push("")
     lines.push("```bash")
     lines.push(entry.example)
@@ -155,13 +170,21 @@ function writeCommandPages(examples) {
     const lines = [
       "---",
       `title: ${titleFromCommand(entry.command)}`,
+      ...(descriptions[entry.command]?.icon ? [`icon: ${JSON.stringify(descriptions[entry.command].icon)}`] : []),
       "---",
       "",
-      `# ${titleFromCommand(entry.command)}`,
+      descriptions[entry.command]?.description ?? "No command description is available yet.",
       "",
-      descriptions[entry.command] ?? "No command description is available yet.",
+      `Tool category: ${descriptions[entry.command]?.category ?? "Uncategorized"}`,
+      ...(descriptions[entry.command]?.uiPath ? ["", `Graphical interface: ${descriptions[entry.command].uiPath}`] : []),
       "",
-      `Generated from \`${entry.name}\`.`,
+      `<!-- Generated from ${entry.name}. -->`,
+      "",
+      "## Command Help",
+      "",
+      "```text",
+      output?.helpOutput ?? "Command help has not been captured yet.",
+      "```",
       "",
       "## Example Command",
       "",
@@ -182,7 +205,7 @@ function writeCommandPages(examples) {
       lines.push(output.output || "(no output)")
       lines.push("```")
       lines.push("")
-      lines.push(`Snapshot source: \`${output.smokeArgsFile}\`.`)
+      lines.push(`<!-- Snapshot source: ${output.smokeArgsFile}. -->`)
     } else {
       lines.push("Command output has not been captured yet.")
       lines.push("")
@@ -229,7 +252,13 @@ function writeInventory(examples, routes) {
     path.join(staticRoot, "generated", "tool-inventory.json"),
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      cli: examples.map((entry) => ({ ...entry, description: descriptions[entry.command] ?? null })),
+      cli: examples.map((entry) => ({
+        ...entry,
+        description: descriptions[entry.command]?.description ?? null,
+        category: descriptions[entry.command]?.category ?? null,
+        uiPath: descriptions[entry.command]?.uiPath ?? null,
+        icon: descriptions[entry.command]?.icon ?? null,
+      })),
       uiRoutes: routes,
     }, null, 2),
   )
