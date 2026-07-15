@@ -13,7 +13,7 @@
     {{ if $pages }}
       <span class="side-nav-label">Commands</span>
       {{ if eq .Section "tools" }}
-        {{ $metadata := index hugo.Data "command-descriptions" }}
+        {{ $metadata := index site.Data "command-descriptions" }}
         {{ $categories := slice
           "DNS Tools"
           "DNSSEC Tools"
