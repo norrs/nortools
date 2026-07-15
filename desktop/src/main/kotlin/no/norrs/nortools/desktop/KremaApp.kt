@@ -3,7 +3,11 @@ package no.norrs.nortools.desktop
 import build.krema.core.Krema
 import build.krema.core.KremaCommand
 import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.main
+import com.github.ajalt.clikt.core.CliktError
+import com.github.ajalt.clikt.core.PrintHelpMessage
+import com.github.ajalt.clikt.core.PrintMessage
+import com.github.ajalt.clikt.core.parse
+import no.norrs.nortools.lib.cli.CommandDescriptions
 import no.norrs.nortools.tools.blocklist.blacklist.BlacklistCheckCommand
 import no.norrs.nortools.tools.blocklist.blocklist.BlocklistCheckCommand
 import no.norrs.nortools.tools.blocklist.cert.CertLookupCommand
@@ -69,7 +73,7 @@ private const val PINNED_UPDATER_PUBLIC_KEY_B64 = "MCowBQYDK2VwAyEAEAaiTgA8yZq2J
 
 fun main(args: Array<String>) {
     val hasUiFlag = args.contains("--ui")
-    if (args.contains("--help") || args.contains("-h")) {
+    if ((args.contains("--help") || args.contains("-h")) && args.none { it.isNotBlank() && !it.startsWith("-") }) {
         printRootHelp()
         return
     }
@@ -472,8 +476,47 @@ private fun runCliIfRequested(args: Array<String>): Boolean {
         return true
     }
 
-    command.main(cmdArgs)
+    try {
+        command.parse(cmdArgs)
+    } catch (error: PrintHelpMessage) {
+        command.echoFormattedHelp(error)
+    } catch (message: PrintMessage) {
+        System.out.println(message.message)
+    } catch (error: CliktError) {
+        System.err.println(command.getFormattedHelp())
+        val renderedError = command.getFormattedHelp(error).orEmpty()
+            .lineSequence()
+            .dropWhile { !it.startsWith("Error:") }
+            .joinToString("\n")
+            .ifBlank { error.message.orEmpty() }
+        if (renderedError.isNotBlank()) {
+            System.err.println()
+            System.err.println(renderedError)
+        }
+        exitProcess(error.statusCode)
+    }
     return true
+}
+
+private data class CliCommandInfo(
+    val name: String,
+    val description: String,
+)
+
+private val cliCommandNames = listOf(
+    "a", "aaaa", "arin", "asn", "bimi", "blacklist", "blocklist", "bulk", "cert", "cname",
+    "compliance", "dkim", "dmarc", "dmarc-generator", "dmarc-report", "dns-health",
+    "dns-propagation", "dnskey", "domain-health", "ds", "email-extract", "deliverability",
+    "header-analyzer", "http", "https", "ipseckey", "loc", "mailflow", "mta-sts", "mx",
+    "nsec", "nsec3param", "ns", "password-gen", "ping", "ptr", "rrsig", "smtp", "soa",
+    "samba-browse", "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace",
+    "txt", "whatismyip", "whois",
+)
+
+private val cliCommands: List<CliCommandInfo> by lazy {
+    cliCommandNames.map { name ->
+        CliCommandInfo(name, CommandDescriptions.descriptionFor(name) ?: "No description available.")
+    }
 }
 
 private fun createCommand(name: String): CliktCommand? = when (name) {
@@ -531,32 +574,14 @@ private fun createCommand(name: String): CliktCommand? = when (name) {
 }
 
 private fun printUnknownCommand(name: String) {
-    val commands = listOf(
-        "a", "aaaa", "arin", "asn", "bimi", "blacklist", "blocklist", "bulk", "cert", "cname",
-        "compliance", "dkim", "dmarc", "dmarc-generator", "dmarc-report", "dns-health",
-        "dns-propagation", "dnskey", "domain-health", "ds", "email-extract", "deliverability",
-        "header-analyzer", "http", "https", "ipseckey", "loc", "mailflow", "mta-sts", "mx",
-        "nsec", "nsec3param", "ns", "password-gen", "ping", "ptr", "rrsig", "smtp", "soa",
-        "samba-browse", "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
-        "whatismyip", "whois",
-    )
     System.err.println("Unknown command: $name")
     System.err.println("Available commands:")
-    System.err.println(commands.joinToString(", "))
+    printCommandList(System.err::println)
     System.err.println("Tip: add --ui to force the desktop UI.")
     exitProcess(2)
 }
 
 private fun printRootHelp() {
-    val commands = listOf(
-        "a", "aaaa", "arin", "asn", "bimi", "blacklist", "blocklist", "bulk", "cert", "cname",
-        "compliance", "dkim", "dmarc", "dmarc-generator", "dmarc-report", "dns-health",
-        "dns-propagation", "dnskey", "domain-health", "ds", "email-extract", "deliverability",
-        "header-analyzer", "http", "https", "ipseckey", "loc", "mailflow", "mta-sts", "mx",
-        "nsec", "nsec3param", "ns", "password-gen", "ping", "ptr", "rrsig", "smtp", "soa",
-        "samba-browse", "spf", "spf-generator", "srv", "subnet-calc", "tcp", "tlsrpt", "trace", "txt",
-        "whatismyip", "whois",
-    )
     println("NorTools")
     println()
     println("Usage:")
@@ -572,5 +597,11 @@ private fun printRootHelp() {
     println("  --help, -h  Show this help")
     println()
     println("Commands:")
-    println(commands.joinToString(", "))
+    printCommandList(::println)
+}
+
+private fun printCommandList(printLine: (String) -> Unit) {
+    for (command in cliCommands) {
+        printLine("  ${command.name.padEnd(16)} ${command.description}")
+    }
 }

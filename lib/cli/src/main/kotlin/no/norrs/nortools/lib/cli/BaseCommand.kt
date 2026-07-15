@@ -22,7 +22,7 @@ abstract class BaseCommand(
     private val helpText: String,
 ) : CliktCommand(name = name) {
 
-    override fun help(context: Context): String = helpText
+    override fun help(context: Context): String = CommandDescriptions.descriptionFor(commandName) ?: helpText
 
     val jsonOutput by option("--json", help = "Output results in JSON format")
         .flag(default = false)

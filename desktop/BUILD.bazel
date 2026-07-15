@@ -94,6 +94,7 @@ kt_jvm_library(
         "//tools/whois/arin",
         "//tools/whois/asn",
         "//tools/whois/whois",
+        "//lib/cli",
         "@maven//:build_krema_krema_core",
     ],
 )
@@ -303,6 +304,27 @@ alias(
     name = "native-linux-amd64",
     actual = ":native-linux-x64",
     visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "native-linux-x64-expanded",
+    srcs = [":native-linux-x64"],
+    outs = [
+        "nortools-linux-x64/nortools",
+        "nortools-linux-x64/libwebview.so",
+        "nortools-linux-x64/routinator",
+        "nortools-linux-x64/iperf3",
+    ],
+    cmd = """
+        set -euo pipefail
+        out_dir="$$(dirname "$(location nortools-linux-x64/nortools)")"
+        rm -rf "$$out_dir"
+        mkdir -p "$$out_dir"
+        tar -xzf "$(location :native-linux-x64)" -C "$$out_dir"
+        chmod +x "$$out_dir/nortools" "$$out_dir/routinator" "$$out_dir/iperf3"
+    """,
+    message = "Extracting native Linux x86_64 package",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 genrule(

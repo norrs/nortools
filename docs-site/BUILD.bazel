@@ -1,5 +1,7 @@
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["data/command-descriptions.json"])
+
 DOCS_SITE_SRCS = glob(
     [
         "content/**",
@@ -34,13 +36,13 @@ DOCS_SITE_SRCS = glob(
 sh_binary(
     name = "dev",
     srcs = ["scripts/dev.sh"],
-    data = DOCS_SITE_SRCS,
+    data = DOCS_SITE_SRCS + ["@pnpm//:pnpm"],
 )
 
 sh_binary(
     name = "capture_command_output",
     srcs = ["scripts/capture_command_output.sh"],
-    data = DOCS_SITE_SRCS,
+    data = DOCS_SITE_SRCS + ["@pnpm//:pnpm"],
 )
 
 NODE_RUNTIME = "@rules_nodejs//nodejs:current_node_runtime"

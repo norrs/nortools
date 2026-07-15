@@ -4,6 +4,7 @@
       {"pattern": "web/.*"},
       {"pattern": "vue/.*"},
       {"pattern": "docs/.*"},
+      {"pattern": "docs-site/data/.*"},
       {"pattern": "native/.*"},
       {"pattern": "META-INF/resources/webjars/.*"},
       {"pattern": "org/eclipse/jetty/server/.*"},

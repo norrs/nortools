@@ -5,6 +5,7 @@ const repoRoot = path.resolve(process.cwd(), "..")
 const contentRoot = path.resolve(process.cwd(), "content")
 const staticRoot = path.resolve(process.cwd(), "static")
 const commandOutputRoot = path.resolve(process.cwd(), "data", "command-output")
+const commandDescriptionsPath = path.resolve(process.cwd(), "data", "command-descriptions.json")
 
 function readText(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), "utf8")
@@ -83,6 +84,10 @@ function commandOutput(command) {
   return JSON.parse(readFileSync(file, "utf8"))
 }
 
+function commandDescriptions() {
+  return JSON.parse(readFileSync(commandDescriptionsPath, "utf8"))
+}
+
 function uiRoutes() {
   const webPortal = readText("web/src/main/kotlin/no/norrs/nortools/web/WebPortal.kt")
   const routePattern = /get\("([^"]+)",\s*VueComponent\("([^"]+)"\)\)/g
@@ -113,6 +118,7 @@ function copyAssets() {
 }
 
 function writeCliReference(examples) {
+  const descriptions = commandDescriptions()
   const lines = [
     "# CLI Reference",
     "",
@@ -125,6 +131,8 @@ function writeCliReference(examples) {
   for (const entry of examples) {
     lines.push(`## ${titleFromCommand(entry.command)}`)
     lines.push("")
+    lines.push(descriptions[entry.command] ?? "No command description is available yet.")
+    lines.push("")
     lines.push("```bash")
     lines.push(entry.example)
     lines.push(entry.jsonExample)
@@ -136,6 +144,7 @@ function writeCliReference(examples) {
 }
 
 function writeCommandPages(examples) {
+  const descriptions = commandDescriptions()
   const toolsRoot = path.join(contentRoot, "tools")
   for (const file of readdirSync(toolsRoot).filter((name) => name.endsWith(".md"))) {
     rmSync(path.join(toolsRoot, file), { force: true })
@@ -150,7 +159,9 @@ function writeCommandPages(examples) {
       "",
       `# ${titleFromCommand(entry.command)}`,
       "",
-      `Command page generated from \`${entry.name}\`.`,
+      descriptions[entry.command] ?? "No command description is available yet.",
+      "",
+      `Generated from \`${entry.name}\`.`,
       "",
       "## Example Command",
       "",
@@ -212,10 +223,15 @@ function writeStandardsReference() {
 }
 
 function writeInventory(examples, routes) {
+  const descriptions = commandDescriptions()
   ensureDir(path.join(staticRoot, "generated"))
   writeFileSync(
     path.join(staticRoot, "generated", "tool-inventory.json"),
-    JSON.stringify({ generatedAt: new Date().toISOString(), cli: examples, uiRoutes: routes }, null, 2),
+    JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      cli: examples.map((entry) => ({ ...entry, description: descriptions[entry.command] ?? null })),
+      uiRoutes: routes,
+    }, null, 2),
   )
 }
 

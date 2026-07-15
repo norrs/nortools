@@ -5,6 +5,7 @@ const contentRoot = path.resolve(process.cwd(), "content")
 const staticRoot = path.resolve(process.cwd(), "static")
 const layoutsRoot = path.resolve(process.cwd(), "layouts")
 const commandOutputRoot = path.resolve(process.cwd(), "data", "command-output")
+const commandDescriptionsFile = path.resolve(process.cwd(), "data", "command-descriptions.json")
 const repoRoot = path.resolve(process.cwd(), "..")
 const smokeArgsRoot = path.resolve(repoRoot, "cli_native", "smoke", "args")
 const errors = []
@@ -88,7 +89,15 @@ function smokeCommands() {
 }
 
 function checkGeneratedCommandPages() {
+  if (!existsSync(commandDescriptionsFile)) {
+    errors.push("missing command descriptions data file")
+    return
+  }
+  const descriptions = JSON.parse(readFileSync(commandDescriptionsFile, "utf8"))
   for (const entry of smokeCommands()) {
+    if (!descriptions[entry.command]) {
+      errors.push(`missing command description for ${entry.command}`)
+    }
     const outputFile = path.join(commandOutputRoot, `${entry.command}.json`)
     if (!existsSync(outputFile)) {
       errors.push(`missing captured output snapshot for ${entry.command}`)
@@ -101,6 +110,11 @@ function checkGeneratedCommandPages() {
     const pageFile = path.join(contentRoot, "tools", `${entry.command}.md`)
     if (!existsSync(pageFile)) {
       errors.push(`generated command page missing for ${entry.command}`)
+      continue
+    }
+    const pageText = readFileSync(pageFile, "utf8")
+    if (descriptions[entry.command] && !pageText.includes(descriptions[entry.command])) {
+      errors.push(`generated command page for ${entry.command} does not include its description`)
     }
   }
 }

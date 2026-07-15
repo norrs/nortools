@@ -8,4 +8,18 @@ if [[ -z "$workspace" ]]; then
 fi
 
 cd "$workspace"
-exec bazelisk run @pnpm//:pnpm -- --dir "$workspace/docs-site" docs:capture
+
+runfiles="${RUNFILES_DIR:-$0.runfiles}"
+if [[ ! -d "$runfiles" ]]; then
+  echo "ERROR: unable to locate Bazel runfiles for @pnpm//:pnpm" >&2
+  exit 1
+fi
+
+pnpm="$(find "$runfiles" -path '*/pnpm_/pnpm' -print -quit)"
+if [[ -z "$pnpm" ]]; then
+  echo "ERROR: unable to locate @pnpm//:pnpm in Bazel runfiles" >&2
+  exit 1
+fi
+
+export BAZEL_BINDIR="${BAZEL_BINDIR:-.}"
+exec "$pnpm" --dir "$workspace/docs-site" docs:capture
